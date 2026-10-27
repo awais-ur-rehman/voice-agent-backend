@@ -43,7 +43,7 @@ def build_payload(model: str, text: str) -> dict:
                'tool_choice': 'auto', 'stream': True, 'temperature': 0.3, 'max_tokens': 300}
     canonical_model = model.removeprefix('stg/')
     if canonical_model == 'nvidia/nemotron-3.5-bolt-e4b':
-        payload.update(temperature=1.0, top_p=0.95, parallel_tool_calls=False,
+        payload.update(temperature=1.0, top_p=0.95, parallel_tool_calls=False, skip_special_tokens=False,
                        chat_template_kwargs={'enable_thinking': False})
     elif canonical_model == 'minimaxai/minimax-m3.1-flash':
         # No thinking-off control is documented for this hosted endpoint.

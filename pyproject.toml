@@ -1,0 +1,6 @@
+[project]
+name = "voice-agent-evaluation"
+version = "0.1.0"
+description = "Synthetic CPU-only Phase 0 evaluation tools"
+requires-python = ">=3.12,<3.13"
+dependencies = ["jsonschema>=4.25,<5"]

@@ -1,45 +1,37 @@
 # Phase 0: bilingual voice feasibility
 
-Status: CPU evaluation tooling implemented on the Phase 0 feature branch; one live Nemotron text/tool evaluation has run; see [results](nemotron-phase-0-results.md). Owner confirmed on October 27, 2026 that no GPU is available and a NIM API key was initially pending and has since been configured locally. Owner selected CPU + hosted NIM first, leaving GPU voice latency checks pending.
+The owner authorized a CPU-only evaluation/preparation checkpoint using hosted Nemotron. That package is delivered; **the expanded model flow checks did not pass**, and human review remains open. See [observed results](phase-0-cpu-results.md), [current status](phase-0-progress.md), and [owner test checklist](phase-0-owner-checkpoint.md).
 
-## Governing specifications
+## Governing scope
 
-The owner supplied both v0.1 (PRD, TRD, flows and implementation plan) and v0.2 (Urdu + NIM + open-source addendum) in the parent workspace's `documents` directory. v0.2 takes precedence. Separate frontend/backend repositories replace v0.1's suggested monorepo at the owner's request.
+The owner's v0.1 PRD/TRD/flows/phase plan and v0.2 Urdu/NIM addendum remain in `../documents`; v0.2 wins conflicts. The owner requested separate frontend/backend repositories instead of the suggested monorepo. No production scheduling service or dashboard is implemented in Phase 0.
 
-## Scope and boundaries
+The owner has no GPU, chose CPU + hosted NIM preparation, selected Nemotron after three additional candidates were unavailable, and deferred further model comparisons/GPU voice latency work. Hosted model selection is a development baseline, not production approval. No GPU purchase is authorized.
 
-Phase 0 validates the streaming voice stack; it does not implement clinic auth, scheduling, dashboards, or production patient flows. Backend owns evaluation and voice processes. Frontend will provide a minimal browser microphone test console, transcript, interruption behavior, and stage timing display once the phase design is agreed.
+## CPU checkpoint deliverables
 
-No GPU is needed to call hosted NIM. That does not provide the spec's self-hosted Whisper/Parler compute. CPU experiments may establish functionality but cannot validate a GPU deployment's latency or concurrency. No cloud GPU purchase is authorized.
+- Original 40-case hosted extraction baseline and documented failures.
+- Thirty paired English/Urdu next-action scenarios, 60 hosted probes, and 12 speech-text review samples. These use supplied state/history and never execute tools; they are not the future full state-machine/database simulator.
+- Resolver golden requirements covering every v0.2 section 5.3 row, all Urdu number values 0–100 and structured normalizer cases, with proposed decisions awaiting native/owner review.
+- Proposed shared tool-result JSON Schema and executable consistency checks.
+- Reproducible Python 3.12 tooling, hashed dependencies, offline CI, secret-safe private reports, a native review artifact and exact owner testing instructions.
+- Unrecorded audio collection template for the later 200 Urdu/50 mixed corpus, not fabricated WER/CER or MOS.
 
-## Proposed order
+## Original full Phase 0 evidence still open
 
-1. CPU-compatible preparation: synthetic evaluation fixtures, schemas, a hosted-LLM evaluation runner, monotonic stage measurements, explicit missing-resource diagnostics, and a reproducible environment.
-2. With the owner's locally configured key: verify catalog access and compare four accessible model candidates on 40 scripted turns each (20 Urdu, 10 English, 10 mixed). Score valid tool JSON, correct tools/arguments, Urdu-script quality, and TTFT. Distinguish automated checks from native-speaker judgments. Measure observed rate limiting conservatively and record errors/retries; do not claim an account-wide contractual RPM cap from one run.
-3. With suitable compute: Pipecat + self-hosted LiveKit + Silero + faster-whisper large-v3-turbo + Kokoro + Indic Parler-TTS. Compare Whisper turbo/large-v3 with/without vocabulary prompts. Record device, exact artifact revisions, region, and warm/cold conditions.
-4. Evaluate six Urdu voice candidates, first-byte latency, sentence consistency, and native-speaker MOS. Catalog target is three voices per gender per language, subject to owner confirmation and verified model capabilities/licenses.
-5. Measure English/Urdu end-to-end p50/p95 from a Pakistani network and interruption stop time. Owner runs the browser acceptance flow and reviews findings before any Phase 1 work.
+- Comparable four-model results/validated primary+secondary and account rate capacity. Extra comparisons are currently owner-deferred, not passed.
+- At least 200 Urdu utterances from ten actual consenting speakers, 50 mixed utterances, and approximately one hour of clinic-style audio; then stock Whisper turbo/large-v3 comparisons with/without vocabulary prompts and name/number accuracy.
+- Six Urdu voice candidates, human MOS, consistency and first audio byte on target compute. If Urdu TTS first byte exceeds 600 ms on target GPU, evaluate an appropriately licensed faster alternative before Phase 3.
+- Pipecat + self-hosted LiveKit + Silero + Whisper + Kokoro + Parler with real browser streaming/interruption/reconnect measurements.
+- English p50 <800 ms / p95 <1.5 s; Urdu p50 <1.2 s / p95 <2 s; barge-in stop <200 ms. These are targets, not observed complete-pipeline results.
+- Exact model/voice revisions, commercial-friendly terms, fallback voice existence/license, deployment/data-processor choices, and load/failover evidence.
 
-## Exit evidence (all pending)
+## Decisions to review before foundations
 
-- Four-model bake-off results, accessible model identifiers, selected primary/secondary, and observed rate behavior.
-- At least 200 recorded Urdu utterances across 10 speakers, plus 50 mixed utterances; document recording consent and keep identifiable audio private. Include the approximately one-hour clinic-style corpus required by v0.2 section 5.6.
-- WER/CER plus name/number accuracy, including vocabulary-prompt comparisons.
-- Six Urdu voice samples, human MOS, and TTS first-byte results. If Urdu TTFB exceeds 600 ms on target GPU, evaluate a licensed faster alternative before Phase 3.
-- English target p50 <800 ms, p95 <1.5 s; Urdu target p50 <1.2 s, p95 <2 s. Barge-in stop target <200 ms. Targets are not measured results.
-- Exact model/voice licenses and revisions recorded in `docs/licenses.md`; verify streaming capabilities rather than assuming full-sequence generation measures first audio.
-- First 30 bilingual simulator scenarios and resolver/normalizer tables prepared before production code.
-- Owner decisions captured: Urdu register, non-Urdu/English behavior, compute, pilot data/provider terms, catalog size, web-only scope.
+The checklist records proposed conversational Urdu, Urdu/English-only MVP, web-first delivery, six voices per language, synthetic-only hosted development, and the resolver's strictly-future next-weekday rule. They are proposals until the owner accepts or changes them. Locale and policy decisions must remain explicit; the model cannot invent them.
 
-## Spec issues to resolve during design
+Unresolved implementation details remain tracked for their owning phases: selected-slot versus offered-slot hold semantics; explicit staff authority for cancellation policy exceptions; actual Whisper language restriction and streaming Parler capabilities; and paid messaging phase terminology. The scheduling database remains the authority; prompts never replace guards or exclusion constraints.
 
-- v0.1 assumes 20 calls/node; v0.2 warns hosted limits may allow only a handful. Treat concurrency as measured capacity, not a guaranteed MVP number.
-- Booking flow holds a selected slot, while v0.1's soft-hold paragraph also describes holding offered slots. Define exact semantics before the slot engine is built.
-- Cancellation policy failure cannot be overridden merely by caller confirmation; policy and staff authority must define the permitted path.
-- Restricting Whisper language choices and streaming Parler audio are requirements to prove through the chosen adapters, not presumed stock API features.
-- Verify the existence/license of an Urdu Piper fallback and each model's terms; do not assume all suggested candidates have interchangeable licenses or hardware footprints.
-- v0.2 refers to WhatsApp in Phase 2 while v0.1 uses later-phase terminology; keep paid messaging out of the current phase and resolve scope explicitly.
+## Stop point
 
-## Owner checkpoint
-
-Preparation is not Phase 0 completion. Do not proceed to Phase 1 until the evidence above is collected or the owner explicitly revises scope and accepts documented gaps.
+Phase 1 has not started. Review the delivered CPU package and model failures first. The owner may explicitly authorize Phase 1 **database/API foundations with synthetic data**, retaining unresolved LLM/voice findings as gates before agent integration. If the original full voice feasibility criterion is required before foundations, the evidence above remains missing. Do not merge, release, or advance automatically.

@@ -1,6 +1,6 @@
 # License ledger
 
-Project source uses MIT. The experimental CPU runner uses Python's standard library only (Python Software Foundation license: https://docs.python.org/3/license.html). No third-party runtime dependency, model weights, or voice artifact has been installed or approved yet. NVIDIA hosted API access is a service governed by NVIDIA/account/model terms, not covered by this project's MIT license.
+Project source uses MIT. The original experimental HTTP runner uses Python's standard library (Python Software Foundation license: https://docs.python.org/3/license.html). Validation dependencies are now recorded below; no model weights or voice artifact have been downloaded or approved. NVIDIA hosted API access is a service governed by NVIDIA/account/model terms, not covered by this project's MIT license.
 
 Before adoption, record the exact artifact identifier, version/revision, upstream license URL, license, redistribution obligations, and review date. Models, model weights, engines, and individual voices need separate entries. A candidate in the spec is not a verified license entry.
 
@@ -17,3 +17,16 @@ No weights or voices downloaded; no immutable hosted weight revisions exposed or
 - `minimaxai/minimax-m3.1-flash`: the [NVIDIA model card](https://build.nvidia.com/minimaxai/minimax-m3.1-flash/modelcard) expressly states research and development only. It is not approved for a production clinic deployment and is not a verified MIT/Apache-equivalent artifact. The card describes a model far beyond the planned single-GPU weight budget; hosted testing does not establish a self-hosting path.
 - `meta/muse-glimmer-30b`: the [NVIDIA model card](https://build.nvidia.com/meta/muse-glimmer-30b/modelcard) lists the NVIDIA Open Model Agreement and additional Apache-2.0 base-model information. Production adoption, redistribution obligations, exact artifact license, and target GPU fit remain unreviewed.
 - `google/diffusiongemma-26b-a4b-it`: the [NVIDIA model card](https://build.nvidia.com/google/diffusiongemma-26b-a4b-it/modelcard) lists the NVIDIA Open Model Agreement with additional Apache-2.0, Gemma Terms of Use, and Gemma Prohibited Use Policy information. Do not simplify this to an Apache-only clearance; exact artifact terms and redistribution obligations remain unreviewed.
+
+## CPU validation dependencies — October 27, 2026
+
+`requirements.lock` pins versions and artifact hashes; `pyproject.toml` records the direct dependency range. Installed distribution metadata was inspected for the versions below. This is tooling, not a model/voice license approval. Python itself remains PSF licensed.
+
+| Package | Locked version | Installed license expression | Upstream |
+| --- | --- | --- | --- |
+| jsonschema | 4.26.0 | MIT | https://github.com/python-jsonschema/jsonschema |
+| attrs | 26.1.0 | MIT | https://github.com/python-attrs/attrs |
+| jsonschema-specifications | 2025.9.1 | MIT | https://github.com/python-jsonschema/jsonschema-specifications |
+| referencing | 0.37.0 | MIT | https://github.com/python-jsonschema/referencing |
+| rpds-py | 2026.9.1 | MIT | https://github.com/crate-py/rpds |
+| typing-extensions | 4.16.0 | PSF-2.0 | https://github.com/python/typing_extensions |

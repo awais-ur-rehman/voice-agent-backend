@@ -10,4 +10,4 @@
 - Commit dependency locks, migrations, and public schemas with the changes they support.
 - Never commit `.env`, API keys, patient information, raw recordings, or unredacted evaluation output. Use synthetic public fixtures.
 
-Phase 0 checks: `python3 -m unittest discover -s tests -v` and `python3 -m evaluation --dry-run`. CI runs both on Python 3.12. Once production code is introduced, expand CI with the relevant lint/type/build and behavior checks before integration.
+Phase 0 checks: install the hash-locked requirements in a Python 3.12 virtual environment, then run `.venv/bin/python -m unittest discover -s tests -v`, both evaluation dry runs, and `.venv/bin/python -m evaluation.assets` as documented in README. CI runs the same offline checks on Python 3.12. Once production code is introduced, expand CI with the relevant lint/type/build and behavior checks before integration.

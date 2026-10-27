@@ -1,56 +1,76 @@
 # Voice Agent Backend
 
-Backend and voice-runtime workspace for an English/Urdu appointment scheduler for Pakistani clinics.
+Backend/voice-runtime workspace for an English/Urdu clinic appointment scheduler. The current feature branch contains **CPU-only Phase 0 evaluation tooling**, not a production API, booking engine, or live voice service.
 
-## Status
+The governing v0.1 product/engineering spec and v0.2 Urdu/NIM addendum live in the parent workspace's `documents/` directory. v0.2 wins conflicts. The owner selected hosted Nemotron with thinking disabled; the other three candidate endpoints and GPU voice latency work are deferred.
 
-Phase 0 CPU evaluation tooling is available on `feat/phase-0-feasibility`. There is no production API or voice service yet. The initial hosted Nemotron run completed 40 requests with 38 strict argument matches; see [results](docs/nemotron-phase-0-results.md). Full voice feasibility is unvalidated. The owner selected CPU + hosted NIM evaluation; GPU voice latency checks remain pending.
+Start with [CPU results](docs/phase-0-cpu-results.md) and the [owner test checkpoint](docs/phase-0-owner-checkpoint.md). Do not equate a completed evaluation with a passed voice/product feasibility gate.
 
-The governing input is **Voice AI Appointment Scheduler — Spec v0.2**, dated October 27, 2026. It is an addendum to v0.1, now also supplied in the parent workspace; v0.2 takes precedence where they conflict.
+## Setup
 
-## Planned boundaries
-
-- FastAPI/Python 3.12 owns clinic APIs, scheduling policies, verification, and persistence.
-- A separate worker process owns Pipecat/LiveKit audio sessions and provider adapters.
-- PostgreSQL 16 with pgvector stores durable data; Valkey stores temporary state.
-- NIM is the development/pilot LLM provider; an OpenAI-compatible adapter must permit vLLM migration.
-- Shared JSON Schema contracts live in `packages/schemas` here once implemented. Publish versioned contract artifacts for the separate frontend; do not maintain two handwritten contracts.
-
-English and Urdu launch together, including mixed speech. Default clinic timezone is `Asia/Karachi`, currency is PKR, and phone normalization uses Pakistan numbering rules. The LLM requests operations through tools; code enforces transitions, verification, policy, and booking consistency.
-
-See [Phase 0](docs/phase-0.md), [engineering rules](AGENTS.md), and [contribution workflow](CONTRIBUTING.md).
-
-## Run the CPU evaluation
-
-Requires Python 3.12; no third-party packages or GPU are needed for this experimental runner.
+Requires Python 3.12. No local GPU is needed for these text/fixture checks.
 
 ```bash
-python3 -m unittest discover -s tests -v
-python3 -m evaluation --dry-run
+uv venv --python 3.12 .venv
+uv pip sync --python .venv/bin/python --require-hashes requirements.lock
 ```
 
-Copy `.env.example` to `.env` and set `LLM_API_KEY` locally. Obtain the key through [NVIDIA's API Catalog guide](https://docs.api.nvidia.com/nim/docs/api-quickstart). Select an exact model identifier available to your account from the [NIM LLM reference](https://docs.api.nvidia.com/nim/reference/llm-apis), then smoke-test one synthetic case:
+Or create a Python 3.12 virtual environment and run `.venv/bin/python -m pip install --require-hashes -r requirements.lock`. Skip environment creation if the prepared `.venv` already exists. The direct evaluation transport uses the standard library; fixture/contract validation uses hash-locked `jsonschema` and its dependencies.
+
+Copy `.env.example` to `.env` only on first setup and configure `LLM_API_KEY` locally. Never overwrite an existing secret file. The runner expects one active key; commented alternatives are ignored. `LLM_MODEL` should be `nvidia/nemotron-3.5-bolt-e4b`; the commands below also pass the model explicitly to avoid stale environment selections.
+
+## Offline verification
 
 ```bash
-python3 -m evaluation --model YOUR_MODEL_ID --limit 1
+.venv/bin/python -m unittest discover -s tests -v
+.venv/bin/python -m evaluation --dry-run
+.venv/bin/python -m evaluation.flows --dry-run
+.venv/bin/python -m evaluation.assets
 ```
 
-For a complete single-model run, omit `--limit`. Repeat for four model candidates. The built-in suite has 40 single-turn cases: 20 Urdu, 10 English, and 10 mixed. It covers raw date-phrase extraction and structured clinic-info tool selection; it is not the multi-turn appointment simulator. Expected arguments are exact matches, so semantically equivalent transformations require human review rather than silently counting as correct.
+CI runs the same offline checks on Python 3.12 after installing the hashed lockfile. No API key or live inference is used in CI.
 
-Reports go to ignored `results/` with private file permissions. They contain synthetic model outputs for review. Exit codes: `0` all requested cases pass; `1` a provider or scoring failure; `2` invalid configuration. Runs stop at the first provider failure, retain the partial report, and do not retry automatically. Default spacing is two seconds between requests; use `--interval` to honor your account allowance. This is not a rate-limit saturation test.
+The preparation package includes:
 
-`first_output_ms` is the first meaningful content/tool fragment, while `first_content_ms` is the first content delta and can be absent for tool-only responses. These measure client-observed deltas, not tokenizer-level TTFT. `first_usable_content_ms` is unassessed if inline thinking/analysis tags appear; such responses fail the reasoning-leak check. Raw content/output timing remains available for diagnosis. Percentiles use nearest rank over completed requests and expose sample counts; inspect failure counts alongside latency. The 30-second default socket timeout is an experimental measurement ceiling, not the production three-second fallback threshold.
+- Original 40 extraction/clinic-info cases: 20 Urdu, 10 English, 10 mixed.
+- Thirty next-action scenarios, each in English and Urdu: supplied synthetic history/state, expected action and arguments; no tool is executed.
+- Twelve speech-text samples for native-speaker review: respectful Urdu, language persistence, unknown answers, and exact code-supplied `say` delivery.
+- Thirty-five resolver golden cases, all number expectations from 0–100, and 15 structured normalizer cases. These are requirements for the later resolver/normalizer, not implementations.
+- A proposed versioned bilingual tool-result JSON Schema and positive/negative examples.
+- An unrecorded manifest with 200 Urdu + 50 mixed prompts across ten speaker slots. A prompt is not a recording or a ground-truth transcript.
 
-Urdu-input prose checks detect Arabic-script text and reject Devanagari; mixed-input prose has no assumed output language. These heuristics cannot establish Urdu fluency, respectful register, or absence of Roman Urdu. Tool-only replies have no prose score. For `nvidia/nemotron-3.5-bolt-e4b` (and its explicit `stg/` alias), the runner sends `chat_template_kwargs.enable_thinking=false`, `parallel_tool_calls=false`, temperature 1.0, and top_p 0.95. These model-specific sampling settings follow NVIDIA's model card rather than the generic 0.3 baseline. Reports record the exact generation configuration and the number of separately returned reasoning characters. Other models retain prompt-only suppression until their adapters are verified. Native-speaker review, audio tests, GPU performance, and real account rate limits remain pending.
+## Hosted Nemotron evaluation
 
-### Additional Phase 0 candidates
+Use synthetic fixtures only. Obtain a key using [NVIDIA's API Catalog guide](https://docs.api.nvidia.com/nim/docs/api-quickstart).
 
-The user evaluated access to three additional NIM candidates and subsequently deferred them after the playground checks also failed. Nemotron with thinking disabled is the owner-selected development baseline. Request profiles follow their model-specific API references; endpoint inference remains unverified because the initial tool and basic-text requests timed out. See [comparison status](docs/model-comparison-status.md).
+```bash
+# Original single-turn baseline; --limit 1 is a smoke test.
+.venv/bin/python -m evaluation --model nvidia/nemotron-3.5-bolt-e4b --limit 1
 
-| Model | Configured reasoning control | Sampling |
-| --- | --- | --- |
-| `minimaxai/minimax-m3.1-flash` | Prompt only; no thinking-off control verified for the hosted endpoint | temperature 1.0, top_p 0.95 |
-| `meta/muse-glimmer-30b` | `reasoning_effort=none`, documented by its API reference; not yet observed live | temperature 0.95, top_p 1.0 |
-| `google/diffusiongemma-26b-a4b-it` | `chat_template_kwargs.enable_thinking=false`; not yet observed live | temperature 1.0, top_p 0.95 |
+# Full expanded suite: sixty state-conditioned action probes and twelve prose samples.
+.venv/bin/python -m evaluation.flows --model nvidia/nemotron-3.5-bolt-e4b
 
-Commented `.env` assignments remain ignored by the normal runner. Keep one active `LLM_API_KEY` and set `LLM_MODEL` to its intended candidate, or pass `--model` explicitly. Never uncomment multiple assignments with the same name: the loader preserves the first value, which can cause the wrong key to be used. The owner-approved comparison attempts selected each labeled key in process memory using a temporary local script; the secret-bearing `.env` was not published.
+# Language samples only, or a selected language for a short manual rerun.
+.venv/bin/python -m evaluation.flows --model nvidia/nemotron-3.5-bolt-e4b --suite language
+.venv/bin/python -m evaluation.flows --model nvidia/nemotron-3.5-bolt-e4b --scenario correct-date
+```
+
+Nemotron requests explicitly send thinking off, parallel calls off, and `skip_special_tokens=false`, with temperature 1.0/top_p 0.95 from the model-specific guidance. Expanded action probes use `tool_choice=required` across the full tool set; they never force the expected tool name. Language probes have no tools. Original baseline runs used `auto`. Every report records its actual request options; results from different configurations must not be treated as a controlled A/B experiment.
+
+Each request is separated by two seconds by default. No hidden retry/failover or saturation test is performed. `--interval` and `--timeout` control pacing/socket timeout; the 30-second experimental ceiling is not the production three-second failover policy. Runs stop at the first provider failure and retain partial reports. A scoring failure does not stop remaining samples. Exit codes: 0 all requested mechanical checks pass; 1 a scoring/provider failure; 2 invalid configuration.
+
+JSON reports are private files under ignored `results/`. First content/tool deltas are client-observed timing, not tokenizer-level TTFT or end-to-end audio latency. Language checks are heuristics, with **human review pending even on a mechanical pass**. Correct tool selection does not prove an implemented state machine, database transaction, caller verification, or successful booking.
+
+## Review the outputs
+
+```bash
+.venv/bin/python -m evaluation.review results/phase0-nemotron-final-72.json --suite language
+```
+
+The generated local HTML escapes all model text, renders mixed scripts, and keeps human acceptance separate from automated scores. Open it from the file link in [CPU results](docs/phase-0-cpu-results.md). A fresh live run gets a timestamped report name; pass that path instead. The review command does not overwrite an existing reviewed artifact.
+
+## Planned production boundaries
+
+FastAPI/Python 3.12 owns auth, clinic APIs, policy, verification and persistence. A separate worker process owns Pipecat/LiveKit sessions. PostgreSQL 16/pgvector is durable storage; Valkey holds temporary state. Production scheduling safety belongs in code and database constraints, never prompts. A production LLM adapter follows the spec's OpenAI-compatible SDK path; this small evaluation transport does not replace it.
+
+Backend owns shared schemas under `packages/schemas`; publish versioned artifacts for the separate frontend rather than maintaining handwritten duplicate contracts. Default clinic timezone is `Asia/Karachi`, currency PKR, with Pakistan phone normalization. [Engineering rules](AGENTS.md), [branch workflow](CONTRIBUTING.md), [license ledger](docs/licenses.md), and [comparison status](docs/model-comparison-status.md) apply.

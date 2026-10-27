@@ -129,6 +129,7 @@ class ConfigurationTests(unittest.TestCase):
         payload = build_payload('nvidia/nemotron-3.5-bolt-e4b', 'کل وقت چاہیے۔')
         self.assertEqual(payload['chat_template_kwargs'], {'enable_thinking': False})
         self.assertIs(payload['parallel_tool_calls'], False)
+        self.assertIs(payload['skip_special_tokens'], False)
         self.assertEqual(payload['temperature'], 1.0)
         self.assertEqual(payload['top_p'], 0.95)
         self.assertEqual(payload['messages'][-1]['content'], 'کل وقت چاہیے۔')

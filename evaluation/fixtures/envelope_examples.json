@@ -1,0 +1,83 @@
+[
+  {
+    "id": "success",
+    "valid": true,
+    "value": {
+      "ok": true,
+      "data": {
+        "fixture": true
+      },
+      "say": {
+        "en": "No matching appointment was found.",
+        "ur": "متعلقہ اپوائنٹمنٹ نہیں ملی۔"
+      },
+      "error": null
+    }
+  },
+  {
+    "id": "failure",
+    "valid": true,
+    "value": {
+      "ok": false,
+      "data": null,
+      "say": {
+        "en": "No matching appointment was found.",
+        "ur": "متعلقہ اپوائنٹمنٹ نہیں ملی۔"
+      },
+      "error": {
+        "code": "not_owner",
+        "retryable": false
+      }
+    }
+  },
+  {
+    "id": "bad-success-error",
+    "valid": false,
+    "value": {
+      "ok": true,
+      "data": {},
+      "say": {
+        "en": "No matching appointment was found.",
+        "ur": "متعلقہ اپوائنٹمنٹ نہیں ملی۔"
+      },
+      "error": {
+        "code": "not_owner",
+        "retryable": false
+      }
+    }
+  },
+  {
+    "id": "leaked-error-data",
+    "valid": false,
+    "value": {
+      "ok": false,
+      "data": {
+        "phone": "should-not-be-returned"
+      },
+      "say": {
+        "en": "No matching appointment was found.",
+        "ur": "متعلقہ اپوائنٹمنٹ نہیں ملی۔"
+      },
+      "error": {
+        "code": "not_owner",
+        "retryable": false
+      }
+    }
+  },
+  {
+    "id": "unknown-code",
+    "valid": false,
+    "value": {
+      "ok": false,
+      "data": null,
+      "say": {
+        "en": "No matching appointment was found.",
+        "ur": "متعلقہ اپوائنٹمنٹ نہیں ملی۔"
+      },
+      "error": {
+        "code": "unknown",
+        "retryable": false
+      }
+    }
+  }
+]

@@ -1,0 +1,519 @@
+{
+  "review_status": "native-speaker review pending; these are proposed canonical spellings, not synthesized audio",
+  "numbers_0_100": [
+    {
+      "value": 0,
+      "say_ur": "صفر"
+    },
+    {
+      "value": 1,
+      "say_ur": "ایک"
+    },
+    {
+      "value": 2,
+      "say_ur": "دو"
+    },
+    {
+      "value": 3,
+      "say_ur": "تین"
+    },
+    {
+      "value": 4,
+      "say_ur": "چار"
+    },
+    {
+      "value": 5,
+      "say_ur": "پانچ"
+    },
+    {
+      "value": 6,
+      "say_ur": "چھ"
+    },
+    {
+      "value": 7,
+      "say_ur": "سات"
+    },
+    {
+      "value": 8,
+      "say_ur": "آٹھ"
+    },
+    {
+      "value": 9,
+      "say_ur": "نو"
+    },
+    {
+      "value": 10,
+      "say_ur": "دس"
+    },
+    {
+      "value": 11,
+      "say_ur": "گیارہ"
+    },
+    {
+      "value": 12,
+      "say_ur": "بارہ"
+    },
+    {
+      "value": 13,
+      "say_ur": "تیرہ"
+    },
+    {
+      "value": 14,
+      "say_ur": "چودہ"
+    },
+    {
+      "value": 15,
+      "say_ur": "پندرہ"
+    },
+    {
+      "value": 16,
+      "say_ur": "سولہ"
+    },
+    {
+      "value": 17,
+      "say_ur": "سترہ"
+    },
+    {
+      "value": 18,
+      "say_ur": "اٹھارہ"
+    },
+    {
+      "value": 19,
+      "say_ur": "انیس"
+    },
+    {
+      "value": 20,
+      "say_ur": "بیس"
+    },
+    {
+      "value": 21,
+      "say_ur": "اکیس"
+    },
+    {
+      "value": 22,
+      "say_ur": "بائیس"
+    },
+    {
+      "value": 23,
+      "say_ur": "تئیس"
+    },
+    {
+      "value": 24,
+      "say_ur": "چوبیس"
+    },
+    {
+      "value": 25,
+      "say_ur": "پچیس"
+    },
+    {
+      "value": 26,
+      "say_ur": "چھبیس"
+    },
+    {
+      "value": 27,
+      "say_ur": "ستائیس"
+    },
+    {
+      "value": 28,
+      "say_ur": "اٹھائیس"
+    },
+    {
+      "value": 29,
+      "say_ur": "انتیس"
+    },
+    {
+      "value": 30,
+      "say_ur": "تیس"
+    },
+    {
+      "value": 31,
+      "say_ur": "اکتیس"
+    },
+    {
+      "value": 32,
+      "say_ur": "بتیس"
+    },
+    {
+      "value": 33,
+      "say_ur": "تینتیس"
+    },
+    {
+      "value": 34,
+      "say_ur": "چونتیس"
+    },
+    {
+      "value": 35,
+      "say_ur": "پینتیس"
+    },
+    {
+      "value": 36,
+      "say_ur": "چھتیس"
+    },
+    {
+      "value": 37,
+      "say_ur": "سینتیس"
+    },
+    {
+      "value": 38,
+      "say_ur": "اڑتیس"
+    },
+    {
+      "value": 39,
+      "say_ur": "انتالیس"
+    },
+    {
+      "value": 40,
+      "say_ur": "چالیس"
+    },
+    {
+      "value": 41,
+      "say_ur": "اکتالیس"
+    },
+    {
+      "value": 42,
+      "say_ur": "بیالیس"
+    },
+    {
+      "value": 43,
+      "say_ur": "تینتالیس"
+    },
+    {
+      "value": 44,
+      "say_ur": "چوالیس"
+    },
+    {
+      "value": 45,
+      "say_ur": "پینتالیس"
+    },
+    {
+      "value": 46,
+      "say_ur": "چھیالیس"
+    },
+    {
+      "value": 47,
+      "say_ur": "سینتالیس"
+    },
+    {
+      "value": 48,
+      "say_ur": "اڑتالیس"
+    },
+    {
+      "value": 49,
+      "say_ur": "انچاس"
+    },
+    {
+      "value": 50,
+      "say_ur": "پچاس"
+    },
+    {
+      "value": 51,
+      "say_ur": "اکیاون"
+    },
+    {
+      "value": 52,
+      "say_ur": "باون"
+    },
+    {
+      "value": 53,
+      "say_ur": "ترپن"
+    },
+    {
+      "value": 54,
+      "say_ur": "چوّن"
+    },
+    {
+      "value": 55,
+      "say_ur": "پچپن"
+    },
+    {
+      "value": 56,
+      "say_ur": "چھپن"
+    },
+    {
+      "value": 57,
+      "say_ur": "ستاون"
+    },
+    {
+      "value": 58,
+      "say_ur": "اٹھاون"
+    },
+    {
+      "value": 59,
+      "say_ur": "انسٹھ"
+    },
+    {
+      "value": 60,
+      "say_ur": "ساٹھ"
+    },
+    {
+      "value": 61,
+      "say_ur": "اکسٹھ"
+    },
+    {
+      "value": 62,
+      "say_ur": "باسٹھ"
+    },
+    {
+      "value": 63,
+      "say_ur": "تریسٹھ"
+    },
+    {
+      "value": 64,
+      "say_ur": "چونسٹھ"
+    },
+    {
+      "value": 65,
+      "say_ur": "پینسٹھ"
+    },
+    {
+      "value": 66,
+      "say_ur": "چھیاسٹھ"
+    },
+    {
+      "value": 67,
+      "say_ur": "سڑسٹھ"
+    },
+    {
+      "value": 68,
+      "say_ur": "اڑسٹھ"
+    },
+    {
+      "value": 69,
+      "say_ur": "انہتر"
+    },
+    {
+      "value": 70,
+      "say_ur": "ستر"
+    },
+    {
+      "value": 71,
+      "say_ur": "اکہتر"
+    },
+    {
+      "value": 72,
+      "say_ur": "بہتر"
+    },
+    {
+      "value": 73,
+      "say_ur": "تہتر"
+    },
+    {
+      "value": 74,
+      "say_ur": "چوہتر"
+    },
+    {
+      "value": 75,
+      "say_ur": "پچھتر"
+    },
+    {
+      "value": 76,
+      "say_ur": "چھہتر"
+    },
+    {
+      "value": 77,
+      "say_ur": "ستتر"
+    },
+    {
+      "value": 78,
+      "say_ur": "اٹھہتر"
+    },
+    {
+      "value": 79,
+      "say_ur": "اناسی"
+    },
+    {
+      "value": 80,
+      "say_ur": "اسی"
+    },
+    {
+      "value": 81,
+      "say_ur": "اکیاسی"
+    },
+    {
+      "value": 82,
+      "say_ur": "بیاسی"
+    },
+    {
+      "value": 83,
+      "say_ur": "تراسی"
+    },
+    {
+      "value": 84,
+      "say_ur": "چوراسی"
+    },
+    {
+      "value": 85,
+      "say_ur": "پچاسی"
+    },
+    {
+      "value": 86,
+      "say_ur": "چھیاسی"
+    },
+    {
+      "value": 87,
+      "say_ur": "ستاسی"
+    },
+    {
+      "value": 88,
+      "say_ur": "اٹھاسی"
+    },
+    {
+      "value": 89,
+      "say_ur": "نواسی"
+    },
+    {
+      "value": 90,
+      "say_ur": "نوے"
+    },
+    {
+      "value": 91,
+      "say_ur": "اکانوے"
+    },
+    {
+      "value": 92,
+      "say_ur": "بانوے"
+    },
+    {
+      "value": 93,
+      "say_ur": "ترانوے"
+    },
+    {
+      "value": 94,
+      "say_ur": "چورانوے"
+    },
+    {
+      "value": 95,
+      "say_ur": "پچانوے"
+    },
+    {
+      "value": 96,
+      "say_ur": "چھیانوے"
+    },
+    {
+      "value": 97,
+      "say_ur": "ستانوے"
+    },
+    {
+      "value": 98,
+      "say_ur": "اٹھانوے"
+    },
+    {
+      "value": 99,
+      "say_ur": "ننانوے"
+    },
+    {
+      "value": 100,
+      "say_ur": "سو"
+    }
+  ],
+  "cases": [
+    {
+      "id": "time-half-past",
+      "kind": "time",
+      "input": "10:30",
+      "timezone": "Asia/Karachi",
+      "say_ur": "صبح ساڑھے دس بجے"
+    },
+    {
+      "id": "time-afternoon",
+      "kind": "time",
+      "input": "14:00",
+      "timezone": "Asia/Karachi",
+      "say_ur": "دوپہر دو بجے"
+    },
+    {
+      "id": "time-noon",
+      "kind": "time",
+      "input": "12:00",
+      "timezone": "Asia/Karachi",
+      "say_ur": "دوپہر بارہ بجے"
+    },
+    {
+      "id": "time-midnight",
+      "kind": "time",
+      "input": "00:00",
+      "timezone": "Asia/Karachi",
+      "say_ur": "رات بارہ بجے"
+    },
+    {
+      "id": "date",
+      "kind": "date",
+      "input": "2026-10-29",
+      "timezone": "Asia/Karachi",
+      "say_ur": "جمعرات، انتیس اکتوبر",
+      "say_en": "Thursday, October twenty-ninth"
+    },
+    {
+      "id": "pkr",
+      "kind": "currency",
+      "input": 2000,
+      "currency": "PKR",
+      "say_ur": "دو ہزار روپے",
+      "say_en": "two thousand Pakistani rupees"
+    },
+    {
+      "id": "pkr-zero",
+      "kind": "currency",
+      "input": 0,
+      "currency": "PKR",
+      "say_ur": "صفر روپے"
+    },
+    {
+      "id": "pkr-thousands-hundreds",
+      "kind": "currency",
+      "input": 2500,
+      "currency": "PKR",
+      "say_ur": "دو ہزار پانچ سو روپے"
+    },
+    {
+      "id": "phone-urdu",
+      "kind": "phone",
+      "input": "0300 000 0001",
+      "read_digits_in_english": false,
+      "say_ur": "صفر تین صفر صفر، صفر صفر صفر، صفر صفر صفر ایک"
+    },
+    {
+      "id": "phone-english-toggle",
+      "kind": "phone",
+      "input": "0300 000 0001",
+      "read_digits_in_english": true,
+      "say_en": "zero three zero zero, zero zero zero, zero zero zero one"
+    },
+    {
+      "id": "doctor-name",
+      "kind": "name",
+      "input": {
+        "name_latin": "Dr Sara Test",
+        "name_ur": "ڈاکٹر سارہ ٹیسٹ"
+      },
+      "say_ur": "ڈاکٹر سارہ ٹیسٹ"
+    },
+    {
+      "id": "missing-urdu-name",
+      "kind": "name",
+      "input": {
+        "name_latin": "Dr Unreviewed Test",
+        "name_ur": null
+      },
+      "expected_error": "pronunciation_review_required"
+    },
+    {
+      "id": "fractional-fee",
+      "kind": "currency",
+      "input": "2500.50",
+      "expected_error": "fractional_currency_policy_required"
+    },
+    {
+      "id": "out-of-range-number",
+      "kind": "number",
+      "input": 101,
+      "expected_error": "outside_lookup_range"
+    },
+    {
+      "id": "invalid-time",
+      "kind": "time",
+      "input": "25:90",
+      "expected_error": "validation_error"
+    }
+  ]
+}

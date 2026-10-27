@@ -1,18 +1,24 @@
 # Phase 0 progress — October 27, 2026
 
-- Repository setup and protected main/develop branches: complete.
-- Owner selected CPU + hosted NIM; no GPU spending authorized.
-- Experimental hosted text/tool runner: implemented with 40 synthetic cases; no third-party runtime dependencies.
-- Verification: 20 unittest cases pass under Python 3.12; dry run validates 20 Urdu, 10 English, and 10 mixed cases; diff whitespace check passes.
-- Independent review: three correctness findings addressed with failing-then-passing regression tests: malformed content/tool indices, inline reasoning leakage, and mixed-input response-language assumptions.
-- Live Nemotron evaluation with thinking explicitly disabled: 40/40 requests completed, 40/40 valid schemas and expected tools, 38/40 exact arguments. First tool output p50 1110.2 ms, p95 1527.7 ms. No returned reasoning or reasoning tokens. See [results](nemotron-phase-0-results.md). No model winner or end-to-end voice latency claimed.
-- Human Urdu quality, multi-turn simulator scenarios, resolver/normalizer tables, audio datasets, voice catalog, and full streaming audio/GPU feasibility: pending.
-- Phase 1: not started. Owner testing checkpoint remains open.
+## CPU-only package delivered
 
-Implementation decision: use standard-library HTTP for this isolated experimental runner. Production LLM adapter remains the spec's OpenAI SDK path; this spike does not replace that architecture.
+- Separate public backend/frontend repositories, protected main/develop branches, current Phase 0 feature branch and draft PR.
+- Owner-selected Nemotron development baseline with thinking disabled; no secondary model validated. Three additional model candidates are deferred after API and owner playground failures.
+- Original hosted extraction baseline: 38/40 strict matches. Its Devanagari corruption and latency limits are retained.
+- Thirty bilingual supplied-state scenarios: 60 next-action probes. Twelve additional speech-text samples with local escaped HTML for native review.
+- Final hosted expanded run: 72/72 requests completed; 15/60 strict next-action checks and 9/12 language mechanical checks passed. No reasoning was returned. **The model flow gate did not pass.**
+- 35 resolver goldens, 101 Urdu number expectations and 15 structured normalizer cases. No resolver/normalizer implementation is claimed.
+- Proposed versioned bilingual tool-result schema plus positive/negative examples, validated with hash-locked JSON Schema tooling.
+- Unrecorded manifest: 200 Urdu + 50 mixed script prompts across ten speaker slots; no actual audio, speaker coverage or STT metrics claimed.
+- Independent harness review completed. Fixed JSON numeric/boolean false equality with a failing-then-passing regression, clarified mechanical versus semantic language acceptance, and supplied explicit rescheduling policy approval in the fixture.
+- 33 local regression tests pass; both offline dry runs and asset consistency checks pass. CI runs the same offline checks without an API key.
 
-Additional candidate checks: MiniMax, Muse Glimmer, and DiffusionGemma smoke requests produced no scorable result; basic requests also timed out at 30 seconds. The active key passed catalog access and a Nemotron control. Full comparison batches remain pending. See [comparison status](model-comparison-status.md).
+## Owner checkpoint remains open
 
-Owner decision: all three additional candidates were also unresponsive in the owner's playground check. Use Nemotron as the development baseline with thinking disabled; further comparison attempts are deferred. Full voice feasibility remains pending and Phase 1 has not started.
+Read [CPU results](phase-0-cpu-results.md), [test checklist](phase-0-owner-checkpoint.md), and the local twelve-sample language HTML. Submit native wording corrections, review the proposed resolver/number expectations, and accept or edit MVP defaults. No human score or clinical/speech quality approval has been invented.
 
-Selection verification: a fresh request using the saved active `.env` passed the Urdu smoke case in 1194.1 ms to first tool output, with explicit thinking-off configuration and no returned reasoning text. All 20 local regression tests pass. This single request is not a new full benchmark.
+Phase 1 has **not** started. The owner may explicitly authorize database/API foundations with synthetic data while retaining the model/voice findings as blockers before live agent integration. No automatic merge or phase advance is performed.
+
+## Deferred or unresolved
+
+The original full Phase 0 voice gate has not passed: real recordings, Whisper WER/CER/name/number accuracy, Urdu TTS six-voice/MOS/latency evidence, a verified licensed fallback, Pipecat/LiveKit browser audio, barge-in, target-network end-to-end p50/p95, concurrency/RPM, provider failover and production licensing/deployment decisions remain open. GPU voice latency is deferred by owner instruction, not silently waived.
