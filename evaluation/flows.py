@@ -42,21 +42,28 @@ Apply the first relevant rule. A state update is the next action BEFORE asking a
    request_handoff, reason caller_requested. Do not ask confirmation or refuse ownership.
 7. Caller switches to another task before finishing: update_dialogue_state patch with the new
    task (book/cancel/reschedule) and park_current=true. Do not ask about the new appointment yet.
-8. Caller supplies/corrects a date expression: update_dialogue_state with date_phrase equal to
-   JUST the raw date phrase from the latest caller turn. Do this even if time/service is missing.
+8. Caller supplies/corrects the requested APPOINTMENT date: update_dialogue_state with date_phrase
+   equal to the minimal raw date phrase, without a leading article, from the latest caller turn.
+   Save it even if time/service is missing. کل and پرسوں in a booking request are date preferences,
+   not requests to find existing appointments or verify identity. Never invent a patient ID.
    Keep relative words, weekdays and Urdu text unchanged. Code resolves absolute dates later.
-9. Caller supplies/corrects a provider in state.providers: update_dialogue_state patch provider_id
+   A date mentioned only inside a question about clinic facts is NOT an appointment-date change.
+9. Caller supplies/corrects their requested provider in state.providers: update_dialogue_state patch provider_id
    using that map. Caller names a relative in state.family_subjects: patch subject_patient_id
    using that map. Do not change caller_contact_patient_id or grant verification. Patch only
    the changed field. Do not ask verification before recording a known subject.
+   A provider mentioned only in a fee/fact question is NOT a requested provider change.
 10. Caller asks a clinic fact: get_clinic_info for hours/address/fees/doctors/services.
-    Opening hours are a clinic fact; free appointment slots are availability, a different action.
+    Explicit clinic opening hours are a clinic fact. In a booking/reschedule search, requests for
+    available times (خالی وقت / دستیاب اوقات) mean get_available_slots with the stored filters,
+    NOT get_clinic_info hours. Do not ask for a time preference when asked to search stored filters.
 
 CONTINUE THE CURRENT TASK when none of those rules applies
 - cancel/reschedule at verify, not verified, fewer than three failed attempts:
   ask_caller field verification_factor; never mutate or list private appointments.
-- select_appointment with verified subject: find_appointments with the verified patient_id;
-  when multiple appointments are already supplied, ask_caller field appointment.
+- select_appointment with MULTIPLE appointments already supplied: ask_caller field appointment.
+  Do NOT call find_appointments again. Only when the appointment list has not been retrieved,
+  find_appointments with the verified patient_id.
 - identify with supplied phone: find_patient. patient_not_found with confirmed name and phone:
   create_patient using those confirmed fields only.
 - search with service/date_from/date_to: get_available_slots using all three state values.
@@ -70,8 +77,23 @@ CONTINUE THE CURRENT TASK when none of those rules applies
   ownership and policy_allowed=true; use owned_appointment as appointment_id, held_slot as
   new_slot for reschedule, and the supplied idempotency_key. Never commit missing/unconfirmed data.
 - Resuming with awaiting=time and date already stored: ask_caller field time only. Keep the
-  patient/date/task stack intact; never re-ask fields already supplied.
+  patient/date/task stack intact; never re-ask fields already supplied. 'Complete/continue booking'
+  is not the final confirmation step when stage is collect_need and time is still missing.
 Select one action, not a plan. No explanatory text or reasoning in the response.
+
+SHARED EXAMPLES (illustrations only; use the actual state and latest caller turn below)
+State: {"task":"book","stage":"collect_need"}
+Caller: "آنے والے ہفتے اپوائنٹمنٹ چاہیے۔"
+Action: {"name":"update_dialogue_state","arguments":{"date_phrase":"آنے والے ہفتے"}}
+State: {"task":"book","stage":"search","service":"dental","date_from":"2027-03-16","date_to":"2027-03-17"}
+Caller: "ان دنوں کون سے وقت خالی ملیں گے؟"
+Action: {"name":"get_available_slots","arguments":{"service":"dental","date_from":"2027-03-16","date_to":"2027-03-17"}}
+State: {"task":"cancel","stage":"select_appointment","verification":{"status":"verified","patient_id":"example_person"},"appointments":["example_visit_a","example_visit_b"]}
+Caller: "Cancel my visit."
+Action: {"name":"ask_caller","arguments":{"field":"appointment"}}
+State: {"task":"book","stage":"collect_need","date":"2027-03-16","awaiting":"time"}
+Caller: "چلیں بکنگ جاری رکھیں۔"
+Action: {"name":"ask_caller","arguments":{"field":"time"}}
 '''
 LANGUAGE_SYSTEM = (
     'You are an AI clinic receptionist in a synthetic speech-text evaluation. '
@@ -92,9 +114,9 @@ def load_probes(fixture_set: str = 'core') -> list[dict]:
     if fixture_set not in {'core', 'generalization', 'all'}:
         raise ValueError('Unknown fixture set')
     scenarios = []
-    for name, count in [('flows.json', 30), ('decision_variations.json', 12)]:
+    for name, count in [('flows.json', 30), ('decision_variations.json', 12), ('decision_contrasts.json', 2)]:
         if (name == 'flows.json' and fixture_set == 'generalization'
-                or name == 'decision_variations.json' and fixture_set == 'core'):
+                or name != 'flows.json' and fixture_set == 'core'):
             continue
         group = json.loads((FIXTURES / name).read_text())
         if len(group) != count or len({case['id'] for case in group}) != count:
@@ -286,7 +308,8 @@ def main(argv: list[str] | None = None) -> int:
                   'fixture_set': args.fixture_set,
                   'fixture_hashes': {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
                                      for p in [FIXTURES / 'flows.json', FIXTURES / 'flow_tools.json', FIXTURES / 'language.json']
-                                     + ([FIXTURES / 'decision_variations.json'] if args.fixture_set != 'core' else [])},
+                                     + ([FIXTURES / 'decision_variations.json', FIXTURES / 'decision_contrasts.json']
+                                        if args.fixture_set != 'core' else [])},
                   'prompt_sha256': hashlib.sha256((ACTION_SYSTEM + LANGUAGE_SYSTEM + JSON_ACTION_INSTRUCTION).encode()).hexdigest(),
                   'summary': summary, 'cases': rows}
         serialized = json.dumps(report, ensure_ascii=False, indent=2)

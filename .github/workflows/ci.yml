@@ -22,5 +22,6 @@ jobs:
       - run: python tests/run_offline.py
       - run: python -m evaluation --dry-run
       - run: python -m evaluation.flows --dry-run
+      - run: python -m evaluation.flows --dry-run --fixture-set all
       - run: python -m evaluation.flows --suite confirmations
       - run: python -m evaluation.assets

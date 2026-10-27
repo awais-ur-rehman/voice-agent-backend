@@ -17,7 +17,7 @@ class DecisionPromptTests(unittest.TestCase):
         self.assertEqual(payload['chat_template_kwargs'], {'enable_thinking': False})
 
     def test_oracle_and_reporting_metadata_cannot_change_any_action_request(self):
-        for probe in load_probes():
+        for probe in load_probes('all'):
             if probe['suite'] != 'actions':
                 continue
             changed = copy.deepcopy(probe)
@@ -42,13 +42,20 @@ class DecisionPromptTests(unittest.TestCase):
         core = load_probes()
         new = load_probes('generalization')
         actions = [p for p in new if p['suite'] == 'actions']
-        self.assertEqual(len(actions), 24)
-        self.assertEqual(len({p['scenario_id'] for p in actions}), 12)
+        self.assertEqual(len(actions), 28)
+        self.assertEqual(len({p['scenario_id'] for p in actions}), 14)
         self.assertFalse({p['id'] for p in core} & {p['id'] for p in actions})
         self.assertEqual({p['lang'] for p in actions}, {'en', 'ur'})
         for probe in actions:
             branches = build_probe_payload(MODEL, probe)['response_format']['json_schema']['schema']['anyOf']
             self.assertEqual(len(branches), 13)
+
+    def test_date_and_provider_fact_questions_have_bilingual_contrasts(self):
+        probes = load_probes('generalization')
+        contrasts = [p for p in probes if p.get('category') == 'contrast']
+        self.assertEqual(len(contrasts), 4)
+        self.assertEqual({p['lang'] for p in contrasts}, {'en', 'ur'})
+        self.assertTrue(all(p['expected']['name'] == 'get_clinic_info' for p in contrasts))
 
 
 if __name__ == '__main__':
