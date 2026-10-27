@@ -68,7 +68,7 @@ def candidate_slots(
         return []
     custom = [item for item in matching if item.kind == "custom"]
     # Custom windows inherit the smallest weekly step; a clinic without weekly rules uses 15m.
-    step = min((rule.step for rule in rules), default=15)
+    step = min((rule.step for rule in rules if rule.weekday == day.isoweekday()), default=15)
     windows = (
         [(item.start, item.end, step) for item in custom]
         if custom

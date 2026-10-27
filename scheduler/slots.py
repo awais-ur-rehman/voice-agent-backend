@@ -20,7 +20,9 @@ class Slot(Contract):
 
 def get(db: Session, model, identity, lock=False):
     query = select(model).where(model.id == identity)
-    row = db.scalar(query.with_for_update() if lock else query)
+    row = db.scalar(
+        query.with_for_update().execution_options(populate_existing=True) if lock else query
+    )
     if row is None:
         raise AppError("not_found", 404)
     return row

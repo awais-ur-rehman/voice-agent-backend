@@ -10,10 +10,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import create_engine, text
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import sessionmaker
 
-from . import auth, catalog
+from . import appointments, auth, catalog
 from .config import Settings, load_settings
 from .errors import AppError
 
@@ -22,6 +22,12 @@ logger = logging.getLogger("scheduler.requests")
 
 def create_app(settings: Settings | None = None, clock=None) -> FastAPI:
     settings = settings or load_settings()
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("%(message)s"))
+        logger.addHandler(handler)
     engine = create_engine(
         settings.database_url.get_secret_value(),
         pool_pre_ping=True,
@@ -39,7 +45,7 @@ def create_app(settings: Settings | None = None, clock=None) -> FastAPI:
                 ).one()
                 owner = conn.execute(
                     text(
-                        "SELECT tableowner=current_user FROM pg_tables WHERE schemaname='public' AND tablename='tenants'"
+                        "SELECT CASE WHEN to_regclass('public.tenants') IS NULL THEN NULL ELSE EXISTS (SELECT 1 FROM pg_tables WHERE schemaname='public' AND tableowner=current_user) END"
                     )
                 ).scalar()
                 if role.rolsuper or role.rolbypassrls or owner or owner is None:
@@ -78,6 +84,15 @@ def create_app(settings: Settings | None = None, clock=None) -> FastAPI:
     async def conflict(request, exc):
         return JSONResponse(AppError("conflict", 409).body(), status_code=409)
 
+    @app.exception_handler(OperationalError)
+    async def database_error(request, exc):
+        retryable = getattr(exc.orig, "sqlstate", None) in {"40P01", "40001"}
+        error = AppError(
+            "transaction_conflict" if retryable else "database_unavailable",
+            409 if retryable else 503,
+        )
+        return JSONResponse(error.body(), status_code=error.status)
+
     @app.middleware("http")
     async def request_log(request: Request, call_next):
         started, request_id = time.perf_counter(), str(uuid4())
@@ -107,6 +122,7 @@ def create_app(settings: Settings | None = None, clock=None) -> FastAPI:
             conn.execute(text("SELECT 1"))
         return {"status": "ready"}
 
+    app.include_router(appointments.router)
     app.include_router(auth.router)
     app.include_router(catalog.router)
     return app
