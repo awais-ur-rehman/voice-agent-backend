@@ -10,4 +10,4 @@
 - Commit dependency locks, migrations, and public schemas with the changes they support.
 - Never commit `.env`, API keys, patient information, raw recordings, or unredacted evaluation output. Use synthetic public fixtures.
 
-There are no executable checks yet: this repository currently contains setup documentation only. Once code is introduced, CI must run the relevant lint/type/build and meaningful behavior checks before integration.
+Phase 0 checks: `python3 -m unittest discover -s tests -v` and `python3 -m evaluation --dry-run`. CI runs both on Python 3.12. Once production code is introduced, expand CI with the relevant lint/type/build and behavior checks before integration.
