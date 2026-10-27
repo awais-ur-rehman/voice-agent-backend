@@ -1,0 +1,567 @@
+{
+  "status": "golden requirements only; resolver implementation belongs to Phase 2",
+  "proposed_decisions": {
+    "next_weekday": "first occurrence strictly after today; same weekday means +7 days",
+    "week": "Monday through Sunday; remaining range includes today",
+    "windows": "half-open; apply actual clinic hours and exceptions afterwards",
+    "kal_parson": "future only for booking context; ambiguous history context requires clarification",
+    "missing_am_pm": "filter against clinic hours; ask when more than one interpretation remains"
+  },
+  "cases": [
+    {
+      "id": "today-ur",
+      "phrase": "آج",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "date": "2026-10-27",
+        "read_back_absolute": true
+      }
+    },
+    {
+      "id": "today-en",
+      "phrase": "today",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "date": "2026-10-27",
+        "read_back_absolute": true
+      }
+    },
+    {
+      "id": "kal-ur",
+      "phrase": "کل",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "date": "2026-10-28",
+        "read_back_absolute": true
+      }
+    },
+    {
+      "id": "kal-roman",
+      "phrase": "kal",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "date": "2026-10-28",
+        "read_back_absolute": true
+      }
+    },
+    {
+      "id": "tomorrow-en",
+      "phrase": "tomorrow",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "date": "2026-10-28",
+        "read_back_absolute": true
+      }
+    },
+    {
+      "id": "parson-ur",
+      "phrase": "پرسوں",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "date": "2026-10-29",
+        "read_back_absolute": true
+      }
+    },
+    {
+      "id": "parson-roman",
+      "phrase": "parson",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "date": "2026-10-29",
+        "read_back_absolute": true
+      }
+    },
+    {
+      "id": "day-after-tomorrow-en",
+      "phrase": "day after tomorrow",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "date": "2026-10-29",
+        "read_back_absolute": true
+      }
+    },
+    {
+      "id": "kal-history",
+      "phrase": "کل",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "appointment_history",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "clarify": "past_or_future"
+      }
+    },
+    {
+      "id": "parson-history",
+      "phrase": "پرسوں",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "appointment_history",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "clarify": "past_or_future"
+      }
+    },
+    {
+      "id": "next-tuesday-from-mon",
+      "phrase": "next Tuesday",
+      "now": "2026-10-26T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "date": "2026-10-27",
+        "read_back_absolute": true
+      }
+    },
+    {
+      "id": "next-tuesday-from-tue",
+      "phrase": "اگلے منگل",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "date": "2026-11-03",
+        "read_back_absolute": true
+      }
+    },
+    {
+      "id": "this-week",
+      "phrase": "اس ہفتے",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "date_from": "2026-10-27",
+        "date_to": "2026-11-01",
+        "read_back_absolute": true
+      }
+    },
+    {
+      "id": "this-week-sunday",
+      "phrase": "this week",
+      "now": "2026-11-01T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "date_from": "2026-11-01",
+        "date_to": "2026-11-01",
+        "read_back_absolute": true
+      }
+    },
+    {
+      "id": "morning",
+      "phrase": "صبح",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "preferred_window": [
+          "08:00",
+          "12:00"
+        ],
+        "end_exclusive": true,
+        "apply_clinic_hours": true
+      }
+    },
+    {
+      "id": "afternoon",
+      "phrase": "دوپہر",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "preferred_window": [
+          "12:00",
+          "15:00"
+        ],
+        "end_exclusive": true,
+        "apply_clinic_hours": true
+      }
+    },
+    {
+      "id": "late-afternoon",
+      "phrase": "سہ پہر",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "preferred_window": [
+          "15:00",
+          "19:00"
+        ],
+        "end_exclusive": true,
+        "apply_clinic_hours": true
+      }
+    },
+    {
+      "id": "evening",
+      "phrase": "شام",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "preferred_window": [
+          "15:00",
+          "19:00"
+        ],
+        "end_exclusive": true,
+        "apply_clinic_hours": true
+      }
+    },
+    {
+      "id": "night",
+      "phrase": "رات",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "preferred_window": [
+          "19:00",
+          "24:00"
+        ],
+        "end_exclusive": true,
+        "apply_clinic_hours": true
+      }
+    },
+    {
+      "id": "half-past",
+      "phrase": "ساڑھے دس",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "time": "10:30",
+        "read_back_absolute": true
+      }
+    },
+    {
+      "id": "quarter-to",
+      "phrase": "پونے دس",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "time": "09:45",
+        "read_back_absolute": true
+      }
+    },
+    {
+      "id": "quarter-past",
+      "phrase": "سوا دس",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "time": "10:15",
+        "read_back_absolute": true
+      }
+    },
+    {
+      "id": "one-half",
+      "phrase": "ڈیڑھ",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "time": "13:30",
+        "read_back_absolute": true
+      }
+    },
+    {
+      "id": "two-half",
+      "phrase": "ڈھائی",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "time": "14:30",
+        "read_back_absolute": true
+      }
+    },
+    {
+      "id": "ten-one-valid",
+      "phrase": "das baje",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "time": "10:00",
+        "read_back_absolute": true
+      }
+    },
+    {
+      "id": "ten-two-valid",
+      "phrase": "das baje",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "23:00"
+      ],
+      "expected": {
+        "clarify": "am_or_pm",
+        "candidates": [
+          "10:00",
+          "22:00"
+        ]
+      }
+    },
+    {
+      "id": "jummah-configured",
+      "phrase": "Jummah ke baad",
+      "now": "2026-10-30T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "time_from": "14:30",
+        "respect_prayer_break": true,
+        "read_back_absolute": true
+      },
+      "prayer_break": [
+        "12:45",
+        "14:30"
+      ]
+    },
+    {
+      "id": "jummah-missing",
+      "phrase": "جمعہ کی نماز کے بعد",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "clarify": "clinic_prayer_break_required"
+      }
+    },
+    {
+      "id": "karachi-midnight",
+      "phrase": "آج",
+      "now": "2026-10-27T21:30:00+00:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "date": "2026-10-28",
+        "read_back_absolute": true
+      }
+    },
+    {
+      "id": "year-rollover",
+      "phrase": "tomorrow",
+      "now": "2026-12-31T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "date": "2027-01-01",
+        "read_back_absolute": true
+      }
+    },
+    {
+      "id": "leap-day",
+      "phrase": "tomorrow",
+      "now": "2028-02-28T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "date": "2028-02-29",
+        "read_back_absolute": true
+      }
+    },
+    {
+      "id": "corrupted-script",
+      "phrase": "अगले منگل को",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "error": "invalid_script",
+        "retry_extraction": true
+      }
+    },
+    {
+      "id": "unknown-expression",
+      "phrase": "sometime-ish",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "clarify": "date_or_time"
+      }
+    },
+    {
+      "id": "explicit-past",
+      "phrase": "yesterday",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "08:00",
+        "18:00"
+      ],
+      "expected": {
+        "error": "past_booking_date"
+      }
+    },
+    {
+      "id": "ramadan-override",
+      "phrase": "شام",
+      "now": "2026-10-27T09:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "context": "booking",
+      "clinic_hours": [
+        "19:00",
+        "22:00"
+      ],
+      "expected": {
+        "preferred_window": [
+          "15:00",
+          "19:00"
+        ],
+        "available_window": null,
+        "clarify": "alternative_hours"
+      },
+      "hours_source": "date-range custom_hours exception"
+    }
+  ]
+}

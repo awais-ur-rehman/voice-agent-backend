@@ -1,0 +1,442 @@
+[
+  {
+    "id": "ur-01",
+    "lang": "ur",
+    "text": "مجھے آج اپوائنٹمنٹ چاہیے۔",
+    "expected": {
+      "name": "update_dialogue_state",
+      "arguments": {
+        "date_phrase": "آج"
+      }
+    }
+  },
+  {
+    "id": "ur-02",
+    "lang": "ur",
+    "text": "مجھے کل وقت چاہیے۔",
+    "expected": {
+      "name": "update_dialogue_state",
+      "arguments": {
+        "date_phrase": "کل"
+      }
+    }
+  },
+  {
+    "id": "ur-03",
+    "lang": "ur",
+    "text": "پرسوں کی بکنگ کرنی ہے۔",
+    "expected": {
+      "name": "update_dialogue_state",
+      "arguments": {
+        "date_phrase": "پرسوں"
+      }
+    }
+  },
+  {
+    "id": "ur-04",
+    "lang": "ur",
+    "text": "اگلے منگل کو آنا ہے۔",
+    "expected": {
+      "name": "update_dialogue_state",
+      "arguments": {
+        "date_phrase": "اگلے منگل"
+      }
+    }
+  },
+  {
+    "id": "ur-05",
+    "lang": "ur",
+    "text": "اس ہفتے وقت مل سکتا ہے؟",
+    "expected": {
+      "name": "update_dialogue_state",
+      "arguments": {
+        "date_phrase": "اس ہفتے"
+      }
+    }
+  },
+  {
+    "id": "ur-06",
+    "lang": "ur",
+    "text": "جمعہ کو وقت چاہیے۔",
+    "expected": {
+      "name": "update_dialogue_state",
+      "arguments": {
+        "date_phrase": "جمعہ"
+      }
+    }
+  },
+  {
+    "id": "ur-07",
+    "lang": "ur",
+    "text": "پیر کو اپوائنٹمنٹ چاہیے۔",
+    "expected": {
+      "name": "update_dialogue_state",
+      "arguments": {
+        "date_phrase": "پیر"
+      }
+    }
+  },
+  {
+    "id": "ur-08",
+    "lang": "ur",
+    "text": "بدھ کو وقت چاہیے۔",
+    "expected": {
+      "name": "update_dialogue_state",
+      "arguments": {
+        "date_phrase": "بدھ"
+      }
+    }
+  },
+  {
+    "id": "ur-09",
+    "lang": "ur",
+    "text": "جمعرات کو آنا ہے۔",
+    "expected": {
+      "name": "update_dialogue_state",
+      "arguments": {
+        "date_phrase": "جمعرات"
+      }
+    }
+  },
+  {
+    "id": "ur-10",
+    "lang": "ur",
+    "text": "ہفتہ کو وقت چاہیے۔",
+    "expected": {
+      "name": "update_dialogue_state",
+      "arguments": {
+        "date_phrase": "ہفتہ"
+      }
+    }
+  },
+  {
+    "id": "ur-11",
+    "lang": "ur",
+    "text": "کلینک کب کھلتا ہے؟",
+    "expected": {
+      "name": "get_clinic_info",
+      "arguments": {
+        "field": "hours"
+      }
+    }
+  },
+  {
+    "id": "ur-12",
+    "lang": "ur",
+    "text": "آپ کا پتہ کیا ہے؟",
+    "expected": {
+      "name": "get_clinic_info",
+      "arguments": {
+        "field": "address"
+      }
+    }
+  },
+  {
+    "id": "ur-13",
+    "lang": "ur",
+    "text": "مشورے کی فیس کتنی ہے؟",
+    "expected": {
+      "name": "get_clinic_info",
+      "arguments": {
+        "field": "fees"
+      }
+    }
+  },
+  {
+    "id": "ur-14",
+    "lang": "ur",
+    "text": "کون سے ڈاکٹر موجود ہیں؟",
+    "expected": {
+      "name": "get_clinic_info",
+      "arguments": {
+        "field": "doctors"
+      }
+    }
+  },
+  {
+    "id": "ur-15",
+    "lang": "ur",
+    "text": "کون سی خدمات دستیاب ہیں؟",
+    "expected": {
+      "name": "get_clinic_info",
+      "arguments": {
+        "field": "services"
+      }
+    }
+  },
+  {
+    "id": "ur-16",
+    "lang": "ur",
+    "text": "کلینک کے اوقات بتائیں۔",
+    "expected": {
+      "name": "get_clinic_info",
+      "arguments": {
+        "field": "hours"
+      }
+    }
+  },
+  {
+    "id": "ur-17",
+    "lang": "ur",
+    "text": "کلینک کہاں ہے؟",
+    "expected": {
+      "name": "get_clinic_info",
+      "arguments": {
+        "field": "address"
+      }
+    }
+  },
+  {
+    "id": "ur-18",
+    "lang": "ur",
+    "text": "فیس کے بارے میں بتائیں۔",
+    "expected": {
+      "name": "get_clinic_info",
+      "arguments": {
+        "field": "fees"
+      }
+    }
+  },
+  {
+    "id": "ur-19",
+    "lang": "ur",
+    "text": "ڈاکٹروں کے نام بتائیں۔",
+    "expected": {
+      "name": "get_clinic_info",
+      "arguments": {
+        "field": "doctors"
+      }
+    }
+  },
+  {
+    "id": "ur-20",
+    "lang": "ur",
+    "text": "آپ کون سے علاج کی خدمات دیتے ہیں؟",
+    "expected": {
+      "name": "get_clinic_info",
+      "arguments": {
+        "field": "services"
+      }
+    }
+  },
+  {
+    "id": "en-01",
+    "lang": "en",
+    "text": "I need an appointment tomorrow.",
+    "expected": {
+      "name": "update_dialogue_state",
+      "arguments": {
+        "date_phrase": "tomorrow"
+      }
+    }
+  },
+  {
+    "id": "en-02",
+    "lang": "en",
+    "text": "Book me next Tuesday.",
+    "expected": {
+      "name": "update_dialogue_state",
+      "arguments": {
+        "date_phrase": "next Tuesday"
+      }
+    }
+  },
+  {
+    "id": "en-03",
+    "lang": "en",
+    "text": "Can I come this week?",
+    "expected": {
+      "name": "update_dialogue_state",
+      "arguments": {
+        "date_phrase": "this week"
+      }
+    }
+  },
+  {
+    "id": "en-04",
+    "lang": "en",
+    "text": "I want an appointment today.",
+    "expected": {
+      "name": "update_dialogue_state",
+      "arguments": {
+        "date_phrase": "today"
+      }
+    }
+  },
+  {
+    "id": "en-05",
+    "lang": "en",
+    "text": "I need a visit on Friday.",
+    "expected": {
+      "name": "update_dialogue_state",
+      "arguments": {
+        "date_phrase": "Friday"
+      }
+    }
+  },
+  {
+    "id": "en-06",
+    "lang": "en",
+    "text": "What are your opening hours?",
+    "expected": {
+      "name": "get_clinic_info",
+      "arguments": {
+        "field": "hours"
+      }
+    }
+  },
+  {
+    "id": "en-07",
+    "lang": "en",
+    "text": "What is the clinic address?",
+    "expected": {
+      "name": "get_clinic_info",
+      "arguments": {
+        "field": "address"
+      }
+    }
+  },
+  {
+    "id": "en-08",
+    "lang": "en",
+    "text": "How much is the consultation fee?",
+    "expected": {
+      "name": "get_clinic_info",
+      "arguments": {
+        "field": "fees"
+      }
+    }
+  },
+  {
+    "id": "en-09",
+    "lang": "en",
+    "text": "Which doctors work here?",
+    "expected": {
+      "name": "get_clinic_info",
+      "arguments": {
+        "field": "doctors"
+      }
+    }
+  },
+  {
+    "id": "en-10",
+    "lang": "en",
+    "text": "What services do you offer?",
+    "expected": {
+      "name": "get_clinic_info",
+      "arguments": {
+        "field": "services"
+      }
+    }
+  },
+  {
+    "id": "mixed-01",
+    "lang": "mixed",
+    "text": "مجھے appointment tomorrow چاہیے۔",
+    "expected": {
+      "name": "update_dialogue_state",
+      "arguments": {
+        "date_phrase": "tomorrow"
+      }
+    }
+  },
+  {
+    "id": "mixed-02",
+    "lang": "mixed",
+    "text": "I need a checkup کل۔",
+    "expected": {
+      "name": "update_dialogue_state",
+      "arguments": {
+        "date_phrase": "کل"
+      }
+    }
+  },
+  {
+    "id": "mixed-03",
+    "lang": "mixed",
+    "text": "Appointment اگلے منگل کو چاہیے۔",
+    "expected": {
+      "name": "update_dialogue_state",
+      "arguments": {
+        "date_phrase": "اگلے منگل"
+      }
+    }
+  },
+  {
+    "id": "mixed-04",
+    "lang": "mixed",
+    "text": "Can I book پرسوں؟",
+    "expected": {
+      "name": "update_dialogue_state",
+      "arguments": {
+        "date_phrase": "پرسوں"
+      }
+    }
+  },
+  {
+    "id": "mixed-05",
+    "lang": "mixed",
+    "text": "Checkup this week چاہیے۔",
+    "expected": {
+      "name": "update_dialogue_state",
+      "arguments": {
+        "date_phrase": "this week"
+      }
+    }
+  },
+  {
+    "id": "mixed-06",
+    "lang": "mixed",
+    "text": "Clinic کے opening hours بتائیں۔",
+    "expected": {
+      "name": "get_clinic_info",
+      "arguments": {
+        "field": "hours"
+      }
+    }
+  },
+  {
+    "id": "mixed-07",
+    "lang": "mixed",
+    "text": "آپ کا clinic address کیا ہے؟",
+    "expected": {
+      "name": "get_clinic_info",
+      "arguments": {
+        "field": "address"
+      }
+    }
+  },
+  {
+    "id": "mixed-08",
+    "lang": "mixed",
+    "text": "Consultation کی fee کتنی ہے؟",
+    "expected": {
+      "name": "get_clinic_info",
+      "arguments": {
+        "field": "fees"
+      }
+    }
+  },
+  {
+    "id": "mixed-09",
+    "lang": "mixed",
+    "text": "Which doctors یہاں کام کرتے ہیں؟",
+    "expected": {
+      "name": "get_clinic_info",
+      "arguments": {
+        "field": "doctors"
+      }
+    }
+  },
+  {
+    "id": "mixed-10",
+    "lang": "mixed",
+    "text": "آپ کون سی services دیتے ہیں؟",
+    "expected": {
+      "name": "get_clinic_info",
+      "arguments": {
+        "field": "services"
+      }
+    }
+  }
+]

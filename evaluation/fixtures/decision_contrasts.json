@@ -1,0 +1,77 @@
+[
+  {
+    "id": "contrast-hours-date",
+    "category": "contrast",
+    "state": {
+      "state_version": 1,
+      "clinic_now": "2026-11-09T11:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "fixture_only": true,
+      "task": "info"
+    },
+    "input": {
+      "en": "What are your opening hours next Friday?",
+      "ur": "اگلے جمعہ کلینک کے کھلنے کے اوقات کیا ہیں؟"
+    },
+    "history": {
+      "en": [],
+      "ur": []
+    },
+    "expected": {
+      "en": {
+        "name": "get_clinic_info",
+        "arguments": {
+          "field": "hours"
+        }
+      },
+      "ur": {
+        "name": "get_clinic_info",
+        "arguments": {
+          "field": "hours"
+        }
+      }
+    },
+    "rationale": "Incidental date/provider in a clinic-fact question is not an appointment-field change."
+  },
+  {
+    "id": "contrast-fees-during-booking",
+    "category": "contrast",
+    "state": {
+      "state_version": 1,
+      "clinic_now": "2026-11-09T11:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "fixture_only": true,
+      "task": "book",
+      "stage": "collect_need",
+      "awaiting": "time",
+      "date": "2026-11-13",
+      "providers": {
+        "Dr Hamza": "clinician_z",
+        "ڈاکٹر حمزہ": "clinician_z"
+      }
+    },
+    "input": {
+      "en": "Before choosing a time, what is the consultation fee with Dr Hamza next Friday?",
+      "ur": "وقت منتخب کرنے سے پہلے بتائیں، اگلے جمعہ ڈاکٹر حمزہ سے مشورے کی فیس کتنی ہے؟"
+    },
+    "history": {
+      "en": [],
+      "ur": []
+    },
+    "expected": {
+      "en": {
+        "name": "get_clinic_info",
+        "arguments": {
+          "field": "fees"
+        }
+      },
+      "ur": {
+        "name": "get_clinic_info",
+        "arguments": {
+          "field": "fees"
+        }
+      }
+    },
+    "rationale": "Incidental date/provider in a clinic-fact question is not an appointment-field change."
+  }
+]

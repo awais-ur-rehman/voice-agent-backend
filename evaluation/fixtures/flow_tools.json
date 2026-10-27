@@ -1,0 +1,361 @@
+[
+  {
+    "type": "function",
+    "function": {
+      "name": "get_clinic_info",
+      "description": "Retrieve a structured clinic fact.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "enum": [
+              "hours",
+              "address",
+              "fees",
+              "doctors",
+              "services"
+            ]
+          }
+        },
+        "required": [
+          "field"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "update_dialogue_state",
+      "description": "Extract raw date_phrase or patch provided fields. Never compute a date or change server verification.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "date_phrase": {
+            "type": "string",
+            "minLength": 1
+          },
+          "patch": {
+            "type": "object",
+            "properties": {
+              "provider_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "subject_patient_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "task": {
+                "type": "string",
+                "enum": [
+                  "book",
+                  "cancel",
+                  "reschedule"
+                ]
+              },
+              "park_current": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "oneOf": [
+          {
+            "required": [
+              "date_phrase"
+            ]
+          },
+          {
+            "required": [
+              "patch"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "ask_caller",
+      "description": "EVALUATION-ONLY adapter: request one missing field; no production endpoint is implemented.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "enum": [
+              "time",
+              "verification_factor",
+              "appointment",
+              "confirmation"
+            ]
+          }
+        },
+        "required": [
+          "field"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "speak_template",
+      "description": "EVALUATION-ONLY adapter: choose a fixed approved template; never compose medical advice or disclose other patients.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "template_id": {
+            "type": "string",
+            "enum": [
+              "not_owner",
+              "emergency"
+            ]
+          }
+        },
+        "required": [
+          "template_id"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "find_patient",
+      "description": "Find a patient by phone; assume masked output until verification.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "phone"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "create_patient",
+      "description": "Create a patient only from confirmed supplied fields.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "phone": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "name",
+          "phone"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "find_appointments",
+      "description": "Retrieve appointments only for the exact verified subject.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "patient_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "patient_id"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "request_handoff",
+      "description": "Request a human or callback.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "enum": [
+              "verification_failed",
+              "upstream_timeout",
+              "no_answer",
+              "caller_requested"
+            ]
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "hold_slot",
+      "description": "Hold only the selected offered slot.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "slot_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "slot_id"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "book_appointment",
+      "description": "Commit only confirmed fields; reuse supplied idempotency_key on a retry.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "patient_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "slot": {
+            "type": "string",
+            "minLength": 1
+          },
+          "service": {
+            "type": "string",
+            "minLength": 1
+          },
+          "idempotency_key": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "patient_id",
+          "slot",
+          "service",
+          "idempotency_key"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_available_slots",
+      "description": "Search structured availability; do not invent slots.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "string",
+            "minLength": 1
+          },
+          "date_from": {
+            "type": "string",
+            "minLength": 1
+          },
+          "date_to": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "service",
+          "date_from",
+          "date_to"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "reschedule_appointment",
+      "description": "Requires exact verified owner, confirmation, policy and held slot. Reuse the supplied idempotency key.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "appointment_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "new_slot": {
+            "type": "string",
+            "minLength": 1
+          },
+          "idempotency_key": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "appointment_id",
+          "new_slot",
+          "idempotency_key"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "cancel_appointment",
+      "description": "Requires exact verified owner, confirmation and allowed policy. Reuse supplied idempotency key.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "appointment_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "idempotency_key": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "appointment_id",
+          "idempotency_key"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+]
