@@ -126,3 +126,23 @@ Hosted NIM lifecycle execution and owner acceptance are pending. Record complete
 Before accepting the checkpoint, record the tested revision, current full-suite/lint/type results, rebuilt service results, and the actual hosted request totals/outcomes. Exercise English and Urdu booking, rescheduling, cancellation, correction/digression and family/task switching against synthetic records, checking the resulting database appointments. Separately verify shared-phone ambiguity, exact-subject verification, three failed attempts, stale confirmation, interrupted read-back, overlapping slot holds, expiry/reconnect, cache-loss replay, duplicate command IDs and tenant/session authorization failures.
 
 Keep hosted outcomes and failures separate from deterministic/fake-planner results. A completed phase requires the remaining simulator scenario families and real hosted paths to be executed and reviewed; an available CLI alone is preparation. Native Urdu wording and pronunciation need owner review. Actual playback-stop timing and audio quality wait for Phase 3. Do not merge this phase or begin voice integration without owner direction.
+
+## Additional checkpoint commands and configuration
+
+The rebuilt local API can be checked without any hosted requests:
+
+```sh
+uv run python -m scripts.smoke_phase2
+```
+
+This uses the existing synthetic demo clinics, verifies the committed booking through replay/reschedule/cancel, and ends its runtime session. It leaves synthetic audit/history records and cancels its own created appointments.
+
+The hosted acceptance suite uses only the disposable test database and synthetic records. Explicitly opt in when you intend to use the saved NIM key:
+
+```sh
+RUN_NIM_PHASE2=1 uv run pytest tests_brain/test_live_nim.py -q
+```
+
+To publish a new immutable runtime version, save a bounded JSON configuration privately and run `uv run python -m brain.bootstrap --publish --tenant-id TENANT_UUID --agent-id AGENT_UUID --config .local/agent-config.json`. Existing sessions keep their original version. Optional configuration includes `prayer_break: ["13:00", "14:30"]` and `clinic_profile` with `address_en`, `address_ur`, `preparation_en` and `preparation_ur`. Missing bilingual information returns `no_answer`. Reviewed `name_ur` fields can be supplied through the staff provider/service/patient APIs; renaming clears an old pronunciation unless a replacement is supplied.
+
+See [the measured results](phase-2-results.md) for exact current verification evidence and its limits.
