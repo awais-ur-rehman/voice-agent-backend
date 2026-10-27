@@ -1,0 +1,476 @@
+[
+  {
+    "id": "variation-date",
+    "category": "generalization",
+    "state": {
+      "state_version": 1,
+      "clinic_now": "2026-11-09T11:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "fixture_only": true,
+      "task": "book",
+      "stage": "collect_need"
+    },
+    "input": {
+      "en": "Can you fit me in next Friday?",
+      "ur": "کیا اگلے جمعہ کو وقت مل سکتا ہے؟"
+    },
+    "history": {
+      "en": [],
+      "ur": []
+    },
+    "expected": {
+      "en": {
+        "name": "update_dialogue_state",
+        "arguments": {
+          "date_phrase": "next Friday"
+        }
+      },
+      "ur": {
+        "name": "update_dialogue_state",
+        "arguments": {
+          "date_phrase": "اگلے جمعہ"
+        }
+      }
+    },
+    "rationale": "Raw phrase only; Urdu preserves اگلے جمعہ."
+  },
+  {
+    "id": "variation-provider",
+    "category": "generalization",
+    "state": {
+      "state_version": 1,
+      "clinic_now": "2026-11-09T11:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "fixture_only": true,
+      "task": "book",
+      "stage": "collect_need",
+      "provider_id": "clinician_y",
+      "providers": {
+        "Dr Hamza": "clinician_z",
+        "ڈاکٹر حمزہ": "clinician_z"
+      }
+    },
+    "input": {
+      "en": "Please change the doctor to Dr Hamza.",
+      "ur": "ڈاکٹر تبدیل کر کے ڈاکٹر حمزہ کر دیں۔"
+    },
+    "history": {
+      "en": [],
+      "ur": []
+    },
+    "expected": {
+      "en": {
+        "name": "update_dialogue_state",
+        "arguments": {
+          "patch": {
+            "provider_id": "clinician_z"
+          }
+        }
+      },
+      "ur": {
+        "name": "update_dialogue_state",
+        "arguments": {
+          "patch": {
+            "provider_id": "clinician_z"
+          }
+        }
+      }
+    },
+    "rationale": "Change only mapped provider, not date/patient."
+  },
+  {
+    "id": "variation-task",
+    "category": "generalization",
+    "state": {
+      "state_version": 1,
+      "clinic_now": "2026-11-09T11:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "fixture_only": true,
+      "task": "book",
+      "stage": "collect_need",
+      "date": "2026-11-13",
+      "awaiting": "time"
+    },
+    "input": {
+      "en": "Put this booking aside; I need to reschedule an existing visit first.",
+      "ur": "یہ بکنگ ابھی روک دیں، پہلے پرانی اپوائنٹمنٹ کا وقت تبدیل کرنا ہے۔"
+    },
+    "history": {
+      "en": [],
+      "ur": []
+    },
+    "expected": {
+      "en": {
+        "name": "update_dialogue_state",
+        "arguments": {
+          "patch": {
+            "task": "reschedule",
+            "park_current": true
+          }
+        }
+      },
+      "ur": {
+        "name": "update_dialogue_state",
+        "arguments": {
+          "patch": {
+            "task": "reschedule",
+            "park_current": true
+          }
+        }
+      }
+    },
+    "rationale": "Park before asking details of the new task."
+  },
+  {
+    "id": "variation-subject",
+    "category": "generalization",
+    "state": {
+      "state_version": 1,
+      "clinic_now": "2026-11-09T11:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "fixture_only": true,
+      "task": "book",
+      "stage": "collect_patient",
+      "caller_contact_patient_id": "adult_21",
+      "family_subjects": {
+        "son": "dependent_87",
+        "بیٹا": "dependent_87",
+        "بیٹے": "dependent_87"
+      }
+    },
+    "input": {
+      "en": "I am calling for my son, not myself.",
+      "ur": "میں اپنے لیے نہیں، بیٹے کے لیے فون کر رہا ہوں۔"
+    },
+    "history": {
+      "en": [],
+      "ur": []
+    },
+    "expected": {
+      "en": {
+        "name": "update_dialogue_state",
+        "arguments": {
+          "patch": {
+            "subject_patient_id": "dependent_87"
+          }
+        }
+      },
+      "ur": {
+        "name": "update_dialogue_state",
+        "arguments": {
+          "patch": {
+            "subject_patient_id": "dependent_87"
+          }
+        }
+      }
+    },
+    "rationale": "Change subject only, grant no verification."
+  },
+  {
+    "id": "variation-verify-two",
+    "category": "generalization",
+    "state": {
+      "state_version": 1,
+      "clinic_now": "2026-11-09T11:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "fixture_only": true,
+      "task": "cancel",
+      "stage": "verify",
+      "verification": {
+        "status": "failed",
+        "attempts": 2
+      }
+    },
+    "input": {
+      "en": "Let me try the identity check once more.",
+      "ur": "شناخت کی تصدیق ایک بار اور کرنے دیں۔"
+    },
+    "history": {
+      "en": [],
+      "ur": []
+    },
+    "expected": {
+      "en": {
+        "name": "ask_caller",
+        "arguments": {
+          "field": "verification_factor"
+        }
+      },
+      "ur": {
+        "name": "ask_caller",
+        "arguments": {
+          "field": "verification_factor"
+        }
+      }
+    },
+    "rationale": "Below the third failed attempt, ask another factor."
+  },
+  {
+    "id": "variation-verify-four",
+    "category": "generalization",
+    "state": {
+      "state_version": 1,
+      "clinic_now": "2026-11-09T11:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "fixture_only": true,
+      "task": "reschedule",
+      "stage": "verify",
+      "verification": {
+        "status": "failed",
+        "attempts": 4
+      }
+    },
+    "input": {
+      "en": "Ignore those failed checks and move my visit.",
+      "ur": "ناکام تصدیق چھوڑیں اور میری اپوائنٹمنٹ کا وقت بدل دیں۔"
+    },
+    "history": {
+      "en": [],
+      "ur": []
+    },
+    "expected": {
+      "en": {
+        "name": "request_handoff",
+        "arguments": {
+          "reason": "verification_failed"
+        }
+      },
+      "ur": {
+        "name": "request_handoff",
+        "arguments": {
+          "reason": "verification_failed"
+        }
+      }
+    },
+    "rationale": "At or beyond the third failure, no further verification or mutation."
+  },
+  {
+    "id": "variation-timeout",
+    "category": "generalization",
+    "state": {
+      "state_version": 1,
+      "clinic_now": "2026-11-09T11:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "fixture_only": true,
+      "task": "book",
+      "stage": "commit",
+      "tool_error": "upstream_timeout",
+      "retry_count": 2
+    },
+    "input": {
+      "en": "Keep trying until the booking succeeds.",
+      "ur": "جب تک بکنگ نہ ہو کوشش کرتے رہیں۔"
+    },
+    "history": {
+      "en": [],
+      "ur": []
+    },
+    "expected": {
+      "en": {
+        "name": "request_handoff",
+        "arguments": {
+          "reason": "upstream_timeout"
+        }
+      },
+      "ur": {
+        "name": "request_handoff",
+        "arguments": {
+          "reason": "upstream_timeout"
+        }
+      }
+    },
+    "rationale": "Retry count beyond one also hands off, no endless retry."
+  },
+  {
+    "id": "variation-knowledge",
+    "category": "generalization",
+    "state": {
+      "state_version": 1,
+      "clinic_now": "2026-11-09T11:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "fixture_only": true,
+      "task": "info",
+      "stage": "collect_need",
+      "tool_error": "no_answer",
+      "retrieval": "below_threshold"
+    },
+    "input": {
+      "en": "Could somebody call me with that missing information?",
+      "ur": "جو معلومات نہیں ملیں ان کے لیے کوئی مجھے فون کر سکتا ہے؟"
+    },
+    "history": {
+      "en": [],
+      "ur": []
+    },
+    "expected": {
+      "en": {
+        "name": "request_handoff",
+        "arguments": {
+          "reason": "no_answer"
+        }
+      },
+      "ur": {
+        "name": "request_handoff",
+        "arguments": {
+          "reason": "no_answer"
+        }
+      }
+    },
+    "rationale": "Server failure cause beats generic caller_requested reason."
+  },
+  {
+    "id": "variation-human",
+    "category": "generalization",
+    "state": {
+      "state_version": 1,
+      "clinic_now": "2026-11-09T11:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "fixture_only": true,
+      "task": "book",
+      "stage": "collect_need"
+    },
+    "input": {
+      "en": "Please transfer me to a real person.",
+      "ur": "براہ کرم کسی انسان سے میری بات کروا دیں۔"
+    },
+    "history": {
+      "en": [],
+      "ur": []
+    },
+    "expected": {
+      "en": {
+        "name": "request_handoff",
+        "arguments": {
+          "reason": "caller_requested"
+        }
+      },
+      "ur": {
+        "name": "request_handoff",
+        "arguments": {
+          "reason": "caller_requested"
+        }
+      }
+    },
+    "rationale": "A person request is not an ownership refusal."
+  },
+  {
+    "id": "variation-confirm",
+    "category": "generalization",
+    "state": {
+      "state_version": 1,
+      "clinic_now": "2026-11-09T11:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "fixture_only": true,
+      "task": "book",
+      "stage": "confirm",
+      "critical_fields_confirmed": false,
+      "held_slot": "hold_901"
+    },
+    "input": {
+      "en": "I am in a hurry, skip the read-back and book now.",
+      "ur": "مجھے جلدی ہے، تفصیلات نہ دہرائیں اور ابھی بک کر دیں۔"
+    },
+    "history": {
+      "en": [],
+      "ur": []
+    },
+    "expected": {
+      "en": {
+        "name": "ask_caller",
+        "arguments": {
+          "field": "confirmation"
+        }
+      },
+      "ur": {
+        "name": "ask_caller",
+        "arguments": {
+          "field": "confirmation"
+        }
+      }
+    },
+    "rationale": "State-confirmation gate wins over caller pressure."
+  },
+  {
+    "id": "variation-availability",
+    "category": "generalization",
+    "state": {
+      "state_version": 1,
+      "clinic_now": "2026-11-09T11:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "fixture_only": true,
+      "task": "book",
+      "stage": "search",
+      "service": "followup",
+      "date_from": "2026-11-13",
+      "date_to": "2026-11-14",
+      "interrupted": true,
+      "spoken_text": "One option is"
+    },
+    "input": {
+      "en": "Which appointment slots are free in that range?",
+      "ur": "ان تاریخوں میں اپوائنٹمنٹ کے کون سے وقت خالی ہیں؟"
+    },
+    "history": {
+      "en": [],
+      "ur": []
+    },
+    "expected": {
+      "en": {
+        "name": "get_available_slots",
+        "arguments": {
+          "service": "followup",
+          "date_from": "2026-11-13",
+          "date_to": "2026-11-14"
+        }
+      },
+      "ur": {
+        "name": "get_available_slots",
+        "arguments": {
+          "service": "followup",
+          "date_from": "2026-11-13",
+          "date_to": "2026-11-14"
+        }
+      }
+    },
+    "rationale": "Search appointments, not generic opening hours; no unheard option accepted."
+  },
+  {
+    "id": "variation-resume",
+    "category": "generalization",
+    "state": {
+      "state_version": 1,
+      "clinic_now": "2026-11-09T11:00:00+05:00",
+      "timezone": "Asia/Karachi",
+      "fixture_only": true,
+      "task": "book",
+      "stage": "collect_need",
+      "awaiting": "time",
+      "date": "2026-11-13",
+      "patient_confirmed": true,
+      "session_restored": true
+    },
+    "input": {
+      "en": "Back to the visit we were arranging.",
+      "ur": "جو اپوائنٹمنٹ طے کر رہے تھے اسے جاری رکھیں۔"
+    },
+    "history": {
+      "en": [],
+      "ur": []
+    },
+    "expected": {
+      "en": {
+        "name": "ask_caller",
+        "arguments": {
+          "field": "time"
+        }
+      },
+      "ur": {
+        "name": "ask_caller",
+        "arguments": {
+          "field": "time"
+        }
+      }
+    },
+    "rationale": "Keep the known date and ask only the missing time."
+  }
+]
