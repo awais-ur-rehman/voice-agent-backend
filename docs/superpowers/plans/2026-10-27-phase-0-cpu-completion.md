@@ -35,7 +35,7 @@ Python 3.12; preserve ignored `.env`; synthetic data only; thinking explicitly d
 
 - [x] Obtain a fresh review of the evaluation package and fix actionable harness issues with regressions.
 - [x] Update CI, README, phase status, license caveats, observed results, and the owner's exact commands/review checklist. Distinguish completed CPU preparation from deferred voice gates and unbuilt Phase 1/2 functionality.
-- [ ] Push to the existing Phase 0 feature branch/update its draft PR; verify local tests and CI. Do not merge or start Phase 1.
+- [x] Push to the existing Phase 0 feature branch/update its draft PR; verify local tests and CI. Do not merge or start Phase 1.
 
 ## Execution record
 
@@ -47,3 +47,5 @@ Python 3.12; preserve ignored `.env`; synthetic data only; thinking explicitly d
 - Corrected a contradictory date-history fixture and reran only its two language probes (one strict pass); expected actions unchanged and full-batch statistics retained.
 - Whole offline suite: 33 tests pass; dry runs and asset/schema validation pass.
 - Owner's exact test commands and acceptance decisions are in docs/phase-0-owner-checkpoint.md. Phase 1 remains stopped.
+
+CI verification: both offline evaluation checks passed for implementation commit 034ba22. The PR remains draft into develop; no merge or Phase 1 work was performed.
