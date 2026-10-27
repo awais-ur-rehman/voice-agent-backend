@@ -1,5 +1,7 @@
 # Action protocol and exact confirmation fixes — October 27, 2026
 
+Historical formatting/delivery checkpoint. The later [decision-fix results](phase-0-decision-fix-results.md) retain this unrestricted baseline and report the owner-approved state-constrained experiment separately.
+
 The application-boundary formatting and confirmation-delivery issues are fixed in the evaluation path. The provider's native function parser is **not** claimed to be repaired. The default now uses a constrained JSON action channel; native tool calling remains an explicit diagnostic mode. No scheduling tool executes, and Phase 1 has not started.
 
 ## Changes

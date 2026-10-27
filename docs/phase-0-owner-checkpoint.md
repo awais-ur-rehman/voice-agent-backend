@@ -17,11 +17,11 @@ uv pip sync --python .venv/bin/python --require-hashes requirements.lock
 
 Alternatively, `python3.12 -m venv .venv` followed by `.venv/bin/python -m pip install --require-hashes -r requirements.lock` works without uv. The prepared local `.venv` already exists on the owner's machine. Do not run `venv` again over an active environment; start with the test commands when using this checkout.
 
-Expected: all 44 regression tests pass; baseline dry run reports 40 fixtures; expanded dry run reports 60 next-action probes and 12 language probes. Asset validation reports 101 number values, 35 resolver cases, 15 structured normalizer cases, 200 Urdu + 50 mixed recording prompts across 10 speaker slots, and zero recorded audio. Passing these checks validates the harness/assets, not a production resolver, normalizer, STT, or scheduling engine.
+Expected: all 63 regression tests pass; baseline dry run reports 40 fixtures; expanded dry run reports 60 next-action probes and 12 language probes. Asset validation reports 101 number values, 35 resolver cases, 15 structured normalizer cases, 200 Urdu + 50 mixed recording prompts across 10 speaker slots, and zero recorded audio. Passing these checks validates the harness/assets, not a production resolver, normalizer, STT, or scheduling engine.
 
 ## 2. Review actual Nemotron replies
 
-Open the updated local language/delivery report linked in `docs/phase-0-protocol-fix-results.md`. Review all 12 samples, particularly:
+Open the updated local language/delivery report linked in `docs/phase-0-decision-fix-results.md`. Review all 12 samples, particularly:
 
 - `greeting-ur`: natural AI disclosure and a respectful greeting.
 - `missing-time-ur`: asks for appointment time rather than a vague or unnatural question; known fields are not repeated.
@@ -39,7 +39,7 @@ The confirmation selector can also be checked without a key or model request:
 .venv/bin/python -m evaluation.flows --suite confirmations
 ```
 
-Expected: three exact code deliveries, zero model responses and zero model-latency samples. The default action channel now validates structured JSON instead of relying on malformed native function syntax. The latest action-format check passed 60/60, but correct next-action selection is still only 40/60. Review those remaining decision failures before accepting a broader flow gate.
+Expected: three exact code deliveries, zero model responses and zero model-latency samples. The default action channel now validates structured JSON instead of relying on malformed native function syntax. The state-constrained pipeline passed all 60 original actions plus 28 author-created variation/contrast actions, fixing the original 20 errors without regressions in that run. Sixteen of the 88 actions have one name dictated by state; 72 retain multiple names. The unrestricted model still scored 56/60, and its failures are retained. An unchanged second run also passed all sixty original actions. These are supplied-state probes, not executed state transitions.
 
 ## 3. Review the scenario and golden requirements
 
@@ -64,7 +64,7 @@ These remain proposals unless the owner explicitly accepts them:
 
 ## 5. Explicit risk checkpoint before Phase 1
 
-Read `docs/phase-0-protocol-fix-results.md` and the retained original CPU report. Malformed serialization and extra confirmation prose are addressed, but twenty semantically wrong next-action decisions remain. Do not call CPU Phase 0 “passed” just because the evaluation ran. The owner can authorize Phase 1 **database/API foundations with synthetic data**, keeping model/tool reliability as an unresolved gate before Phase 2/3 integration. If the owner requires the original full voice feasibility gate before any Phase 1 work, it remains blocked on the voice/GPU evidence below. No automatic merge or phase advance is performed.
+Read `docs/phase-0-decision-fix-results.md` and the retained original CPU report. Malformed serialization and extra confirmation prose are addressed. The owner-approved state-constrained experiment passes the tested decisions; unrestricted model reliability remains inadequate. Do not call full Phase 0 “passed” on these synthetic probes alone. The owner can authorize Phase 1 **database/API foundations with synthetic data**, keeping model/tool reliability as an unresolved gate before Phase 2/3 integration. If the owner requires the original full voice feasibility gate before any Phase 1 work, it remains blocked on the voice/GPU evidence below. No automatic merge or phase advance is performed.
 
 The hosted model's OpenMDW-1.1 terms and future self-hosted artifact approval remain recorded in `docs/licenses.md`; a hosted synthetic evaluation does not clear a production license/deployment path.
 

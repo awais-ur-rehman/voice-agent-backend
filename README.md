@@ -4,7 +4,7 @@ Backend/voice-runtime workspace for an English/Urdu clinic appointment scheduler
 
 The governing v0.1 product/engineering spec and v0.2 Urdu/NIM addendum live in the parent workspace's `documents/` directory. v0.2 wins conflicts. The owner selected hosted Nemotron with thinking disabled; the other three candidate endpoints and GPU voice latency work are deferred.
 
-Start with the [protocol/delivery fix results](docs/phase-0-protocol-fix-results.md) and [original CPU results](docs/phase-0-cpu-results.md) and the [owner test checkpoint](docs/phase-0-owner-checkpoint.md). Do not equate a completed evaluation with a passed voice/product feasibility gate.
+Start with the [decision-fix results](docs/phase-0-decision-fix-results.md), retained [protocol/delivery results](docs/phase-0-protocol-fix-results.md), and the [owner test checkpoint](docs/phase-0-owner-checkpoint.md). Do not equate a completed text evaluation with a passed voice/product feasibility gate.
 
 ## Setup
 
@@ -25,6 +25,7 @@ Copy `.env.example` to `.env` only on first setup and configure `LLM_API_KEY` lo
 .venv/bin/python tests/run_offline.py
 .venv/bin/python -m evaluation --dry-run
 .venv/bin/python -m evaluation.flows --dry-run
+.venv/bin/python -m evaluation.flows --dry-run --fixture-set all --action-policy state_constrained
 .venv/bin/python -m evaluation.assets
 .venv/bin/python -m evaluation.flows --suite confirmations
 ```
@@ -35,6 +36,7 @@ The preparation package includes:
 
 - Original 40 extraction/clinic-info cases: 20 Urdu, 10 English, 10 mixed.
 - Thirty next-action scenarios, each in English and Urdu: supplied synthetic history/state, expected action and arguments; no tool is executed.
+- Fourteen additional bilingual variation/contrast scenarios for state eligibility and field/intent distinctions. These are author-created coverage, not hidden validation.
 - Twelve language/delivery samples: nine model-generated speech-text replies for native review and three authoritative confirmations delivered directly from code, with source provenance recorded.
 - Thirty-five resolver golden cases, all number expectations from 0–100, and 15 structured normalizer cases. These are requirements for the later resolver/normalizer, not implementations.
 - A proposed versioned bilingual tool-result JSON Schema and positive/negative examples.
@@ -48,15 +50,20 @@ Use synthetic fixtures only. Obtain a key using [NVIDIA's API Catalog guide](htt
 # Original single-turn baseline; --limit 1 is a smoke test.
 .venv/bin/python -m evaluation --model nvidia/nemotron-3.5-bolt-e4b --limit 1
 
-# Full suite: sixty structured action probes, nine model prose samples, three code confirmations.
-.venv/bin/python -m evaluation.flows --model nvidia/nemotron-3.5-bolt-e4b
+# Recommended Phase 0 experiment: 88 state-constrained actions + 12 language/delivery samples.
+.venv/bin/python -m evaluation.flows --model nvidia/nemotron-3.5-bolt-e4b --fixture-set all --action-policy state_constrained
+
+# Unrestricted diagnostic: the original sixty actions + twelve language/delivery samples.
+.venv/bin/python -m evaluation.flows --model nvidia/nemotron-3.5-bolt-e4b --action-policy unrestricted
 
 # Language samples only, or a selected language for a short manual rerun.
 .venv/bin/python -m evaluation.flows --model nvidia/nemotron-3.5-bolt-e4b --suite language
 .venv/bin/python -m evaluation.flows --model nvidia/nemotron-3.5-bolt-e4b --scenario correct-date
 ```
 
-Nemotron requests explicitly send thinking off, parallel calls off, and `skip_special_tokens=false`, with temperature 1.0/top_p 0.95. Expanded action probes default to `response_format=json_schema`: the model chooses among all thirteen action schemas, and the complete JSON response must pass strict local validation before an internal action request is exposed. No expected answer is supplied, no free-form function text is repaired, and no scheduling tool executes. `--action-protocol native` retains the previous native-call path as a diagnostic. Original extraction baselines used native `auto`; original expanded native runs used `required`. Reports identify the actual mode; results are not a controlled A/B model-quality experiment.
+Nemotron requests explicitly send thinking off, parallel calls off, and `skip_special_tokens=false`, with top_p 0.95. Action probes use temperature 0; language samples retain temperature 1.0. Expanded action probes default to `response_format=json_schema`: the model chooses among all thirteen action schemas, and the complete JSON response must pass strict local validation before an internal action request is exposed. No expected answer is supplied, no free-form function text is repaired, and no scheduling tool executes. `--action-protocol native` retains the previous native-call path as a diagnostic. Original extraction baselines used native `auto`; original expanded native runs used `required`. Reports identify the actual mode; results are not a controlled A/B model-quality experiment.
+
+The explicit `state_constrained` policy derives `allowed_next` names and argument constraints from supplied synthetic state and literal current-input spans. It rejects ineligible responses without rewriting them. Singleton actions dictated by state are counted separately. The default `unrestricted` diagnostic retains all thirteen action names; its results measure a different capability. Neither mode executes a tool or implements production authorization. See [decision-fix results](docs/phase-0-decision-fix-results.md).
 
 Each request is separated by two seconds by default. No hidden retry/failover or saturation test is performed. `--interval` and `--timeout` control pacing/socket timeout; the 30-second experimental ceiling is not the production three-second failover policy. Runs stop at the first provider failure and retain partial reports. A scoring failure does not stop remaining samples. Exit codes: 0 all requested mechanical checks pass; 1 a scoring/provider failure; 2 invalid configuration.
 
@@ -65,10 +72,10 @@ JSON reports are private files under ignored `results/`. First content/control d
 ## Review the outputs
 
 ```bash
-.venv/bin/python -m evaluation.review results/phase0-protocol-fixed-72.json --suite language
+.venv/bin/python -m evaluation.review results/phase0-state-constrained-100.json --suite language
 ```
 
-The generated local HTML escapes all model text, renders mixed scripts, and keeps human acceptance separate from automated scores. Open it from the file link in [latest results](docs/phase-0-protocol-fix-results.md). A fresh live run gets a timestamped report name; pass that path instead. The review command does not overwrite an existing reviewed artifact.
+The generated local HTML escapes all model text, renders mixed scripts, and keeps human acceptance separate from automated scores. Open it from the file link in [latest results](docs/phase-0-decision-fix-results.md). A fresh live run gets a timestamped report name; pass that path instead. The review command does not overwrite an existing reviewed artifact.
 
 ## Planned production boundaries
 

@@ -6,12 +6,12 @@
 - Owner-selected Nemotron development baseline with thinking disabled; no secondary model validated. Three additional model candidates are deferred after API and owner playground failures.
 - Original hosted extraction baseline: 38/40 strict matches. Its Devanagari corruption and latency limits are retained.
 - Thirty bilingual supplied-state scenarios: 60 next-action probes. Twelve additional speech-text samples with local escaped HTML for native review.
-- Original native expanded run retained: 15/60 strict actions and 9/12 model language checks. After protocol/delivery fixes, the rerun produced 60/60 schema-valid structured actions, 40/60 correct decisions, 9/9 model-language mechanical passes, and 3/3 exact direct code confirmations (zero model calls for confirmations). No reasoning was returned. **The semantic action gate still did not pass.** See [latest results](phase-0-protocol-fix-results.md).
+- Original native expanded run retained: 15/60 strict actions and 9/12 model language checks. After protocol/delivery fixes, the rerun produced 60/60 schema-valid structured actions, 40/60 correct decisions, 9/9 model-language mechanical passes, and 3/3 exact direct code confirmations (zero model calls for confirmations). No reasoning was returned. **The semantic action gate still did not pass.** This historical unrestricted result is retained. The later owner-approved state-constrained experiment passes 60/60 original actions in two unchanged runs, plus 28/28 new actions, all nine model-language mechanical checks and three exact confirmations in the full run. See [latest results](phase-0-decision-fix-results.md).
 - 35 resolver goldens, 101 Urdu number expectations and 15 structured normalizer cases. No resolver/normalizer implementation is claimed.
 - Proposed versioned bilingual tool-result schema plus positive/negative examples, validated with hash-locked JSON Schema tooling.
 - Unrecorded manifest: 200 Urdu + 50 mixed script prompts across ten speaker slots; no actual audio, speaker coverage or STT metrics claimed.
 - Independent harness review completed. Fixed JSON numeric/boolean false equality with a failing-then-passing regression, clarified mechanical versus semantic language acceptance, and supplied explicit rescheduling policy approval in the fixture.
-- 44 local regression tests pass; both offline dry runs and asset consistency checks pass. CI runs the same offline checks without an API key.
+- 63 local regression tests pass; both offline dry runs and asset consistency checks pass. CI runs the same offline checks without an API key.
 
 ## Owner checkpoint remains open
 
