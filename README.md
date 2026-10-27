@@ -45,7 +45,7 @@ Urdu-input prose checks detect Arabic-script text and reject Devanagari; mixed-i
 
 ### Additional Phase 0 candidates
 
-The user selected three additional NIM candidates. Request profiles follow their model-specific API references; endpoint inference remains unverified because the initial tool and basic-text requests timed out. See [comparison status](docs/model-comparison-status.md).
+The user evaluated access to three additional NIM candidates and subsequently deferred them after the playground checks also failed. Nemotron with thinking disabled is the owner-selected development baseline. Request profiles follow their model-specific API references; endpoint inference remains unverified because the initial tool and basic-text requests timed out. See [comparison status](docs/model-comparison-status.md).
 
 | Model | Configured reasoning control | Sampling |
 | --- | --- | --- |

@@ -34,3 +34,9 @@ Local evidence is ignored under `results/`: `<candidate>-smoke.json`, `<candidat
 The owner can try `Reply with OK.` in each NVIDIA model playground and report whether a response appears. If the playground works, compare its generated API example (with the key removed) against the documented endpoint profiles. If it also fails, retry once access/service availability changes or select alternative candidates; do not invent scores for untested models.
 
 Nemotron remains the only candidate with a completed 40-case evaluation: 38 exact matches, with the documented script failure and latency limitations. No production winner is selected. Full Phase 0 and Phase 1 remain gated as previously recorded. Local regression suite: 20 tests pass; offline fixtures remain 20 Urdu, 10 English, and 10 mixed cases.
+
+## Owner decision after playground check
+
+The owner reported that none of the three additional models responded in the NVIDIA playground and instructed us to use Nemotron instead. The extra candidates are deferred; do not keep retrying them without a new access/availability signal or owner request. This report does not independently establish the cause of the playground failures.
+
+The active local development baseline is `nvidia/nemotron-3.5-bolt-e4b`, with `chat_template_kwargs.enable_thinking=false` and parallel tool calls disabled. Credential assignments were preserved. The owner-selected baseline does not erase the earlier 38/40 strict-match result, Devanagari corruption, or latency concerns. The four-model comparison is explicitly deferred, not completed or passed; full voice feasibility remains pending.
