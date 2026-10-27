@@ -47,7 +47,7 @@ Interfaces: layered filtered context; explicit live mode; owner-selected Nemotro
 
 - [x] Red provider/transport tests for malformed/injected calls, wrong script, bounded requests, timeout/429/circuit behavior, stale plans and credential/factor exclusion. Implement adapter and console with actual-request provenance.
 - [x] Run real hosted English/Urdu lifecycle, correction/digression and family/task-switch paths against synthetic records. Retain every outcome; resolve blocking failures before completion. Do not count fake/scripted output as inference.
-- [ ] Run all retained/new tests, lint/types, actual Docker HTTP smoke and CI. Independent whole-branch review, important fixes with regressions, owner test guide/results and focused draft PR into develop. Preserve local service/data and stop before Phase 3/Phase 2 merge.
+- [x] Run all retained/new tests, lint/types, actual Docker HTTP smoke and CI. Independent whole-branch review, important fixes with regressions, owner test guide/results and focused draft PR into develop. Preserve local service/data and stop before Phase 3/Phase 2 merge.
 
 ## Execution
 

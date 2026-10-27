@@ -1,6 +1,6 @@
 # Phase 2 verification checkpoint
 
-Measured October 28, 2026 on `feat/phase-2-agent-brain`. Phase 1 PR #2 was merged into `develop` with owner approval. Phase 2 remains a draft for owner testing; Phase 3 has not started.
+Measured October 28, 2026 on `feat/phase-2-agent-brain`; implementation commit `5dad11b`. Phase 1 PR #2 was merged into `develop` with owner approval. Phase 2 remains a draft for owner testing; Phase 3 has not started.
 
 ## Executed checks
 
@@ -8,12 +8,12 @@ Measured October 28, 2026 on `feat/phase-2-agent-brain`. Phase 1 PR #2 was merge
 | --- | --- |
 | Full application/environment/brain suite | 428 passed, four explicitly hosted tests skipped; 47.30 s |
 | Retained Phase 0 offline checks | 63 passed |
-| Hosted NIM acceptance suite | Four passed together; 52.46 s |
+| Hosted NIM acceptance suite | Four passed together; 52.54 s |
 | Ruff / format / mypy | Passed; 66 formatted files, 32 typed source modules |
 | PostgreSQL migration round trip | 0002 → 0001 → 0002 passed; head has 17 forced-RLS tenant tables |
 | Rebuilt Docker HTTP smoke | Passed: runtime/staff separation, tenant denial, verification, holds, booking/replay, reschedule, cancellation and ended-session rejection; zero provider calls |
 | Independent review | Important findings fixed with regressions; no unresolved P1 reported |
-| GitHub CI | Pending current draft PR checks |
+| GitHub CI | [Current draft PR checks](https://github.com/awais-ur-rehman/voice-agent-backend/pull/3/checks) |
 
 The scripted suite executes the thirty original scenario families in both languages, plus four variations, against real PostgreSQL and Valkey. It validates every tool envelope and asserts scheduling/state effects. Additional tests cover golden resolution/normalization, authorization, exact verification, ambiguous shared phones, confirmation invalidation, expired holds, buffered overlap/races, receipt recovery, retention, capability rotation, interrupts, silence and transient mutation retries. It preserves the Phase 0 fixtures and keeps production imports independent of their expected answers.
 
