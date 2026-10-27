@@ -26,6 +26,10 @@ def validate_envelope(value: dict) -> bool:
 
 def validate_assets() -> dict:
     probes = load_probes()
+    for probe in probes:
+        if probe['suite'] == 'language' and 'say' in probe:
+            if not validate_envelope(probe['tool_result']) or probe['say'] != probe['tool_result']['say'][probe['expected_lang']]:
+                raise ValueError('Authoritative confirmation fixture is inconsistent')
     tools = json.loads((FIXTURES / 'flow_tools.json').read_text())
     validators = {}
     for tool in tools:

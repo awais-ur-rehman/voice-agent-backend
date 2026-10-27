@@ -1,6 +1,6 @@
 # Phase 0: bilingual voice feasibility
 
-The owner authorized a CPU-only evaluation/preparation checkpoint using hosted Nemotron. That package is delivered; **the expanded model flow checks did not pass**, and human review remains open. See [observed results](phase-0-cpu-results.md), [current status](phase-0-progress.md), and [owner test checklist](phase-0-owner-checkpoint.md).
+The owner authorized a CPU-only evaluation/preparation checkpoint using hosted Nemotron. That package is delivered; **the expanded model flow checks did not pass**, and human review remains open. Serialization and direct-confirmation delivery are fixed; correct action choice remains 40/60. See [latest results](phase-0-protocol-fix-results.md) and [original results](phase-0-cpu-results.md), [current status](phase-0-progress.md), and [owner test checklist](phase-0-owner-checkpoint.md).
 
 ## Governing scope
 

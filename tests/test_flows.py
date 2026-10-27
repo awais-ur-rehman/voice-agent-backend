@@ -66,7 +66,9 @@ class ProbeTests(unittest.TestCase):
         probe=load_probes()[0]
         payload=build_probe_payload('nvidia/nemotron-3.5-bolt-e4b',probe)
         self.assertEqual(payload['chat_template_kwargs'],{'enable_thinking':False})
-        self.assertEqual(payload['tool_choice'],'required')
+        self.assertEqual(payload['response_format']['type'],'json_schema')
+        native=build_probe_payload('nvidia/nemotron-3.5-bolt-e4b',probe,action_protocol='native')
+        self.assertEqual(native['tool_choice'],'required')
         self.assertIn('fixture_only',payload['messages'][0]['content'])
         self.assertNotIn('expected',payload['messages'][0]['content'])
         prose=next(p for p in load_probes() if p['suite']=='language')

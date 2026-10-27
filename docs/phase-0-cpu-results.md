@@ -1,4 +1,6 @@
-# CPU-only Phase 0 results — October 27, 2026
+# Original native-action Phase 0 results — October 27, 2026
+
+**Historical report:** see [protocol and confirmation fixes](phase-0-protocol-fix-results.md) for the newer structured-action and direct-confirmation paths. The figures below are retained unchanged.
 
 CPU evaluation and preparation are complete for the owner-selected Nemotron baseline. **The expanded model flow gate did not pass.** No production API, resolver/normalizer, database transaction, language detector, voice pipeline, or real scheduling tool is implemented by this package. Phase 1 remains stopped for owner review.
 

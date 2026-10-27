@@ -9,7 +9,7 @@ From the backend repository, using Python 3.12:
 ```bash
 uv venv --python 3.12 .venv
 uv pip sync --python .venv/bin/python --require-hashes requirements.lock
-.venv/bin/python -m unittest discover -s tests -v
+.venv/bin/python tests/run_offline.py
 .venv/bin/python -m evaluation --dry-run
 .venv/bin/python -m evaluation.flows --dry-run
 .venv/bin/python -m evaluation.assets
@@ -17,11 +17,11 @@ uv pip sync --python .venv/bin/python --require-hashes requirements.lock
 
 Alternatively, `python3.12 -m venv .venv` followed by `.venv/bin/python -m pip install --require-hashes -r requirements.lock` works without uv. The prepared local `.venv` already exists on the owner's machine. Do not run `venv` again over an active environment; start with the test commands when using this checkout.
 
-Expected: all regression tests pass; baseline dry run reports 40 fixtures; expanded dry run reports 60 next-action probes and 12 language probes. Asset validation reports 101 number values, 35 resolver cases, 15 structured normalizer cases, 200 Urdu + 50 mixed recording prompts across 10 speaker slots, and zero recorded audio. Passing these checks validates the harness/assets, not a production resolver, normalizer, STT, or scheduling engine.
+Expected: all 44 regression tests pass; baseline dry run reports 40 fixtures; expanded dry run reports 60 next-action probes and 12 language probes. Asset validation reports 101 number values, 35 resolver cases, 15 structured normalizer cases, 200 Urdu + 50 mixed recording prompts across 10 speaker slots, and zero recorded audio. Passing these checks validates the harness/assets, not a production resolver, normalizer, STT, or scheduling engine.
 
 ## 2. Review actual Nemotron replies
 
-Open the final local language review report linked in `docs/phase-0-cpu-results.md`. Review all 12 samples, particularly:
+Open the updated local language/delivery report linked in `docs/phase-0-protocol-fix-results.md`. Review all 12 samples, particularly:
 
 - `greeting-ur`: natural AI disclosure and a respectful greeting.
 - `missing-time-ur`: asks for appointment time rather than a vague or unnatural question; known fields are not repeated.
@@ -29,9 +29,17 @@ Open the final local language review report linked in `docs/phase-0-cpu-results.
 - The three language-switch examples: one English loanword/one switched turn does not flip the current language; two consecutive switched turns follow the supplied current-language state. These are supplied-state probes, not an implemented language detector/streak manager.
 - `no-answer-ur`: natural Urdu, admits unavailable information, and offers a callback without inventing a guarantee.
 - `roman-urdu-instruction`: remains in Urdu script.
-- The three `say-*` examples: the model must not alter a date/fee or append a follow-up when asked for exact delivery. Regardless of model results, the production path must bypass the LLM for authoritative `say` strings, as the spec requires.
+- The three `say-*` examples now show **code template — no model request**. Confirm that the exact date/fee text is displayed without a follow-up. The original model-repeat failures remain historical evidence; the default path no longer asks a model to repeat confirmations. The text-delivery selector is implemented, but production normalization/TTS wiring is still future work.
 
 For each sample, send its ID plus: meaning correct yes/no, naturalness 1–5, politeness 1–5, one-question rule yes/no, and your suggested correction. Mechanical script/length checks cannot prove semantic safety or naturalness. A sentence falsely claiming a cancellation could pass these heuristics; human review must reject it.
+
+The confirmation selector can also be checked without a key or model request:
+
+```bash
+.venv/bin/python -m evaluation.flows --suite confirmations
+```
+
+Expected: three exact code deliveries, zero model responses and zero model-latency samples. The default action channel now validates structured JSON instead of relying on malformed native function syntax. The latest action-format check passed 60/60, but correct next-action selection is still only 40/60. Review those remaining decision failures before accepting a broader flow gate.
 
 ## 3. Review the scenario and golden requirements
 
@@ -56,7 +64,7 @@ These remain proposals unless the owner explicitly accepts them:
 
 ## 5. Explicit risk checkpoint before Phase 1
 
-Read `docs/phase-0-cpu-results.md`, including failed actions and any malformed tool output. Do not call CPU Phase 0 “passed” just because the evaluation ran. The owner can authorize Phase 1 **database/API foundations with synthetic data**, keeping model/tool reliability as an unresolved gate before Phase 2/3 integration. If the owner requires the original full voice feasibility gate before any Phase 1 work, it remains blocked on the voice/GPU evidence below. No automatic merge or phase advance is performed.
+Read `docs/phase-0-protocol-fix-results.md` and the retained original CPU report. Malformed serialization and extra confirmation prose are addressed, but twenty semantically wrong next-action decisions remain. Do not call CPU Phase 0 “passed” just because the evaluation ran. The owner can authorize Phase 1 **database/API foundations with synthetic data**, keeping model/tool reliability as an unresolved gate before Phase 2/3 integration. If the owner requires the original full voice feasibility gate before any Phase 1 work, it remains blocked on the voice/GPU evidence below. No automatic merge or phase advance is performed.
 
 The hosted model's OpenMDW-1.1 terms and future self-hosted artifact approval remain recorded in `docs/licenses.md`; a hosted synthetic evaluation does not clear a production license/deployment path.
 

@@ -6,12 +6,12 @@
 - Owner-selected Nemotron development baseline with thinking disabled; no secondary model validated. Three additional model candidates are deferred after API and owner playground failures.
 - Original hosted extraction baseline: 38/40 strict matches. Its Devanagari corruption and latency limits are retained.
 - Thirty bilingual supplied-state scenarios: 60 next-action probes. Twelve additional speech-text samples with local escaped HTML for native review.
-- Final hosted expanded run: 72/72 requests completed; 15/60 strict next-action checks and 9/12 language mechanical checks passed. No reasoning was returned. **The model flow gate did not pass.**
+- Original native expanded run retained: 15/60 strict actions and 9/12 model language checks. After protocol/delivery fixes, the rerun produced 60/60 schema-valid structured actions, 40/60 correct decisions, 9/9 model-language mechanical passes, and 3/3 exact direct code confirmations (zero model calls for confirmations). No reasoning was returned. **The semantic action gate still did not pass.** See [latest results](phase-0-protocol-fix-results.md).
 - 35 resolver goldens, 101 Urdu number expectations and 15 structured normalizer cases. No resolver/normalizer implementation is claimed.
 - Proposed versioned bilingual tool-result schema plus positive/negative examples, validated with hash-locked JSON Schema tooling.
 - Unrecorded manifest: 200 Urdu + 50 mixed script prompts across ten speaker slots; no actual audio, speaker coverage or STT metrics claimed.
 - Independent harness review completed. Fixed JSON numeric/boolean false equality with a failing-then-passing regression, clarified mechanical versus semantic language acceptance, and supplied explicit rescheduling policy approval in the fixture.
-- 33 local regression tests pass; both offline dry runs and asset consistency checks pass. CI runs the same offline checks without an API key.
+- 44 local regression tests pass; both offline dry runs and asset consistency checks pass. CI runs the same offline checks without an API key.
 
 ## Owner checkpoint remains open
 
@@ -22,3 +22,5 @@ Phase 1 has **not** started. The owner may explicitly authorize database/API fou
 ## Deferred or unresolved
 
 The original full Phase 0 voice gate has not passed: real recordings, Whisper WER/CER/name/number accuracy, Urdu TTS six-voice/MOS/latency evidence, a verified licensed fallback, Pipecat/LiveKit browser audio, barge-in, target-network end-to-end p50/p95, concurrency/RPM, provider failover and production licensing/deployment decisions remain open. GPU voice latency is deferred by owner instruction, not silently waived.
+
+Independent protocol review found an escaped-Unicode script-check gap. The adapter now checks decoded strings, covered by a reproducing regression; all 60 saved structured outputs were revalidated unchanged after the fix. Offline tests now isolate fake environments and block workspace credential loading/network connections.

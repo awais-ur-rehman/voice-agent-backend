@@ -145,7 +145,8 @@ class ConfigurationTests(unittest.TestCase):
         response = {'content': 'synthetic-secret', 'tools': [], 'first_output_ms': 100,
                     'first_content_ms': 100, 'first_usable_content_ms': 100,
                     'total_ms': 300, 'finish_reason': 'stop', 'usage': None}
-        with patch.dict(os.environ, {'LLM_API_KEY': 'synthetic-secret'}), \
+        with patch.dict(os.environ, {'LLM_API_KEY': 'synthetic-secret'}, clear=True), \
+                patch('evaluation.cli.load_env', return_value=None), \
                 patch('evaluation.cli.request_stream', return_value=response), \
                 redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
             code = main(['--model', 'test', '--limit', '1', '--output', str(directory / 'report.json')])
@@ -158,7 +159,7 @@ class ConfigurationTests(unittest.TestCase):
         self.assertEqual(report['summary']['first_output_ms']['p95'], 100)
 
     def test_env_is_data_and_existing_environment_wins(self):
-        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {'LLM_MODEL': 'existing'}):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {'LLM_MODEL': 'existing'}, clear=True):
             path = Path(directory) / '.env'
             path.write_text('LLM_MODEL=replaced\nLLM_API_KEY="literal-$(command)"\n')
             load_env(path)
@@ -191,14 +192,16 @@ class ConfigurationTests(unittest.TestCase):
                 self.assertNotIn('secret-key', str(caught.exception))
 
     def test_cli_dry_run_and_missing_key(self):
+        from contextlib import redirect_stderr
         command = [sys.executable, '-m', 'evaluation']
         env = dict(os.environ, LLM_API_KEY='', LLM_MODEL='')
         dry = subprocess.run(command + ['--dry-run'], capture_output=True, text=True, env=env)
         self.assertEqual(dry.returncode, 0, dry.stderr)
         self.assertEqual(json.loads(dry.stdout)['languages'], {'ur': 20, 'en': 10, 'mixed': 10})
-        missing = subprocess.run(command + ['--model', 'test'], capture_output=True, text=True, env=env)
-        self.assertEqual(missing.returncode, 2)
-        self.assertIn('LLM_API_KEY', missing.stderr)
+        error = io.StringIO()
+        with patch.dict(os.environ, {}, clear=True), patch('evaluation.cli.load_env', return_value=None), redirect_stderr(error):
+            self.assertEqual(main(['--model', 'test']), 2)
+        self.assertIn('LLM_API_KEY', error.getvalue())
 
 
 if __name__ == '__main__':
