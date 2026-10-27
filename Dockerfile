@@ -13,6 +13,7 @@ CMD ["uv", "run", "--no-sync", "uvicorn", "scheduler.main:create_app", "--factor
 FROM base AS runtime
 RUN uv sync --locked --no-dev --no-install-project
 COPY scheduler ./scheduler
+COPY brain ./brain
 COPY scripts ./scripts
 COPY migrations ./migrations
 COPY alembic.ini LICENSE ./

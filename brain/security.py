@@ -1,7 +1,7 @@
 """Runtime capabilities are separate from staff credentials and checked against SQL."""
 
 import secrets
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
@@ -25,6 +25,7 @@ class RuntimeActor:
     tenant_id: UUID
     agent_id: UUID
     version_id: UUID
+    nonce_hash: str | None = field(default=None, repr=False, compare=False)
 
 
 def runtime_secret(settings) -> str:
@@ -67,6 +68,8 @@ def active_guard(row: AgentSession | None, actor: RuntimeActor, now: datetime) -
         or row.status != "active"
         or row.revoked_at is not None
         or row.expires_at <= now
+        or actor.nonce_hash is not None
+        and not secrets.compare_digest(row.token_jti_hash, actor.nonce_hash)
     ):
         raise AppError("unauthorized", 401)
     return row
@@ -89,6 +92,7 @@ def decode_runtime(db: Session, token: str, settings, now: datetime | None = Non
             UUID(claims["tenant"]),
             UUID(claims["agent"]),
             UUID(claims["version"]),
+            token_hash(claims["jti"]),
         )
         nonce_hash = token_hash(claims["jti"])
     except (jwt.InvalidTokenError, ValueError, KeyError, TypeError):

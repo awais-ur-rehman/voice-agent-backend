@@ -314,3 +314,25 @@ def test_renewal_rotates_capability_and_preserves_revision(database, seed):
         db.flush()
         with pytest.raises(AppError):
             renew_session(db, actor, NOW + timedelta(minutes=20), settings)
+
+
+def test_capability_rotated_after_auth_cannot_execute_later_command(database, seed):
+    from brain.security import decode_runtime
+    from brain.sessions import command, renew_session
+
+    db, settings, created = setup_session(database, seed)
+    with db:
+        actor = decode_runtime(db, created["token"], settings, now=NOW)
+        renew_session(db, actor, NOW, settings)
+        db.commit()
+        with pytest.raises(AppError):
+            command(
+                db,
+                actor,
+                "stale-nonce-command",
+                0,
+                {},
+                NOW,
+                settings.runtime_secret,
+                lambda db, s: {"ok": True},
+            )

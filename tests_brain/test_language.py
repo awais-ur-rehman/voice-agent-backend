@@ -36,9 +36,11 @@ def test_two_dominant_turns_are_required_and_streak_resets():
 def test_fixed_language_ignores_turn(mode):
     from brain.language import language_transition
 
-    assert language_transition(
-        "ur", "en", 1, "Please book an appointment", mode=mode
-    ) == (mode, None, 0)
+    assert language_transition("ur", "en", 1, "Please book an appointment", mode=mode) == (
+        mode,
+        None,
+        0,
+    )
 
 
 def test_loanwords_do_not_outweigh_urdu():

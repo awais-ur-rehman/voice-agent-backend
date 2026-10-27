@@ -13,16 +13,14 @@ from datetime import date, datetime, time
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
-_UR: list[str] = json.loads(
-    (Path(__file__).parent / "locales/ur_numbers.json").read_text()
-)
+_UR: list[str] = json.loads((Path(__file__).parent / "locales/ur_numbers.json").read_text())
 _EN_SMALL = "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen".split()
 _EN_TENS = "zero ten twenty thirty forty fifty sixty seventy eighty ninety".split()
-_UR_MONTHS = (
-    "جنوری فروری مارچ اپریل مئی جون جولائی اگست ستمبر اکتوبر نومبر دسمبر".split()
-)
+_UR_MONTHS = "جنوری فروری مارچ اپریل مئی جون جولائی اگست ستمبر اکتوبر نومبر دسمبر".split()
 _UR_DAYS = ["پیر", "منگل", "بدھ", "جمعرات", "جمعہ", "ہفتہ", "اتوار"]
-_EN_MONTHS = "January February March April May June July August September October November December".split()
+_EN_MONTHS = (
+    "January February March April May June July August September October November December".split()
+)
 _EN_DAYS = "Monday Tuesday Wednesday Thursday Friday Saturday Sunday".split()
 
 
@@ -55,9 +53,7 @@ def number_en(value: int, ordinal: bool = False) -> str:
     if value < 20:
         result = _EN_SMALL[value]
     elif value < 100:
-        result = _EN_TENS[value // 10] + (
-            "-" + _EN_SMALL[value % 10] if value % 10 else ""
-        )
+        result = _EN_TENS[value // 10] + ("-" + _EN_SMALL[value % 10] if value % 10 else "")
     else:
         scale, word = next(
             (s, w)
@@ -68,9 +64,7 @@ def number_en(value: int, ordinal: bool = False) -> str:
         if value % scale:
             result += " " + number_en(value % scale)
     if ordinal:
-        head, separator, last = result.rpartition(
-            "-" if "-" in result.rsplit(" ", 1)[-1] else " "
-        )
+        head, separator, last = result.rpartition("-" if "-" in result.rsplit(" ", 1)[-1] else " ")
         special = {
             "zero": "zeroth",
             "one": "first",
@@ -81,9 +75,7 @@ def number_en(value: int, ordinal: bool = False) -> str:
             "nine": "ninth",
             "twelve": "twelfth",
         }
-        last = special.get(
-            last, last[:-1] + "ieth" if last.endswith("y") else last + "th"
-        )
+        last = special.get(last, last[:-1] + "ieth" if last.endswith("y") else last + "th")
         result = head + separator + last
     return result
 
@@ -94,9 +86,7 @@ def _large_ur(value: int) -> str:
     if value > 999_999:
         raise LocaleError("outside_lookup_range")
     scale, word = next(
-        (s, w)
-        for s, w in [(100_000, "لاکھ"), (1000, "ہزار"), (100, "سو")]
-        if value >= s
+        (s, w) for s, w in [(100_000, "لاکھ"), (1000, "ہزار"), (100, "سو")] if value >= s
     )
     result = number_ur(value // scale) + " " + word
     return result + (" " + _large_ur(value % scale) if value % scale else "")
@@ -125,9 +115,7 @@ def say_time(value: time | str, lang: str = "ur") -> str:
         clock_en = number_en(h)
         if minute:
             clock_en += " " + ("oh " if minute < 10 else "") + number_en(minute)
-        return clock_en + (
-            " at night" if period_en == "night" else " in the " + period_en
-        )
+        return clock_en + (" at night" if period_en == "night" else " in the " + period_en)
     period = (
         "صبح"
         if 5 <= hour < 12
@@ -189,9 +177,7 @@ def say_currency(value: Decimal | str | int, lang: str = "ur") -> str:
     )
 
 
-def say_phone(
-    value: str, lang: str = "ur", read_digits_in_english: bool = False
-) -> str:
+def say_phone(value: str, lang: str = "ur", read_digits_in_english: bool = False) -> str:
     _lang(lang)
     if not isinstance(value, str) or not re.fullmatch(r"\+?[0-9\s()\-]+", value):
         raise LocaleError("validation_error")
@@ -208,9 +194,7 @@ def say_phone(
         groups = ["92", digits[2:5], digits[5:8], digits[8:]]
     speak = number_en if lang == "en" or read_digits_in_english else number_ur
     separator = ", " if lang == "en" or read_digits_in_english else "، "
-    return separator.join(
-        " ".join(speak(int(digit)) for digit in group) for group in groups
-    )
+    return separator.join(" ".join(speak(int(digit)) for digit in group) for group in groups)
 
 
 def say_name(name: str, name_ur: str | None, lang: str = "ur") -> str:
@@ -221,9 +205,7 @@ def say_name(name: str, name_ur: str | None, lang: str = "ur") -> str:
         return name.strip()
     if (
         not isinstance(name_ur, str)
-        or not re.search(
-            r"[\u0621-\u063a\u0641-\u064a\u066e-\u06d3\u06fa-\u06ff]", name_ur
-        )
+        or not re.search(r"[\u0621-\u063a\u0641-\u064a\u066e-\u06d3\u06fa-\u06ff]", name_ur)
         or re.search(r"[A-Za-z0-9\u0660-\u0669\u06f0-\u06f9\u0900-\u097f]", name_ur)
     ):
         raise LocaleError("pronunciation_review_required")

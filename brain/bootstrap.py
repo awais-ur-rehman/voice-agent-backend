@@ -4,12 +4,12 @@ import argparse
 import json
 import os
 import stat
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time
 from pathlib import Path
 from typing import Literal, cast
 from uuid import UUID, uuid4, uuid5
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
@@ -21,12 +21,34 @@ from scheduler.models import Agent, AgentVersion, Patient, Provider, Service
 from .sessions import purge_recovery
 
 
+class ClinicProfile(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    address_en: str | None = Field(default=None, min_length=1, max_length=300)
+    address_ur: str | None = Field(default=None, min_length=1, max_length=300)
+    preparation_en: str | None = Field(default=None, min_length=1, max_length=600)
+    preparation_ur: str | None = Field(default=None, min_length=1, max_length=600)
+
+
 class AgentConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     name: str = Field(default="Synthetic Receptionist", min_length=1, max_length=100)
     language_mode: Literal["en", "ur", "bilingual"] = "bilingual"
     instructions: str = Field(default="Ask one question at a time.", min_length=1, max_length=2000)
     read_digits_in_english: bool = False
+    prayer_break: list[str] | None = Field(default=None, min_length=2, max_length=2)
+    clinic_profile: ClinicProfile = Field(default_factory=ClinicProfile)
+
+    @field_validator("prayer_break")
+    @classmethod
+    def valid_prayer_break(cls, value):
+        if value is not None:
+            try:
+                first, last = map(time.fromisoformat, value)
+                if first.tzinfo or last.tzinfo or first >= last:
+                    raise ValueError()
+            except ValueError:
+                raise ValueError("Prayer break requires ordered local wall times") from None
+        return value
 
 
 def read_demo_credentials(path: Path) -> dict:

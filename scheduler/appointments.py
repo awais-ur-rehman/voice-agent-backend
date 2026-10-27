@@ -1,4 +1,4 @@
-"""Staff-only appointment transactions. Agent/session guards are a separate future boundary."""
+"""Shared scheduling transactions and staff HTTP routes; runtime guards live in brain."""
 
 import hashlib
 import json
@@ -14,6 +14,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from .actors import AuditActor
 from .contracts import Contract
 from .db import Principal, principal, session
 from .errors import AppError
@@ -68,13 +69,21 @@ class AppointmentOut(Contract):
     created_at: AwareDatetime
 
 
-def audit(db: Session, user: Principal, action: str, identity: UUID):
-    db.add(Audit(tenant_id=user.tenant_id, actor_id=user.id, action=action, entity_id=identity))
+def audit(db: Session, user: AuditActor, action: str, identity: UUID):
+    db.add(
+        Audit(
+            tenant_id=user.tenant_id,
+            actor_id=None if hasattr(user, "agent_id") else user.id,
+            agent_id=getattr(user, "agent_id", None),
+            action=action,
+            entity_id=identity,
+        )
+    )
 
 
 def idempotent(
     db: Session,
-    user: Principal,
+    user: AuditActor,
     key: str,
     operation: str,
     body: Contract,
@@ -189,6 +198,19 @@ def alternate(db, user, service_id, provider_id, start, now):
     ]
 
 
+def book_transaction(db, user, body: Book, now):
+    locks(db, body.patient_id, {body.provider_id})
+    tenant, provider, service = (
+        get(db, Tenant, user.tenant_id),
+        get(db, Provider, body.provider_id),
+        get(db, Service, body.service_id),
+    )
+    available(db, tenant, body.patient_id, provider, service, body.starts_at, now)
+    row = new_appointment(db, user, body.patient_id, provider, service, body.starts_at)
+    audit(db, user, "appointment.booked", row.id)
+    return row
+
+
 @router.post("/appointments", response_model=AppointmentOut, status_code=201)
 def book(
     body: Book,
@@ -200,16 +222,7 @@ def book(
     now = request.app.state.clock()
 
     def execute():
-        locks(db, body.patient_id, {body.provider_id})
-        tenant, provider, service = (
-            get(db, Tenant, user.tenant_id),
-            get(db, Provider, body.provider_id),
-            get(db, Service, body.service_id),
-        )
-        available(db, tenant, body.patient_id, provider, service, body.starts_at, now)
-        row = new_appointment(db, user, body.patient_id, provider, service, body.starts_at)
-        audit(db, user, "appointment.booked", row.id)
-        return row
+        return book_transaction(db, user, body, now)
 
     return idempotent(
         db,
@@ -268,6 +281,27 @@ def appointment(identity: UUID, db: Session = Depends(session)):
     return get(db, Appointment, identity)
 
 
+def reschedule_transaction(db, user, identity, body: Move, now):
+    original = get(db, Appointment, identity)
+    provider_id = body.provider_id or original.provider_id
+    locks(db, original.patient_id, {original.provider_id, provider_id})
+    current = get(db, Appointment, identity, True)
+    tenant = get(db, Tenant, user.tenant_id)
+    if current.status != "booked":
+        raise AppError("not_booked", 409)
+    if current.starts_at < now + timedelta(minutes=tenant.cancellation_min):
+        raise AppError("outside_policy", 409)
+    provider, service = get(db, Provider, provider_id), get(db, Service, current.service_id)
+    available(db, tenant, current.patient_id, provider, service, body.starts_at, now, current.id)
+    current.status = "cancelled"
+    db.flush()
+    replacement = new_appointment(
+        db, user, current.patient_id, provider, service, body.starts_at, current.id
+    )
+    audit(db, user, "appointment.rescheduled", replacement.id)
+    return replacement
+
+
 @router.post("/appointments/{identity}/reschedule", response_model=AppointmentOut, status_code=201)
 def reschedule(
     identity: UUID,
@@ -282,24 +316,7 @@ def reschedule(
     provider_id = body.provider_id or original.provider_id
 
     def execute():
-        locks(db, original.patient_id, {original.provider_id, provider_id})
-        current = get(db, Appointment, identity, True)
-        tenant = get(db, Tenant, user.tenant_id)
-        if current.status != "booked":
-            raise AppError("not_booked", 409)
-        if current.starts_at < now + timedelta(minutes=tenant.cancellation_min):
-            raise AppError("outside_policy", 409)
-        provider, service = get(db, Provider, provider_id), get(db, Service, current.service_id)
-        available(
-            db, tenant, current.patient_id, provider, service, body.starts_at, now, current.id
-        )
-        current.status = "cancelled"
-        db.flush()
-        replacement = new_appointment(
-            db, user, current.patient_id, provider, service, body.starts_at, current.id
-        )
-        audit(db, user, "appointment.rescheduled", replacement.id)
-        return replacement
+        return reschedule_transaction(db, user, identity, body, now)
 
     return idempotent(
         db,
@@ -312,6 +329,21 @@ def reschedule(
     )
 
 
+def cancel_transaction(db, user, identity, now):
+    original = get(db, Appointment, identity)
+    locks(db, original.patient_id, {original.provider_id})
+    current = get(db, Appointment, identity, True)
+    tenant = get(db, Tenant, user.tenant_id)
+    if current.status != "booked":
+        raise AppError("not_booked", 409)
+    if current.starts_at < now + timedelta(minutes=tenant.cancellation_min):
+        raise AppError("outside_policy", 409)
+    current.status = "cancelled"
+    db.flush()
+    audit(db, user, "appointment.cancelled", current.id)
+    return current
+
+
 @router.post("/appointments/{identity}/cancel", response_model=AppointmentOut)
 def cancel(
     identity: UUID,
@@ -321,21 +353,9 @@ def cancel(
     user: Principal = Depends(principal),
     db: Session = Depends(session),
 ):
-    original = get(db, Appointment, identity)
+    get(db, Appointment, identity)
 
     def execute():
-        locks(db, original.patient_id, {original.provider_id})
-        current = get(db, Appointment, identity, True)
-        tenant = get(db, Tenant, user.tenant_id)
-        if current.status != "booked":
-            raise AppError("not_booked", 409)
-        if current.starts_at < request.app.state.clock() + timedelta(
-            minutes=tenant.cancellation_min
-        ):
-            raise AppError("outside_policy", 409)
-        current.status = "cancelled"
-        db.flush()
-        audit(db, user, "appointment.cancelled", current.id)
-        return current
+        return cancel_transaction(db, user, identity, request.app.state.clock())
 
     return idempotent(db, user, key, "cancel:" + str(identity), body, execute)

@@ -199,3 +199,21 @@ def test_publish_creates_new_versions_without_mutating_existing_configuration():
                 transaction.rollback()
     finally:
         engine.dispose()
+
+
+def test_published_prayer_break_and_bilingual_public_profile_are_validated():
+    from pydantic import ValidationError
+
+    from brain.bootstrap import AgentConfig
+
+    config = AgentConfig.model_validate(
+        {
+            "prayer_break": ["13:00", "14:30"],
+            "clinic_profile": {"address_en": "Synthetic Road", "address_ur": "نمونہ سڑک"},
+        }
+    )
+    assert config.prayer_break == ["13:00", "14:30"]
+    with pytest.raises(ValidationError):
+        AgentConfig.model_validate({"prayer_break": ["14:30", "13:00"]})
+    with pytest.raises(ValidationError):
+        AgentConfig.model_validate({"clinic_profile": {"tenant_id": "injected"}})

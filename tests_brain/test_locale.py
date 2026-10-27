@@ -7,9 +7,7 @@ from pathlib import Path
 import pytest
 
 FIXTURE = json.loads(
-    (
-        Path(__file__).parents[1] / "evaluation/fixtures/normalizer_golden.json"
-    ).read_text()
+    (Path(__file__).parents[1] / "evaluation/fixtures/normalizer_golden.json").read_text()
 )
 
 
@@ -67,10 +65,7 @@ def test_english_ordinals_and_extended_currency():
     assert say_time("09:45") == "صبح پونے دس بجے"
     assert say_time("10:15") == "صبح سوا دس بجے"
     assert say_time("10:05") == "صبح دس بج کر پانچ منٹ"
-    assert (
-        say_date("2026-10-29", include_year=True)
-        == "جمعرات، انتیس اکتوبر دو ہزار چھبیس"
-    )
+    assert say_date("2026-10-29", include_year=True) == "جمعرات، انتیس اکتوبر دو ہزار چھبیس"
 
 
 @pytest.mark.parametrize(

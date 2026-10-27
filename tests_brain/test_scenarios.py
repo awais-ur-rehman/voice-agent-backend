@@ -35,9 +35,7 @@ from tests_brain import test_tool_workflows
 workflow = test_tool_workflows.workflow
 ENVELOPE = Draft202012Validator(
     json.loads(
-        (
-            Path(__file__).parents[1] / "packages/schemas/tool-result.v1.schema.json"
-        ).read_text()
+        (Path(__file__).parents[1] / "packages/schemas/tool-result.v1.schema.json").read_text()
     )
 )
 
@@ -99,9 +97,7 @@ class Conversation:
         text = (
             text
             if text is not None
-            else self.words(
-                "Please continue with my request", "میری درخواست آگے مکمل کریں"
-            )
+            else self.words("Please continue with my request", "میری درخواست آگے مکمل کریں")
         )
         payload = (
             {"event": name, "data": args or {}}
@@ -116,19 +112,15 @@ class Conversation:
             if live and live["revision"] == state["revision"]:
                 state["history"] = live.get("history", [])
                 state["summary"] = live.get("summary", {})
-            state["lang"], state["lang_pending"], state["lang_streak"] = (
-                language_transition(
-                    state["lang"],
-                    state.get("lang_pending"),
-                    state.get("lang_streak", 0),
-                    text,
-                )
+            state["lang"], state["lang_pending"], state["lang_streak"] = language_transition(
+                state["lang"],
+                state.get("lang_pending"),
+                state.get("lang_streak", 0),
+                text,
             )
             if trusted:
                 return self.engine.trusted_event(state, name, **(args or {}))
-            return self.engine.execute(
-                state, {"name": name, "arguments": args or {}}, text
-            )
+            return self.engine.execute(state, {"name": name, "arguments": args or {}}, text)
 
         response, state = command(
             self.db, self.actor, command_id, revision, payload, NOW, SECRET, execute
@@ -166,9 +158,7 @@ class Conversation:
         self.ok("get_available_slots")
         offer = self.state["offers"][0]
         self.ok("hold_slot", {"ref": offer["ref"]})
-        assert (
-            len(self.store.holds(str(self.actor.tenant_id), offer["provider_id"])) == 1
-        )
+        assert len(self.store.holds(str(self.actor.tenant_id), offer["provider_id"])) == 1
         return offer
 
     def prepared(self, day="2026-11-03"):
@@ -194,9 +184,7 @@ class Conversation:
         return row
 
     def appointments(self):
-        return list(
-            self.db.scalars(select(Appointment).order_by(Appointment.starts_at))
-        )
+        return list(self.db.scalars(select(Appointment).order_by(Appointment.starts_at)))
 
     def task(self, task):
         self.ok("update_dialogue_state", {"task": task})
@@ -289,9 +277,7 @@ def test_original_family_as_executed_conversation(workflow, seed, language, fami
         if family == "resume-after-fees":
             c.ok(
                 "ask_caller",
-                text=c.words(
-                    "Thanks, let us continue booking", "شکریہ، اب اپوائنٹمنٹ مکمل کریں"
-                ),
+                text=c.words("Thanks, let us continue booking", "شکریہ، اب اپوائنٹمنٹ مکمل کریں"),
             )
             assert c.state["fields"] == fields
         c.confirm()
@@ -345,9 +331,9 @@ def test_original_family_as_executed_conversation(workflow, seed, language, fami
         c.ok("update_dialogue_state", {"task": "cancel"})
         found = c.ok("find_patient", {"phone": "03001234567"})
         assert found["data"]["matches"] == 1
-        assert "Synthetic" not in json.dumps(found) and str(
-            seed["patient_a"]
-        ) not in json.dumps(found)
+        assert "Synthetic" not in json.dumps(found) and str(seed["patient_a"]) not in json.dumps(
+            found
+        )
         assert not c.turn("find_appointments")["ok"]
         c.ok("verify_patient", {"factor": "Synthetic Patient"})
         visits = c.ok("find_appointments")
@@ -570,9 +556,7 @@ def test_original_family_as_executed_conversation(workflow, seed, language, fami
             {"reason": reason},
             text=c.words(
                 "I cannot breathe" if reason == "emergency" else "I want a human",
-                "سانس نہیں آ رہی"
-                if reason == "emergency"
-                else "مجھے انسانی ریسپشنسٹ چاہیے",
+                "سانس نہیں آ رہی" if reason == "emergency" else "مجھے انسانی ریسپشنسٹ چاہیے",
             ),
         )
         assert c.state["handoff"] and not c.state.get("hold")
@@ -588,9 +572,7 @@ def test_original_family_as_executed_conversation(workflow, seed, language, fami
         c.engine = ToolEngine(c.db, c.actor, c.store, NOW)
         c.ok(
             "ask_caller",
-            text=c.words(
-                "I am back, continue please", "میں واپس آ گیا ہوں، جاری رکھیں"
-            ),
+            text=c.words("I am back, continue please", "میں واپس آ گیا ہوں، جاری رکھیں"),
         )
         assert c.state["verified"] and c.state["fields"] == before
         c.choose()
@@ -645,18 +627,14 @@ def test_shared_phone_requires_unique_factor_before_booking(workflow, seed, lang
 
 
 @pytest.mark.parametrize("language", ["en", "ur"])
-def test_live_language_streak_and_bounded_history_preserve_fields(
-    workflow, seed, language
-):
+def test_live_language_streak_and_bounded_history_preserve_fields(workflow, seed, language):
     c = Conversation(workflow, seed, language)
     c.identity()
     c.fields()
     fields = deepcopy(c.state["fields"])
     opposite = "ur" if language == "en" else "en"
     change = (
-        "مجھے اپوائنٹمنٹ کی مدد چاہیے"
-        if opposite == "ur"
-        else "Please help me book an appointment"
+        "مجھے اپوائنٹمنٹ کی مدد چاہیے" if opposite == "ur" else "Please help me book an appointment"
     )
     c.ok("ask_caller", text=change)
     assert c.state["lang"] == language

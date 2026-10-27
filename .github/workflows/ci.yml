@@ -41,6 +41,7 @@ jobs:
           --health-cmd "pg_isready -U postgres -d voice_agent_test"
           --health-interval 2s --health-timeout 3s --health-retries 30
     env:
+      TEST_VALKEY_URL: valkey://:phase2_valkey_test_only@127.0.0.1:56379/0
       TEST_DATABASE_URL: postgresql+psycopg://postgres:phase1_test_only@127.0.0.1:5432/voice_agent_test
       TEST_APP_DATABASE_URL: postgresql+psycopg://scheduler_app:phase1_app_test_only@127.0.0.1:5432/voice_agent_test
     steps:
@@ -49,8 +50,9 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install uv==0.10.10
+      - run: docker run -d --name valkey-test -p 56379:6379 valkey/valkey:8.1.11-alpine@sha256:2602ace2be6569bc2bbb06f873776516ab9089821525be34f4305c67eb9db02a valkey-server --requirepass phase2_valkey_test_only --save "" --appendonly no
       - run: uv sync --locked --all-groups
       - run: uv run ruff check .
       - run: uv run ruff format --check .
-      - run: uv run mypy scheduler
+      - run: uv run mypy scheduler brain
       - run: uv run python -m pytest

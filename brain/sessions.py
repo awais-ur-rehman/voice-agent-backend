@@ -10,7 +10,7 @@ from copy import deepcopy
 from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from scheduler.db import Principal, tenant_context
@@ -42,6 +42,7 @@ def create_session(db: Session, staff: Principal, agent_id: UUID, now: datetime,
     state = initial_state(session_id, agent.id, version.id)
     if version.config.get("language_mode") == "ur":
         state["lang"] = "ur"
+    state["read_digits_in_english"] = bool(version.config.get("read_digits_in_english", False))
     row = AgentSession(
         id=session_id,
         tenant_id=staff.tenant_id,
@@ -73,16 +74,21 @@ def command(
     now: datetime,
     secret: str,
     execute,
+    *,
+    clock=None,
 ) -> tuple[dict, dict]:
     if not isinstance(command_id, str) or not 1 <= len(command_id) <= 128:
         raise AppError("validation_error", 422)
     tenant_context(db, actor.tenant_id)
+    db.execute(text("SET LOCAL lock_timeout='1500ms'"))
+    db.execute(text("SET LOCAL statement_timeout='2000ms'"))
     row = db.scalar(
         select(AgentSession)
         .where(AgentSession.id == actor.id)
         .with_for_update()
         .execution_options(populate_existing=True)
     )
+    now = clock() if clock else now
     row = active_guard(row, actor, now)
     agent = db.get(Agent, actor.agent_id)
     if agent is None or not agent.enabled:
@@ -121,6 +127,8 @@ def command(
         response, state = result
     else:
         response = result
+    now = clock() if clock else now
+    active_guard(row, actor, now)
     state["revision"] = row.revision + 1
     checkpoint = recovery_checkpoint(state)
     # Code-generated envelopes must not echo identifying verification factors.
@@ -179,15 +187,18 @@ def purge_recovery(db: Session, now: datetime, limit: int = 500) -> dict:
     return {"receipts": len(receipts), "sessions": len(sessions)}
 
 
-def renew_session(db: Session, actor: RuntimeActor, now: datetime, settings) -> dict:
+def renew_session(db: Session, actor: RuntimeActor, now: datetime, settings, *, clock=None) -> dict:
     """Rotate a still-live scoped capability; an expired session cannot be revived."""
     tenant_context(db, actor.tenant_id)
+    db.execute(text("SET LOCAL lock_timeout='1500ms'"))
+    db.execute(text("SET LOCAL statement_timeout='2000ms'"))
     row = db.scalar(
         select(AgentSession)
         .where(AgentSession.id == actor.id)
         .with_for_update()
         .execution_options(populate_existing=True)
     )
+    now = clock() if clock else now
     row = active_guard(row, actor, now)
     agent = db.get(Agent, actor.agent_id)
     if agent is None or not agent.enabled:

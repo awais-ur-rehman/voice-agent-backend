@@ -1,11 +1,11 @@
 import pytest
-from conftest import ADMIN_URL, APP_URL, SECRET
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import DBAPIError
 
 from scheduler.config import Settings
 from scheduler.main import create_app
+from tests_api.conftest import ADMIN_URL, APP_URL, SECRET
 
 
 def test_rls_without_context_and_cross_tenant_writes(seed):
@@ -56,7 +56,8 @@ def test_password_hash_and_database_roles(database, seed):
 def test_migration_round_trip_and_forced_rls(database):
     from alembic import command
     from alembic.config import Config
-    from conftest import ROOT
+
+    from tests_api.conftest import ROOT
 
     cfg = Config(str(ROOT / "alembic.ini"))
     cfg.set_main_option("script_location", str(ROOT / "migrations"))

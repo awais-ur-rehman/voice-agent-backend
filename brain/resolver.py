@@ -311,9 +311,7 @@ def resolve(
         candidates = sorted([h % 12 * 60 + m, (h % 12 + 12) * 60 + m])
     if window:
         candidates = [
-            t
-            for t in candidates
-            if _minutes(window[0]) <= t < _minutes(window[1], allow_end=True)
+            t for t in candidates if _minutes(window[0]) <= t < _minutes(window[1], allow_end=True)
         ]
     if opening:
         candidates = [t for t in candidates if opening[0] <= t < opening[1]]

@@ -30,7 +30,10 @@ def page(db, model, limit, offset):
 
 
 def apply(db, row, body):
-    for name, value in body.model_dump(exclude_unset=True).items():
+    values = body.model_dump(exclude_unset=True)
+    if "name" in values and "name_ur" not in values and hasattr(row, "name_ur"):
+        values["name_ur"] = None
+    for name, value in values.items():
         setattr(row, name, value)
     db.flush()
     return row

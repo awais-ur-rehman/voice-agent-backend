@@ -66,9 +66,7 @@ def test_date_and_clock_or_window_control_real_offers(workflow, seed, phrase, wa
     )
 
 
-def test_standalone_time_correction_keeps_date_and_invalidates_confirmation(
-    workflow, seed
-):
+def test_standalone_time_correction_keeps_date_and_invalidates_confirmation(workflow, seed):
     turn, state, *_ = workflow
     assert setup(turn, seed)["ok"]
     assert turn("get_available_slots")["ok"]
@@ -100,9 +98,7 @@ def test_new_window_replaces_exact_time_and_excludes_end_boundary(workflow, seed
     # Move opening to 11 so the third candidate at noon would violate the window.
     _, _, db, *_ = workflow
     rule = db.scalar(
-        select(Schedule).where(
-            Schedule.provider_id == seed["provider_a"], Schedule.weekday == 2
-        )
+        select(Schedule).where(Schedule.provider_id == seed["provider_a"], Schedule.weekday == 2)
     )
     rule.start_time = time(11)
     db.flush()
@@ -116,9 +112,7 @@ def test_ambiguous_or_invalid_correction_cannot_reuse_old_date(workflow, seed, p
     assert setup(turn, seed)["ok"]
     # Both ten AM and ten PM survive this provider's Monday opening rules.
     rule = db.scalar(
-        select(Schedule).where(
-            Schedule.provider_id == seed["provider_a"], Schedule.weekday == 1
-        )
+        select(Schedule).where(Schedule.provider_id == seed["provider_a"], Schedule.weekday == 1)
     )
     rule.end_time = time(23)
     db.flush()
@@ -132,9 +126,7 @@ def test_ambiguous_or_invalid_correction_cannot_reuse_old_date(workflow, seed, p
 
 def test_am_pm_uses_selected_provider_not_other_provider_hours(workflow, seed):
     turn, state, db, *_ = workflow
-    evening = Provider(
-        tenant_id=seed["tenant_a"], name="Evening Test", name_ur="شام ٹیسٹ"
-    )
+    evening = Provider(tenant_id=seed["tenant_a"], name="Evening Test", name_ur="شام ٹیسٹ")
     db.add(evening)
     db.flush()
     db.add(
@@ -163,9 +155,7 @@ def test_am_pm_uses_selected_provider_not_other_provider_hours(workflow, seed):
 def test_am_pm_does_not_bridge_split_shift_or_wrong_weekday(workflow, seed):
     turn, state, db, *_ = workflow
     rule = db.scalar(
-        select(Schedule).where(
-            Schedule.provider_id == seed["provider_a"], Schedule.weekday == 2
-        )
+        select(Schedule).where(Schedule.provider_id == seed["provider_a"], Schedule.weekday == 2)
     )
     rule.start_time = time(8)
     rule.end_time = time(9)
@@ -204,9 +194,7 @@ def test_custom_hours_override_controls_am_pm(workflow, seed):
     assert local_offers(state) == ["22:00"]
 
 
-def test_prayer_relative_request_uses_published_version_and_friday_break(
-    workflow, seed
-):
+def test_prayer_relative_request_uses_published_version_and_friday_break(workflow, seed):
     turn, state, db, store, actor = workflow
     # Publish a new immutable test version rather than UPDATE a frozen version.
     version = AgentVersion(
@@ -236,9 +224,7 @@ def test_prayer_relative_request_uses_published_version_and_friday_break(
             _env_file=None,
         ),
     )
-    actor = RuntimeActor(
-        UUID(created["session_id"]), actor.tenant_id, actor.agent_id, version.id
-    )
+    actor = RuntimeActor(UUID(created["session_id"]), actor.tenant_id, actor.agent_id, version.id)
     state = created["state"]
     engine = ToolEngine(db, actor, store, NOW)
 
@@ -281,6 +267,4 @@ def test_time_filter_sees_late_options_beyond_first_hundred_raw_slots(workflow, 
     response = turn("get_available_slots")
     assert response["ok"], response
     assert local_offers(state) == ["22:00"]
-    assert datetime.fromisoformat(state["offers"][0]["starts_at"]).date() == date(
-        2026, 11, 8
-    )
+    assert datetime.fromisoformat(state["offers"][0]["starts_at"]).date() == date(2026, 11, 8)
