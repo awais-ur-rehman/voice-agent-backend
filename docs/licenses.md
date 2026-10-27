@@ -34,3 +34,15 @@ No weights or voices downloaded; no immutable hosted weight revisions exposed or
 ## Phase 1 application dependencies — October 27, 2026
 
 The full locked runtime/development graph and published license metadata are recorded in the [Phase 1 inventory](phase-1-dependencies.md). Official PyPI metadata was checked before adoption. The PostgreSQL driver is explicitly LGPL-3.0-only, not MIT. Container image digests are pinned. Model/voice production approvals remain unchanged.
+
+## Phase 2 runtime additions — October 28, 2026
+
+`uv.lock` pins the Python distributions; `compose.yaml` pins the server image. Review covers the named software components, not hosted model production approval.
+
+| Component | Adopted artifact | License and primary review sources | Redistribution notes |
+| --- | --- | --- | --- |
+| Valkey server | `valkey/valkey:8.1.11-alpine@sha256:2602ace2be6569bc2bbb06f873776516ab9089821525be34f4305c67eb9db02a` | BSD-3-Clause; upstream [COPYING for the 8.1 line](https://github.com/valkey-io/valkey/blob/8.1/COPYING), [official releases/downloads](https://valkey.io/download/) | Retain the Valkey and inherited Redis copyright notices, conditions and disclaimers; respect the non-endorsement condition. Container OS packages retain their own licenses. |
+| valkey-py (`valkey` package) | `6.2.0` | MIT; [versioned PyPI metadata](https://pypi.org/project/valkey/6.2.0/), [official client listing](https://valkey.io/clients/), [upstream repository](https://github.com/valkey-io/valkey-py) | Retain copyright and permission notices in copies or substantial portions. The synchronous client is used for live dialogue state and holds. |
+| httpx2 | `2.16.0` | BSD-3-Clause; [versioned PyPI metadata](https://pypi.org/project/httpx2/2.16.0/), [existing Phase 1 inventory](phase-1-dependencies.md) | Previously reviewed in Phase 1; now also a runtime dependency for the NIM HTTP adapter. Retain upstream notices, conditions and disclaimer; respect non-endorsement. |
+
+The Valkey image was pulled successfully and its registry digest checked before use. Both local services require authentication. Server/driver adoption does not change the hosted Nemotron terms recorded above, approve a self-hosted weight artifact, or establish native language/voice acceptance.

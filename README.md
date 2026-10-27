@@ -1,6 +1,8 @@
 # Voice Agent Backend
 
-Phase 1 contains a runnable staff scheduling API: authentication, PostgreSQL tenant isolation, scheduling configuration, slot generation, and transactional booking/rescheduling/cancellation. The separate `evaluation/` package retains the synthetic CPU-only Phase 0 evidence. The React dashboard is a later phase.
+Phase 2 adds a guarded text agent to the Phase 1 staff scheduling API: session-scoped authentication, patient verification, bilingual date/text handling, Valkey dialogue state and holds, and PostgreSQL-fenced scheduling commands. The [Phase 2 owner checkpoint](docs/phase-2-testing.md) contains local setup, the interactive console, synthetic scripts, agent publishing and recovery maintenance. Hosted NIM acceptance is still pending; deterministic checks and live provider results are separate. Voice integration and the React dashboard remain later phases.
+
+The staff API retains authentication, tenant isolation, scheduling configuration, slot generation, and transactional booking/rescheduling/cancellation. The separate `evaluation/` package retains the synthetic CPU-only Phase 0 evidence.
 
 ## Phase 1 quick start
 
@@ -8,13 +10,32 @@ Requires Docker Desktop, uv and Python 3.12. From this backend directory:
 
 ```bash
 uv sync --locked --all-groups
-python3 scripts/dev_setup.py
+python3 scripts/dev_setup.py --enable-brain
 docker compose --env-file .env.api up --build -d api
 uv run python -m scheduler.bootstrap --demo
 uv run python scripts/smoke_phase1.py
 ```
 
 Open [API docs](http://127.0.0.1:8000/docs). Synthetic demo accounts are generated into the private ignored `.local/phase1-demo-credentials.json`; passwords/tokens are never printed. Existing Phase 0 `.env` is preserved. See the [verification results](docs/phase-1-results.md) and [Phase 1 owner testing guide](docs/phase-1-owner-checkpoint.md) for login, booking/replay/races, tenant isolation, policies and the stop point. Staff APIs are not LLM tool endpoints. Phase 1 remains unmerged for owner acceptance.
+
+## Phase 2 text runtime
+
+Use the same local project and saved API credentials:
+
+```bash
+uv run python -m brain.bootstrap --demo
+uv run python -m brain.console --email demo-owner-a@example.com --agent-id AGENT_UUID --live
+```
+
+Replace `AGENT_UUID` with the synthetic identifier reported by bootstrap. Enter the existing demo password at the hidden prompt; credentials stay in the private mode-0600 `.local/phase1-demo-credentials.json`. The console uses staff authentication only to issue the runtime capability. It prints code-generated bilingual replies and reports HTTP command and provider request counts separately.
+
+The default Compose command above loads only `.env.api` and starts without the NIM credential file. To explicitly enable hosted synthetic inference, preserve the existing `.env` and start only the API with the additional runtime key source:
+
+```bash
+docker compose --env-file .env.api --env-file .env up --build -d api
+```
+
+Compose maps `LLM_API_KEY` into the API process only; it is not a build argument or an image file. Never print resolved Compose configuration or environment values into logs/reports. See the [full owner guide](docs/phase-2-testing.md) for actual endpoint contracts, caller contact versus patient identity, trusted events, resume, retention and the remaining acceptance evidence. Phase 2 stays unmerged pending owner acceptance.
 
 ## Retained Phase 0 evaluation
 
