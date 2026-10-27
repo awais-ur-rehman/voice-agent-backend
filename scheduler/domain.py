@@ -97,10 +97,10 @@ def candidate_slots(
         else:
             merged.append(window)
     result = []
-    for start in sorted(candidates):
-        occupied_start = start - timedelta(minutes=before)
-        occupied_end = start + timedelta(minutes=duration + after)
-        if start < now + timedelta(minutes=notice):
+    for slot_start in sorted(candidates):
+        occupied_start = slot_start - timedelta(minutes=before)
+        occupied_end = slot_start + timedelta(minutes=duration + after)
+        if slot_start < now + timedelta(minutes=notice):
             continue
         if not any(
             window.start <= occupied_start and occupied_end <= window.end for window in merged
@@ -108,5 +108,5 @@ def candidate_slots(
             continue
         if any(occupied_start < booking.end and occupied_end > booking.start for booking in busy):
             continue
-        result.append(start)
+        result.append(slot_start)
     return result

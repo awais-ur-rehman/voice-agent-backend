@@ -14,19 +14,21 @@ dependencies = [
 dev = ["pytest>=9.1,<9.2", "httpx>=0.28.1,<0.29", "ruff>=0.17,<0.18", "mypy>=2.4,<2.5"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests_api"]
+testpaths = ["tests_api", "tests_environment"]
+pythonpath = ["."]
 addopts = "-ra"
 
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-include = ["scheduler/**/*.py", "tests_api/**/*.py", "scripts/**/*.py", "migrations/**/*.py"]
+include = ["scheduler/**/*.py", "tests_api/**/*.py", "scripts/**/*.py", "migrations/**/*.py", "tests_environment/**/*.py"]
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I"]
 
 [tool.mypy]
 python_version = "3.12"
+plugins = ["pydantic.mypy"]
 files = ["scheduler"]
 check_untyped_defs = true
 warn_unused_ignores = true

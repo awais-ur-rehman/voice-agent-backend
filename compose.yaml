@@ -1,0 +1,74 @@
+name: voice-agent-phase1
+
+x-api-image: &api-image
+  image: voice-agent-phase1-api:local
+  build:
+    context: .
+    target: runtime
+
+services:
+  postgres:
+    image: postgres:16-bookworm@sha256:d81f7b51697014367236d07ec58b54153fc28f828b72bf247fe5c7487520bcb0
+    environment:
+      POSTGRES_DB: voice_agent
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DEV_ADMIN_PASSWORD:-}
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - postgres-dev-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d voice_agent"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  init-db:
+    <<: *api-image
+    environment:
+      SCHEDULER_MIGRATION_DATABASE_URL: postgresql+psycopg://postgres:${DEV_ADMIN_PASSWORD:-}@postgres:5432/voice_agent
+      SCHEDULER_APP_PASSWORD: ${DEV_APP_PASSWORD:-}
+    command: ["uv", "run", "--no-sync", "python", "-m", "scripts.init_db"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  migrate:
+    <<: *api-image
+    environment:
+      SCHEDULER_MIGRATION_DATABASE_URL: postgresql+psycopg://postgres:${DEV_ADMIN_PASSWORD:-}@postgres:5432/voice_agent
+    command: ["uv", "run", "--no-sync", "alembic", "upgrade", "head"]
+    depends_on:
+      init-db:
+        condition: service_completed_successfully
+
+  api:
+    <<: *api-image
+    environment:
+      SCHEDULER_DATABASE_URL: postgresql+psycopg://scheduler_app:${DEV_APP_PASSWORD:-}@postgres:5432/voice_agent
+      SCHEDULER_JWT_SECRET: ${SCHEDULER_JWT_SECRET:-}
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  postgres-test:
+    profiles: ["test"]
+    image: postgres:16-bookworm@sha256:d81f7b51697014367236d07ec58b54153fc28f828b72bf247fe5c7487520bcb0
+    environment:
+      POSTGRES_DB: voice_agent_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: phase1_test_only
+    ports:
+      - "127.0.0.1:55433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d voice_agent_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  postgres-dev-data:
