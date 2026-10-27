@@ -41,3 +41,49 @@ def test_existing_symlink_is_preserved(tmp_path: Path) -> None:
     assert not create_env_file(path)
     assert path.is_symlink()
     assert target.read_text() == "synthetic-data"
+
+
+def test_brain_setup_appends_missing_values_without_replacing_credentials(tmp_path: Path) -> None:
+    from scripts.dev_setup import enable_brain
+
+    path = tmp_path / ".env.api"
+    original = "DEV_ADMIN_PASSWORD=synthetic-admin\nDEV_VALKEY_PASSWORD=kept-password\n"
+    path.write_text(original)
+    path.chmod(0o600)
+    assert enable_brain(path)
+    text = path.read_text()
+    assert text.startswith(original)
+    values = dict(line.split("=", 1) for line in text.splitlines() if "=" in line)
+    assert values["DEV_VALKEY_PASSWORD"] == "kept-password"
+    assert values["SCHEDULER_VALKEY_URL"] == "valkey://:kept-password@127.0.0.1:56380/0"
+    assert len(values["SCHEDULER_RUNTIME_SECRET"]) >= 64
+    before = path.stat()
+    assert not enable_brain(path)
+    assert path.read_text() == text
+    assert path.stat().st_mtime_ns == before.st_mtime_ns
+
+
+def test_brain_setup_generates_distinct_private_secrets(tmp_path: Path) -> None:
+    from scripts.dev_setup import enable_brain
+
+    path = tmp_path / ".env.api"
+    create_env_file(path)
+    enable_brain(path)
+    values = dict(line.split("=", 1) for line in path.read_text().splitlines() if "=" in line)
+    assert len(values["DEV_VALKEY_PASSWORD"]) >= 64
+    assert values["DEV_VALKEY_PASSWORD"] != values["SCHEDULER_RUNTIME_SECRET"]
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+
+def test_brain_setup_refuses_symlink(tmp_path: Path) -> None:
+    import pytest
+
+    from scripts.dev_setup import enable_brain
+
+    target = tmp_path / "target"
+    target.write_text("DEV_ADMIN_PASSWORD=synthetic-admin\n")
+    path = tmp_path / ".env.api"
+    path.symlink_to(target)
+    with pytest.raises(ValueError):
+        enable_brain(path)
+    assert target.read_text() == "DEV_ADMIN_PASSWORD=synthetic-admin\n"
