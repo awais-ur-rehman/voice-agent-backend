@@ -83,8 +83,20 @@ def find_refresh(db: Session, raw: str):
     except (ValueError, IndexError):
         return None
     tenant_context(db, tenant_id)
+    row = db.scalar(select(RefreshToken).where(RefreshToken.token_hash == token_hash(raw)))
+    if row is None:
+        return None
+    # Serialize the whole family BEFORE any token-row lock. A row-only revocation
+    # UPDATE can otherwise miss a descendant committed while that UPDATE waits.
+    db.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:family, 0))"),
+        {"family": f"refresh:{tenant_id}:{row.family_id}"},
+    )
     return db.scalar(
-        select(RefreshToken).where(RefreshToken.token_hash == token_hash(raw)).with_for_update()
+        select(RefreshToken)
+        .where(RefreshToken.id == row.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
 
 

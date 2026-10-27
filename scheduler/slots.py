@@ -1,5 +1,6 @@
 from datetime import date, datetime, timedelta
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from pydantic import AwareDatetime
 from sqlalchemy import select
@@ -108,10 +109,14 @@ def search(
         if provider_id
         else list(db.scalars(select(Provider).where(Provider.active.is_(True))))
     )
+    today = now.astimezone(ZoneInfo(tenant.timezone)).date()
+    horizon = today + timedelta(days=tenant.horizon_days)
+    if last < today or first > horizon:
+        return []
+    first, last = max(first, today), min(last, horizon)
     result = []
-    day = first
-    while day <= last:
+    for offset in range((last - first).days + 1):
+        day = first + timedelta(days=offset)
         for provider in providers:
             result.extend(provider_slots(db, tenant, provider, service, day, now))
-        day += timedelta(days=1)
     return sorted(result, key=lambda slot: (slot.starts_at, str(slot.provider_id)))[:limit]

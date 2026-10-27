@@ -89,3 +89,33 @@ def test_custom_hours_inherit_the_matching_weekdays_grid():
         len(slots(rules=rules, exceptions=[DateException(DAY, DAY, "custom", time(15), time(16))]))
         == 2
     )
+
+
+def test_dst_gap_at_opening_boundary_preserves_real_open_time():
+    result = slots(
+        day=date(2026, 3, 8),
+        timezone="America/New_York",
+        rules=[ScheduleRule(7, time(2), time(4), 15)],
+        now=datetime(2026, 3, 1, tzinfo=UTC),
+        notice=0,
+    )
+    assert result == [
+        datetime(2026, 3, 8, 7, 0, tzinfo=UTC),
+        datetime(2026, 3, 8, 7, 15, tzinfo=UTC),
+        datetime(2026, 3, 8, 7, 30, tzinfo=UTC),
+    ]
+
+
+def test_partial_dst_fold_does_not_bridge_closed_time_even_with_buffers():
+    args = dict(
+        day=date(2026, 11, 1),
+        timezone="America/New_York",
+        rules=[ScheduleRule(7, time(1, 15), time(1, 45), 15)],
+        now=datetime(2026, 10, 31, tzinfo=UTC),
+        notice=0,
+    )
+    assert slots(**args) == [
+        datetime(2026, 11, 1, 5, 15, tzinfo=UTC),
+        datetime(2026, 11, 1, 6, 15, tzinfo=UTC),
+    ]
+    assert slots(**args, before=15, after=15) == []

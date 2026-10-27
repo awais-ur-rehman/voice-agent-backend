@@ -41,6 +41,43 @@ def local_instants(value: datetime, zone: ZoneInfo) -> list[datetime]:
     )
 
 
+def real_open_intervals(first: datetime, last: datetime, zone: ZoneInfo) -> list[Reservation]:
+    """Intersect UTC offset segments with the wall-clock window, without bridging folds.
+
+    Scan bounded UTC minute segments, splitting any offset transition to microsecond
+    precision. Rule seconds and gap/fold endpoints are preserved. No nonexistent
+    wall-clock endpoint is silently used as an instant.
+    """
+    cursor = min(first.replace(tzinfo=zone, fold=fold).astimezone(UTC) for fold in (0, 1))
+    finish = max(last.replace(tzinfo=zone, fold=fold).astimezone(UTC) for fold in (0, 1))
+    result: list[Reservation] = []
+    epsilon = timedelta(microseconds=1)
+    while cursor < finish:
+        end = min(cursor + timedelta(minutes=1), finish)
+        offset = cursor.astimezone(zone).utcoffset()
+        if (end - epsilon).astimezone(zone).utcoffset() != offset:
+            left, right = cursor, end
+            while right - left > epsilon:
+                middle = left + (right - left) // 2
+                if middle.astimezone(zone).utcoffset() == offset:
+                    left = middle
+                else:
+                    right = middle
+            end = right
+        local_start = cursor.astimezone(zone).replace(tzinfo=None)
+        local_end = local_start + (end - cursor)
+        wall_start, wall_end = max(first, local_start), min(last, local_end)
+        if wall_start < wall_end:
+            start_utc = cursor + (wall_start - local_start)
+            end_utc = cursor + (wall_end - local_start)
+            if result and result[-1].end == start_utc:
+                result[-1] = Reservation(result[-1].start, end_utc)
+            else:
+                result.append(Reservation(start_utc, end_utc))
+        cursor = end
+    return result
+
+
 def candidate_slots(
     *,
     day: date,
@@ -67,7 +104,7 @@ def candidate_slots(
     if any(item.kind == "closed" for item in matching):
         return []
     custom = [item for item in matching if item.kind == "custom"]
-    # Custom windows inherit the smallest weekly step; a clinic without weekly rules uses 15m.
+    # Custom windows inherit the smallest matching-weekday step; a clinic without weekly rules uses 15m.
     step = min((rule.step for rule in rules if rule.weekday == day.isoweekday()), default=15)
     windows = (
         [(item.start, item.end, step) for item in custom]
@@ -82,10 +119,7 @@ def candidate_slots(
         if start is None or end is None or start >= end or increment < 1:
             raise ValueError("Invalid availability window")
         first, last = datetime.combine(day, start), datetime.combine(day, end)
-        for left in local_instants(first, zone):
-            for right in local_instants(last, zone):
-                if left < right:
-                    real_windows.append(Reservation(left, right))
+        real_windows.extend(real_open_intervals(first, last, zone))
         current = first
         while current < last:
             candidates.update(local_instants(current, zone))

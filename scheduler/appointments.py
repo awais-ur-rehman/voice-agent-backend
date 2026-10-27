@@ -44,7 +44,10 @@ class Move(Confirm):
     @field_validator("starts_at")
     @classmethod
     def utc(cls, value):
-        return value.astimezone(UTC)
+        try:
+            return value.astimezone(UTC)
+        except OverflowError:
+            raise ValueError("Timestamp is outside the supported UTC range") from None
 
 
 class Book(Move):
@@ -234,9 +237,9 @@ def appointments(
         get(db, Patient, patient_id)
         query = query.where(Appointment.patient_id == patient_id)
     zone = ZoneInfo(get(db, Tenant, user.tenant_id).timezone)
-    if date_from:
+    if date_from and date_from > date.min:
         query = query.where(Appointment.starts_at >= datetime.combine(date_from, time.min, zone))
-    if date_to:
+    if date_to and date_to < date.max:
         query = query.where(
             Appointment.starts_at < datetime.combine(date_to + timedelta(days=1), time.min, zone)
         )

@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 import jwt
+import pytest
 from conftest import PASSWORD, SECRET
 from sqlalchemy import text
 
@@ -76,3 +77,56 @@ def test_tokens_cannot_select_another_tenant(owner, seed):
     claims["tenant"] = str(seed["tenant_b"])
     owner.headers["Authorization"] = "Bearer " + jwt.encode(claims, SECRET, algorithm="HS256")
     assert owner.get("/auth/me").status_code == 401
+
+
+@pytest.mark.parametrize("revoke", ["reuse", "logout"])
+def test_family_revocation_cannot_miss_concurrently_rotated_descendant(
+    client, database, monkeypatch, revoke
+):
+    import threading
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    import scheduler.auth as auth
+
+    ancestor = login(client).json()["refresh_token"]
+    current = client.post("/auth/refresh", json={"refresh_token": ancestor}).json()["refresh_token"]
+    issued = threading.Event()
+    release = threading.Event()
+    original = auth.issue
+
+    def paused_issue(*args, **kwargs):
+        result = original(*args, **kwargs)
+        issued.set()
+        if not release.wait(10):
+            raise RuntimeError("Test rotation release timed out")
+        return result
+
+    monkeypatch.setattr(auth, "issue", paused_issue)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        rotation = pool.submit(client.post, "/auth/refresh", json={"refresh_token": current})
+        try:
+            assert issued.wait(5)
+            path = "/auth/refresh" if revoke == "reuse" else "/auth/logout"
+            revocation = pool.submit(client.post, path, json={"refresh_token": ancestor})
+            deadline = time.monotonic() + 5
+            waiting = False
+            while time.monotonic() < deadline:
+                with database.connect() as conn:
+                    waiting = conn.execute(
+                        text(
+                            "SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock')"
+                        )
+                    ).scalar_one()
+                if waiting:
+                    break
+                threading.Event().wait(0.01)
+            assert waiting, "Revocation must overlap the still-uncommitted rotation"
+        finally:
+            release.set()
+        rotated = rotation.result(timeout=5)
+        revoked = revocation.result(timeout=5)
+    assert rotated.status_code == 200
+    assert revoked.status_code == (401 if revoke == "reuse" else 204)
+    final = client.post("/auth/refresh", json={"refresh_token": rotated.json()["refresh_token"]})
+    assert final.status_code == 401

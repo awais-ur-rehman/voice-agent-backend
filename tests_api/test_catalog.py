@@ -97,3 +97,14 @@ def test_slots_closed_exceptions_and_query_bounds(owner, seed):
         owner.get("/slots", params=query | {"service_id": str(seed["service_b"])}).status_code
         == 404
     )
+
+
+def test_out_of_horizon_extreme_calendar_dates_return_empty_slots(owner, seed):
+    query = {
+        "service_id": str(seed["service_a"]),
+        "date_from": "9999-12-31",
+        "date_to": "9999-12-31",
+    }
+    response = owner.get("/slots", params=query)
+    assert response.status_code == 200
+    assert response.json() == []

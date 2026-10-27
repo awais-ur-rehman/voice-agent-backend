@@ -173,3 +173,45 @@ def test_database_transaction_abort_returns_safe_retry_and_rolls_back(
         assert conn.execute(text("SELECT count(*) FROM appointments")).scalar_one() == 0
     monkeypatch.setattr(module, "new_appointment", original)
     assert book(owner, seed, key).status_code == 201
+
+
+def test_failure_after_cancel_flush_rolls_back_original_audit_and_idempotency(
+    owner, seed, database, monkeypatch
+):
+    import scheduler.appointments as module
+    from scheduler.errors import AppError
+
+    original = book(owner, seed).json()
+
+    def abort(db, *args, **kwargs):
+        status = db.execute(
+            text("SELECT status FROM appointments WHERE id=:id"), {"id": original["id"]}
+        ).scalar_one()
+        assert status == "cancelled", "Failure must happen after the original cancellation flush"
+        raise AppError("injected_failure", 409)
+
+    monkeypatch.setattr(module, "new_appointment", abort)
+    key = str(uuid4())
+    response = owner.post(
+        "/appointments/" + original["id"] + "/reschedule",
+        json={"starts_at": "2026-11-04T10:00:00+05:00", "confirmed": True},
+        headers={"Idempotency-Key": key},
+    )
+    assert response.status_code == 409
+    assert owner.get("/appointments/" + original["id"]).json()["status"] == "booked"
+    with database.connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM appointments")).scalar_one() == 1
+        assert conn.execute(text("SELECT count(*) FROM audit_log")).scalar_one() == 1
+        assert (
+            conn.execute(
+                text("SELECT count(*) FROM idempotency_records WHERE key=:key"), {"key": key}
+            ).scalar_one()
+            == 0
+        )
+
+
+def test_extreme_timestamp_offsets_are_validation_errors_and_max_date_filter_is_safe(owner, seed):
+    for value in ["9999-12-31T23:59:59-12:00", "0001-01-01T00:00:00+14:00"]:
+        response = book(owner, seed, starts_at=value)
+        assert response.status_code == 422
+    assert owner.get("/appointments", params={"date_to": "9999-12-31"}).status_code == 200
