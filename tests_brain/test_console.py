@@ -157,48 +157,33 @@ def test_demo_identifier_update_preserves_credentials_and_is_idempotent(tmp_path
     assert path.stat().st_mode & 0o777 == 0o600
 
 
-def test_publish_creates_new_versions_without_mutating_existing_configuration():
-    import os
+def test_publish_creates_new_versions_without_mutating_existing_configuration(database):
     from uuid import uuid4
 
-    from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
 
     from brain.bootstrap import AgentConfig, publish_agent
     from scheduler.models import Agent, AgentVersion, Tenant
 
-    # Dedicated test database only, unique rows, rolled back; no global fixture cleanup.
-    url = os.environ.get(
-        "BRAIN_CLI_TEST_DATABASE_URL",
-        "postgresql+psycopg://postgres:phase1_test_only@127.0.0.1:55433/voice_agent_test",
-    )
-    from sqlalchemy.engine import make_url
-
-    if make_url(url).database != "voice_agent_test":
-        raise RuntimeError("Publisher test requires the dedicated test database")
-    engine = create_engine(url, hide_parameters=True)
-    try:
-        with Session(engine) as db:
-            transaction = db.begin()
-            try:
-                tenant = Tenant(id=uuid4(), name="Synthetic CLI test")
-                db.add(tenant)
-                db.flush()
-                agent = Agent(id=uuid4(), tenant_id=tenant.id, name="Synthetic CLI agent")
-                db.add(agent)
-                db.flush()
-                first = publish_agent(db, tenant.id, agent.id, AgentConfig(language_mode="en"))
-                second = publish_agent(db, tenant.id, agent.id, AgentConfig(language_mode="ur"))
-                assert first != second
-                assert agent.active_version_id == second
-                assert db.get(AgentVersion, first).config["language_mode"] == "en"
-                assert db.get(AgentVersion, second).config["language_mode"] == "ur"
-                with pytest.raises(ValueError):
-                    publish_agent(db, uuid4(), agent.id, AgentConfig())
-            finally:
-                transaction.rollback()
-    finally:
-        engine.dispose()
+    # Reuse the guarded, migrated, environment-configured isolated database fixture.
+    with Session(database) as db:
+        transaction = db.begin()
+        try:
+            tenant = Tenant(id=uuid4(), name="Synthetic CLI test")
+            db.add(tenant)
+            db.flush()
+            agent = Agent(id=uuid4(), tenant_id=tenant.id, name="Synthetic CLI agent")
+            db.add(agent)
+            db.flush()
+            first = publish_agent(db, tenant.id, agent.id, AgentConfig(language_mode="en"))
+            second = publish_agent(db, tenant.id, agent.id, AgentConfig(language_mode="ur"))
+            assert first != second and agent.active_version_id == second
+            assert db.get(AgentVersion, first).config["language_mode"] == "en"
+            assert db.get(AgentVersion, second).config["language_mode"] == "ur"
+            with pytest.raises(ValueError):
+                publish_agent(db, uuid4(), agent.id, AgentConfig())
+        finally:
+            transaction.rollback()
 
 
 def test_published_prayer_break_and_bilingual_public_profile_are_validated():

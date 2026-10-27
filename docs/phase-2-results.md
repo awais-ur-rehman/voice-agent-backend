@@ -6,10 +6,10 @@ Measured October 28, 2026 on `feat/phase-2-agent-brain`. Phase 1 PR #2 was merge
 
 | Check | Observed result |
 | --- | --- |
-| Full application/environment/brain suite | 422 passed, four explicitly hosted tests skipped; 53.77 s |
+| Full application/environment/brain suite | 426 passed, four explicitly hosted tests skipped; 46.38 s |
 | Retained Phase 0 offline checks | 63 passed |
 | Hosted NIM acceptance suite | Four passed together; 52.46 s |
-| Ruff / format / mypy | Passed; 65 formatted files, 32 typed source modules |
+| Ruff / format / mypy | Passed; 66 formatted files, 32 typed source modules |
 | PostgreSQL migration round trip | 0002 → 0001 → 0002 passed; head has 17 forced-RLS tenant tables |
 | Rebuilt Docker HTTP smoke | Passed: runtime/staff separation, tenant denial, verification, holds, booking/replay, reschedule, cancellation and ended-session rejection; zero provider calls |
 | Independent review | Important findings fixed with regressions; no unresolved P1 reported |
@@ -31,7 +31,7 @@ Model: `nvidia/nemotron-3.5-bolt-e4b`, hosted alias. Thinking explicitly disable
 
 Phone/factor checks, explicit confirmation and clear family-subject authority resets execute directly in code. They are not counted as model requests. The model receives actual tool-derived state/public catalog facts; no expected fixture action or precomputed patient authorization enters inference. Critical output comes from bilingual code templates, including names, phone digits, original/replacement dates and times.
 
-These are bounded acceptance paths through the constrained pipeline, not an unrestricted model accuracy claim. Earlier hosted runs exposed malformed action keys, omitted/unsupported literal fields, inferred subject resets, clinic-hours/slot confusion, resume errors and a missed family change. They failed their assertions. They drove schema, stage, language and authority-reset fixes before the final combined pass. Later runs have unique private evidence files in ignored `results/`; the first diagnostic runs reused a filename, so their command outcomes remain in the task history rather than a complete separate raw transcript. No failed run is counted as a pass.
+These are bounded acceptance paths through the constrained pipeline, not an unrestricted model accuracy claim. New-patient identity collection also executes through code, with an explicit reviewed Urdu name and separate name/phone readback. Correcting a phone invalidates prior verification/holds even if the replacement is invalid. Earlier hosted runs exposed malformed action keys, omitted/unsupported literal fields, inferred subject resets, clinic-hours/slot confusion, resume errors and a missed family change. They failed their assertions. They drove schema, stage, language and authority-reset fixes before the final combined pass. The first CI run also caught a publisher test using a local database port; it now reuses the migrated, environment-configured isolated fixture. Later runs have unique private evidence files in ignored `results/`; the first diagnostic runs reused a filename, so their command outcomes remain in the task history rather than a complete separate raw transcript. No failed run is counted as a pass.
 
 ## Owner testing
 

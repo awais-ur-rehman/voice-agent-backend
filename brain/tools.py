@@ -109,6 +109,8 @@ class ToolEngine:
                 if getattr(exc.orig, "sqlstate", None) == "23P01"
                 else "validation_error"
             )
+        if response["ok"] and not state.get("handoff"):
+            state["failures"] = 0
         state["silence_count"] = 0
         state["turns"] = state.get("turns", 0) + 1
         remember(
@@ -312,11 +314,13 @@ class ToolEngine:
                 fields.pop("temporal_pending", None)
             return result(self.next_question(s))
         if name == "find_patient":
-            phone = PatientCreate.phone_number(a["phone"])
             self.release(s)
             s.update(verified=False, stage="identify", offers=[])
             for key in ("subject", "appointment", "appointments", "pending_patient"):
                 s.pop(key, None)
+            s.pop("lookup_phone", None)
+            s["lookup_empty"] = False
+            phone = PatientCreate.phone_number(a["phone"])
             rows = list(db.scalars(select(Patient).where(Patient.phone == phone)))
             s["lookup_phone"] = phone
             s["candidates"] = [str(p.id) for p in rows]
@@ -359,6 +363,15 @@ class ToolEngine:
             from .normalization import say_name, say_phone
 
             s["pending_patient"] = {k: v for k, v in a.items() if k != "dob"}
+            if not a.get("name_ur"):
+                return result(
+                    error="validation_error",
+                    field="name_ur",
+                    say={
+                        "en": "Please provide the reviewed Urdu spelling of the patient’s name.",
+                        "ur": "براہ کرم مریض کے نام کا تصدیق شدہ اردو املا بتائیں۔",
+                    },
+                )
             say = {
                 lang: f"{say_name(a['name'], a.get('name_ur'), lang=lang)}; {say_phone(a['phone'], lang=lang, read_digits_in_english=s.get('read_digits_in_english', False))}. "
                 + ("Is this correct?" if lang == "en" else "کیا یہ درست ہے؟")

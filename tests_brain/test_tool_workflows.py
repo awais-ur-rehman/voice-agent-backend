@@ -232,3 +232,28 @@ def test_transient_mutation_retries_once_then_hands_off(
         assert len(list(db.scalars(select(Idempotency)))) == 1
     else:
         assert state["handoff"] and db.scalar(select(Callback)).reason == "technical"
+
+
+@pytest.mark.parametrize("phone", ["03007654321", "invalid-phone"])
+def test_phone_correction_invalidates_verification_hold_and_readback(workflow, seed, phone):
+    turn, state, db, *_ = workflow
+    prepare(turn, state, seed)
+    turn("find_patient", {"phone": phone})
+    assert not state["verified"]
+    assert not state.get("hold") and not state.get("readback")
+    assert not turn("book_appointment", text="yes")["ok"]
+    assert db.scalar(select(Appointment)) is None
+
+
+def test_successful_tool_resets_consecutive_technical_failures(workflow):
+    from brain.tools import ToolEngine
+
+    turn, state, db, store, actor = workflow
+    from tests_api.conftest import NOW
+
+    engine = ToolEngine(db, actor, store, NOW)
+    assert not engine.trusted_event(state, "upstream_timeout")["ok"]
+    assert turn("get_clinic_info", {"topic": "fees"})["ok"]
+    assert state.get("failures", 0) == 0
+    assert not engine.trusted_event(state, "upstream_timeout")["ok"]
+    assert not state.get("handoff")

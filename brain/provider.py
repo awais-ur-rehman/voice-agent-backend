@@ -47,6 +47,8 @@ def action_schema(state, text=""):
     text = sanitize_text(text)
     branches = []
     for name in allowed_next(state):
+        if name == "find_patient" and not re.search(r"\d{10,}", text):
+            continue
         arguments = ARGUMENTS[name].model_json_schema()
         if name == "update_dialogue_state":
             spans = re.findall(r"(?<!\d)\d{4}-\d{2}-\d{2}(?!\d)", text)

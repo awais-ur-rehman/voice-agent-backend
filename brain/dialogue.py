@@ -24,6 +24,7 @@ def allowed_next(state: dict) -> list[str]:
     if state.get("ended"):
         return []
     common = [
+        "find_patient",
         "set_caller_contact",
         "get_clinic_info",
         "search_knowledge",

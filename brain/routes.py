@@ -234,6 +234,12 @@ def run_command(identity, body, request, credentials, *, live=False, event=False
             action = {"name": "verify_patient", "arguments": {"factor": text}}
         elif re.fullmatch(r"[+\d ()-]{9,40}", text) and len(re.sub(r"\D", "", text)) >= 10:
             action = {"name": "find_patient", "arguments": {"phone": text}}
+        elif state.get("lookup_empty") and state.get("lookup_phone") and not state.get("readback"):
+            pending = state.get("pending_patient", {})
+            args = {"name": pending.get("name", text), "phone": state["lookup_phone"]}
+            if re.search(r"[\u0600-\u06ff]", text):
+                args["name_ur"] = text
+            action = {"name": "prepare_patient", "arguments": args}
         elif state.get("readback") and affirmative(text):
             action = {"name": "confirm", "arguments": {}}
         else:
@@ -245,7 +251,7 @@ def run_command(identity, body, request, credentials, *, live=False, event=False
                 # Date spans are literal extraction, not planner-computed values.
                 phrase = action["arguments"].get("date_phrase")
                 if phrase and phrase not in text:
-                    raise ProviderError("nonliteral_date")
+                    raise ProviderError("nonliteral_date", requests=1)
             except ProviderError as exc:
                 provider_requests = getattr(exc, "requests", provider_requests)
                 failed = True
