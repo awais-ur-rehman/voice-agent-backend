@@ -17,7 +17,7 @@
 - [x] Reproduce failures using saved responses; write regressions for a constrained action contract and exact code-delivered confirmation, including rejection cases and zero network access on confirmation delivery.
 - [x] Implement action protocol adapter and delivery function. Integrate explicit `json_schema`/`native` modes with truthful report provenance and timing/sample counts.
 - [x] Smoke-test the provider's structured output capability with thinking disabled. If accepted, rerun all 60 action scenarios and all 12 language/delivery samples; keep native and earlier reports unchanged.
-- [ ] Independently review the adapter and fix actionable findings with regressions. Run offline checks and CI, update the results/checkpoint report and draft PR. Do not merge or advance Phase 1.
+- [x] Independently review the adapter and fix actionable findings with regressions. Run offline checks and CI, update the results/checkpoint report and draft PR. Do not merge or advance Phase 1.
 
 ## Execution evidence
 
@@ -26,4 +26,5 @@
 - Independent review found Unicode escapes bypassing a raw-text script check; a regression reproduced it and decoded-string validation fixed it. All saved outputs were revalidated with no changed action representations.
 - Added preflight validation of authoritative confirmation fixtures and zero-network code-only execution.
 - Unit/CI runner isolates fake credentials, blocks workspace credential-loader reads and socket connections, with diagnostic key-pattern redaction. All 44 tests pass under these guards.
+- Fixed the confirmation test's missing report-directory setup after CI exposed it; all 44 tests also pass from a fresh archive without local results or credentials. GitHub's offline evaluation check passes.
 - Phase 1 remains stopped; semantic action failures and human/voice acceptance remain open.
