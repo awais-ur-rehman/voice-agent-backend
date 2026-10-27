@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!.env.api.example
 *.pem
 *.key
 .venv/
@@ -17,3 +18,5 @@ test-results/
 recordings/
 results/
 models/
+
+.local/
