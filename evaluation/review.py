@@ -16,9 +16,13 @@ def render_report(report: dict) -> str:
         tools = json.dumps(response.get('tools', []), ensure_ascii=False, indent=2)
         source = ('code template — no model request' if row.get('delivery_source') == 'code_template'
                   else 'model response')
+        policy = ('<p>Action policy: ' + escape(str(row.get('action_policy', 'unrestricted')))
+                  + '; eligible action count: ' + escape(str(row.get('eligible_action_count', 'not recorded')))
+                  + '. State-constrained scores measure the gated pipeline, not unrestricted model accuracy.</p>'
+                  if row.get('suite') == 'actions' else '')
         sections.append('<details' + ('' if passed else ' open') + '><summary>'
                         + escape(str(row['id'])) + ' — ' + ('mechanical checks pass; human review pending' if passed else 'needs review')
-                        + '</summary><p>Delivery: ' + escape(source) + '</p><p><strong>Caller</strong></p><p dir="auto">'
+                        + '</summary><p>Delivery: ' + escape(source) + '</p>' + policy + '<p><strong>Caller</strong></p><p dir="auto">'
                         + escape(str(row.get('input', ''))) + '</p><p><strong>Model reply</strong></p><p dir="auto">'
                         + escape(reply) + '</p><pre dir="auto">' + escape(tools) + '</pre>'
                         + '<details><summary>Context, expected result, and mechanical checks</summary>'

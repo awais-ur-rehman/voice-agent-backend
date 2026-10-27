@@ -15,6 +15,7 @@ import time
 from .cli import ROOT, build_payload, load_env, request_stream, validate_endpoint
 from .action_protocol import action_schema, decode_action_response
 from .delivery import confirmation_text
+from .eligibility import state_action_schema
 from .flow_scoring import score_action, score_language
 from .scoring import percentile
 
@@ -160,7 +161,12 @@ def load_probes(fixture_set: str = 'core') -> list[dict]:
     return probes
 
 
-def build_probe_payload(model: str, probe: dict, action_protocol: str = 'json_schema') -> dict:
+def build_probe_payload(model: str, probe: dict, action_protocol: str = 'json_schema',
+                        action_policy: str = 'unrestricted') -> dict:
+    if action_policy not in {'unrestricted', 'state_constrained'}:
+        raise ValueError('Unknown action policy')
+    if action_policy == 'state_constrained' and action_protocol != 'json_schema':
+        raise ValueError('State-constrained actions require the JSON schema protocol')
     if probe['suite'] == 'language' and ('say' in probe or 'tool_result' in probe):
         raise ValueError('Authoritative confirmations must bypass the model')
     payload = build_payload(model, probe['input'])
@@ -175,9 +181,19 @@ def build_probe_payload(model: str, probe: dict, action_protocol: str = 'json_sc
         if action_protocol == 'json_schema':
             registry = payload.pop('tools')
             payload.pop('tool_choice', None)
+            schema = (state_action_schema(probe['state'], probe['input'])
+                      if action_policy == 'state_constrained' else action_schema())
+            if action_policy == 'state_constrained':
+                names = [branch['properties']['name']['const'] for branch in schema['anyOf']]
+                registry = [tool for tool in registry if tool['function']['name'] in names]
+                payload['messages'][0]['content'] += (
+                    '\nCODE-DERIVED ELIGIBILITY\nallowed_next=' + json.dumps(names)
+                    + '\nOnly these actions and their response-schema arguments are eligible. '
+                    'Date phrases must be literal spans of the latest caller input, never translated. '
+                    'Do not select a question for a field that is not pending in the trusted state.\n')
             payload['messages'][0]['content'] += JSON_ACTION_INSTRUCTION + json.dumps(registry, ensure_ascii=False)
             payload['response_format'] = {'type': 'json_schema', 'json_schema': {
-                'name': 'next_action', 'strict': True, 'schema': action_schema()}}
+                'name': 'next_action', 'strict': True, 'schema': schema}}
         elif action_protocol != 'native':
             raise ValueError('Unknown action protocol')
         payload['messages'][0]['content'] += '\nTRUSTED_STATE_JSON\n' + json.dumps(probe['state'], ensure_ascii=False)
@@ -193,7 +209,7 @@ def build_probe_payload(model: str, probe: dict, action_protocol: str = 'json_sc
 
 
 def evaluate_probe(model: str | None, probe: dict, key: str, endpoint: str | None, timeout: float,
-                   action_protocol: str = 'json_schema') -> dict:
+                   action_protocol: str = 'json_schema', action_policy: str = 'unrestricted') -> dict:
     row = dict(probe)
     started = time.perf_counter()
     if probe['suite'] == 'language' and 'tool_result' in probe:
@@ -205,13 +221,20 @@ def evaluate_probe(model: str | None, probe: dict, key: str, endpoint: str | Non
     else:
         if model is None or endpoint is None:
             raise ValueError('A model and endpoint are required for non-template probes')
-        payload = build_probe_payload(model, probe, action_protocol)
+        payload = build_probe_payload(model, probe, action_protocol, action_policy)
+        row['action_policy'] = action_policy if probe['suite'] == 'actions' else None
+        if probe['suite'] == 'actions' and action_protocol == 'json_schema':
+            branches = payload['response_format']['json_schema']['schema']['anyOf']
+            row['eligible_action_names'] = [branch['properties']['name']['const'] for branch in branches]
+            row['eligible_action_count'] = len(branches)
         row['generation_config'] = {k: v for k, v in payload.items() if k not in {'model', 'messages', 'tools'}}
         row['delivery_source'] = 'model'
         response = request_stream(endpoint, key, payload, timeout)
         if probe['suite'] == 'actions' and action_protocol == 'json_schema':
             try:
-                response = decode_action_response(response)
+                allowed_schema = (payload['response_format']['json_schema']['schema']
+                                  if action_policy == 'state_constrained' else None)
+                response = decode_action_response(response, allowed_schema)
             except ValueError:
                 response = {**response, 'raw_tools': response.get('tools', []), 'tools': [],
                             'action_protocol': 'json_schema', 'protocol_valid': False,
@@ -228,6 +251,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--language', choices=['all', 'en', 'ur'], default='all')
     parser.add_argument('--model')
     parser.add_argument('--action-protocol', choices=['json_schema', 'native'], default='json_schema')
+    parser.add_argument('--action-policy', choices=['unrestricted', 'state_constrained'], default='unrestricted')
     parser.add_argument('--fixture-set', choices=['core', 'generalization', 'all'], default='core')
     parser.add_argument('--scenario', help='Retest one action scenario ID in the selected languages')
     parser.add_argument('--limit', type=int)
@@ -236,6 +260,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--output', type=Path)
     args = parser.parse_args(argv)
     try:
+        if args.action_policy == 'state_constrained' and args.action_protocol != 'json_schema':
+            raise ValueError('State-constrained actions require JSON Schema')
         probes = [p for p in load_probes(args.fixture_set) if (args.suite == 'all' or p['suite'] == args.suite
                   or (args.suite == 'confirmations' and p['suite'] == 'language' and 'tool_result' in p))
                   and (args.language == 'all' or p['lang'] == args.language)]
@@ -248,6 +274,10 @@ def main(argv: list[str] | None = None) -> int:
         if not math.isfinite(args.interval) or args.interval < 0 or not math.isfinite(args.timeout) or args.timeout <= 0:
             raise ValueError('Interval must be nonnegative and timeout positive; both finite')
         probes = probes[:args.limit]
+        if args.action_policy == 'state_constrained':
+            for probe in probes:
+                if probe['suite'] == 'actions':
+                    state_action_schema(probe['state'], probe['input'])
         if args.dry_run:
             print(json.dumps({'probes': len(probes), 'suites': dict(Counter(p['suite'] for p in probes)),
                               'languages': dict(Counter(p['lang'] for p in probes)), 'network_requests': 0}))
@@ -266,6 +296,12 @@ def main(argv: list[str] | None = None) -> int:
         if not output.is_relative_to((ROOT / 'results').resolve()) or output.exists():
             raise ValueError('Choose a new report path inside ignored backend/results/')
         rows = []
+        manifest_paths = [FIXTURES / 'flows.json', FIXTURES / 'flow_tools.json', FIXTURES / 'language.json']
+        if args.fixture_set != 'core':
+            manifest_paths.extend([FIXTURES / 'decision_variations.json', FIXTURES / 'decision_contrasts.json'])
+        fixture_hashes = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in manifest_paths}
+        eligibility_sha256 = (hashlib.sha256(Path(__file__).with_name('eligibility.py').read_bytes()).hexdigest()
+                              if args.action_policy == 'state_constrained' else None)
         started = datetime.now(timezone.utc).isoformat()
         for index, probe in enumerate(probes):
             if index and not (probe['suite'] == 'language' and 'tool_result' in probe):
@@ -273,7 +309,7 @@ def main(argv: list[str] | None = None) -> int:
             row = dict(probe)
             attempt = time.perf_counter()
             try:
-                row = evaluate_probe(model, probe, key, endpoint, args.timeout, args.action_protocol)
+                row = evaluate_probe(model, probe, key, endpoint, args.timeout, args.action_protocol, args.action_policy)
             except RuntimeError as exc:
                 row.update(status='error', error=str(exc), human_review='pending')
             row['attempt_ms'] = (time.perf_counter() - attempt) * 1000
@@ -286,6 +322,7 @@ def main(argv: list[str] | None = None) -> int:
                    'passed': sum(row['scores']['passed'] for row in complete), 'human_review': 'pending',
                    'code_deliveries': sum(row.get('delivery_source') == 'code_template' for row in complete),
                    'model_responses': sum(row.get('delivery_source') == 'model' for row in complete),
+                   'single_eligible_action_responses': sum(row.get('eligible_action_count') == 1 for row in complete),
                    'protocol_rejections': sum(row['response'].get('protocol_valid') is False for row in complete)}
         summary['model_requests_attempted'] = sum(not (row['suite'] == 'language' and 'tool_result' in row) for row in rows)
         for suite in ['actions', 'language']:
@@ -305,11 +342,9 @@ def main(argv: list[str] | None = None) -> int:
                   'python': platform.python_version(), 'platform': platform.platform(),
                   'interval_seconds': args.interval, 'socket_timeout_seconds': args.timeout,
                   'action_protocol': args.action_protocol,
+                  'action_policy': args.action_policy,
                   'fixture_set': args.fixture_set,
-                  'fixture_hashes': {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
-                                     for p in [FIXTURES / 'flows.json', FIXTURES / 'flow_tools.json', FIXTURES / 'language.json']
-                                     + ([FIXTURES / 'decision_variations.json', FIXTURES / 'decision_contrasts.json']
-                                        if args.fixture_set != 'core' else [])},
+                  'fixture_hashes': fixture_hashes, 'eligibility_sha256': eligibility_sha256,
                   'prompt_sha256': hashlib.sha256((ACTION_SYSTEM + LANGUAGE_SYSTEM + JSON_ACTION_INSTRUCTION).encode()).hexdigest(),
                   'summary': summary, 'cases': rows}
         serialized = json.dumps(report, ensure_ascii=False, indent=2)

@@ -33,7 +33,7 @@ def reject_constant(value: str):
     raise ValueError('Non-finite JSON numbers are not allowed')
 
 
-def decode_action_response(response: dict) -> dict:
+def decode_action_response(response: dict, allowed_schema: dict | None = None) -> dict:
     started = time.perf_counter()
     if response.get('tools') or not no_reasoning(response):
         raise ValueError('Mixed action protocol or reasoning output')
@@ -44,6 +44,10 @@ def decode_action_response(response: dict) -> dict:
         raise ValueError('Action is not one complete JSON document') from exc
     if not action_validator().is_valid(action):
         raise ValueError('Action does not satisfy the allowed action schema')
+    if allowed_schema is not None:
+        Draft202012Validator.check_schema(allowed_schema)
+        if not Draft202012Validator(allowed_schema).is_valid(action):
+            raise ValueError('Action is not eligible for the supplied state and input')
     if re.search(r'[\u0900-\u097f]', json.dumps(action, ensure_ascii=False)):
         raise ValueError('Unexpected Devanagari in action arguments')
     return {**response, 'raw_content': raw, 'content': '',
