@@ -257,3 +257,12 @@ def test_successful_tool_resets_consecutive_technical_failures(workflow):
     assert state.get("failures", 0) == 0
     assert not engine.trusted_event(state, "upstream_timeout")["ok"]
     assert not state.get("handoff")
+
+
+def test_invalid_phone_after_lookup_cannot_leave_orphaned_candidates(workflow):
+    turn, state, *_ = workflow
+    assert turn("find_patient", {"phone": "03001234567"})["ok"]
+    assert state["candidates"]
+    assert not turn("find_patient", {"phone": "1111111111"})["ok"]
+    assert not state.get("candidates")
+    assert not turn("verify_patient", {"factor": "Synthetic Patient"})["ok"]

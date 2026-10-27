@@ -76,3 +76,12 @@ def test_explicit_family_subject_change_is_detected_before_planning(text):
     from brain.dialogue import subject_change
 
     assert subject_change(text) == "other"
+
+
+def test_resume_is_only_eligible_when_a_task_is_parked():
+    from brain.dialogue import allowed_next
+
+    state = {"task": "book", "verified": True, "fields": {}, "parked": []}
+    assert "resume_task" not in allowed_next(state)
+    state["parked"] = [{"task": "cancel", "fields": {}}]
+    assert "resume_task" in allowed_next(state)

@@ -34,7 +34,9 @@ def allowed_next(state: dict) -> list[str]:
     ]
     if state.get("attempts", 0) >= 3 or state.get("handoff"):
         return ["request_handoff", "end_call"]
-    common += ["update_dialogue_state", "resume_task"]
+    common += ["update_dialogue_state"]
+    if state.get("parked"):
+        common += ["resume_task"]
     if not state.get("verified"):
         common += ["find_patient"]
         if state.get("candidates"):

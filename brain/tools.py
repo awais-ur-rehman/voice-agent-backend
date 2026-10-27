@@ -316,7 +316,7 @@ class ToolEngine:
         if name == "find_patient":
             self.release(s)
             s.update(verified=False, stage="identify", offers=[])
-            for key in ("subject", "appointment", "appointments", "pending_patient"):
+            for key in ("subject", "appointment", "appointments", "pending_patient", "candidates"):
                 s.pop(key, None)
             s.pop("lookup_phone", None)
             s["lookup_empty"] = False

@@ -6,7 +6,7 @@ Measured October 28, 2026 on `feat/phase-2-agent-brain`. Phase 1 PR #2 was merge
 
 | Check | Observed result |
 | --- | --- |
-| Full application/environment/brain suite | 426 passed, four explicitly hosted tests skipped; 46.38 s |
+| Full application/environment/brain suite | 428 passed, four explicitly hosted tests skipped; 47.30 s |
 | Retained Phase 0 offline checks | 63 passed |
 | Hosted NIM acceptance suite | Four passed together; 52.46 s |
 | Ruff / format / mypy | Passed; 66 formatted files, 32 typed source modules |
