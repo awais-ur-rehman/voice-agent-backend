@@ -18,3 +18,5 @@ test-results/
 recordings/
 results/
 models/
+
+.local/

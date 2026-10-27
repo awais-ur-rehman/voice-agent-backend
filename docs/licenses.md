@@ -30,3 +30,7 @@ No weights or voices downloaded; no immutable hosted weight revisions exposed or
 | referencing | 0.37.0 | MIT | https://github.com/python-jsonschema/referencing |
 | rpds-py | 2026.9.1 | MIT | https://github.com/crate-py/rpds |
 | typing-extensions | 4.16.0 | PSF-2.0 | https://github.com/python/typing_extensions |
+
+## Phase 1 application dependencies — October 27, 2026
+
+The full locked runtime/development graph and published license metadata are recorded in the [Phase 1 inventory](phase-1-dependencies.md). Official PyPI metadata was checked before adoption. The PostgreSQL driver is explicitly LGPL-3.0-only, not MIT. Container image digests are pinned. Model/voice production approvals remain unchanged.

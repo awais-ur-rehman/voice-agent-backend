@@ -15,7 +15,7 @@ RUN uv sync --locked --no-dev --no-install-project
 COPY scheduler ./scheduler
 COPY scripts ./scripts
 COPY migrations ./migrations
-COPY alembic.ini ./
+COPY alembic.ini LICENSE ./
 RUN useradd --create-home --uid 10001 scheduler
 USER scheduler
 CMD ["uv", "run", "--no-sync", "uvicorn", "scheduler.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]

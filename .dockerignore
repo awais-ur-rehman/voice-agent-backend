@@ -11,3 +11,7 @@ results
 models
 node_modules
 dist
+
+.superpowers
+
+.local/

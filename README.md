@@ -1,10 +1,24 @@
 # Voice Agent Backend
 
-Backend/voice-runtime workspace for an English/Urdu clinic appointment scheduler. The current feature branch contains **CPU-only Phase 0 evaluation tooling**, not a production API, booking engine, or live voice service.
+Phase 1 contains a runnable staff scheduling API: authentication, PostgreSQL tenant isolation, scheduling configuration, slot generation, and transactional booking/rescheduling/cancellation. The separate `evaluation/` package retains the synthetic CPU-only Phase 0 evidence. The React dashboard is a later phase.
 
-The governing v0.1 product/engineering spec and v0.2 Urdu/NIM addendum live in the parent workspace's `documents/` directory. v0.2 wins conflicts. The owner selected hosted Nemotron with thinking disabled; the other three candidate endpoints and GPU voice latency work are deferred.
+## Phase 1 quick start
 
-Start with the [decision-fix results](docs/phase-0-decision-fix-results.md), retained [protocol/delivery results](docs/phase-0-protocol-fix-results.md), and the [owner test checkpoint](docs/phase-0-owner-checkpoint.md). Do not equate a completed text evaluation with a passed voice/product feasibility gate.
+Requires Docker Desktop, uv and Python 3.12. From this backend directory:
+
+```bash
+uv sync --locked --all-groups
+python3 scripts/dev_setup.py
+docker compose --env-file .env.api up --build -d api
+uv run python -m scheduler.bootstrap --demo
+uv run python scripts/smoke_phase1.py
+```
+
+Open [API docs](http://127.0.0.1:8000/docs). Synthetic demo accounts are generated into the private ignored `.local/phase1-demo-credentials.json`; passwords/tokens are never printed. Existing Phase 0 `.env` is preserved. See the [Phase 1 owner testing guide](docs/phase-1-owner-checkpoint.md) for login, booking/replay/races, tenant isolation, policies and the stop point. Staff APIs are not LLM tool endpoints. Phase 1 remains unmerged for owner acceptance.
+
+## Retained Phase 0 evaluation
+
+The governing v0.1 product/engineering spec and v0.2 Urdu/NIM addendum live in the parent workspace's `documents/` directory. The [decision-fix results](docs/phase-0-decision-fix-results.md) preserve unrestricted failures separately from the passing state-constrained experiment. Voice/GPU and native acceptance remain open. The commands below apply to evaluation tooling, not the Phase 1 API.
 
 ## Setup
 
