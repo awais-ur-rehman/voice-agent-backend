@@ -14,7 +14,7 @@ uv run python -m scheduler.bootstrap --demo
 uv run python scripts/smoke_phase1.py
 ```
 
-Open [API docs](http://127.0.0.1:8000/docs). Synthetic demo accounts are generated into the private ignored `.local/phase1-demo-credentials.json`; passwords/tokens are never printed. Existing Phase 0 `.env` is preserved. See the [Phase 1 owner testing guide](docs/phase-1-owner-checkpoint.md) for login, booking/replay/races, tenant isolation, policies and the stop point. Staff APIs are not LLM tool endpoints. Phase 1 remains unmerged for owner acceptance.
+Open [API docs](http://127.0.0.1:8000/docs). Synthetic demo accounts are generated into the private ignored `.local/phase1-demo-credentials.json`; passwords/tokens are never printed. Existing Phase 0 `.env` is preserved. See the [verification results](docs/phase-1-results.md) and [Phase 1 owner testing guide](docs/phase-1-owner-checkpoint.md) for login, booking/replay/races, tenant isolation, policies and the stop point. Staff APIs are not LLM tool endpoints. Phase 1 remains unmerged for owner acceptance.
 
 ## Retained Phase 0 evaluation
 

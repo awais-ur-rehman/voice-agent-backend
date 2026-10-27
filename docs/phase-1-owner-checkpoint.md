@@ -1,6 +1,6 @@
 # Phase 1 owner checkpoint
 
-Phase 1 implements staff-facing API foundations. The separate React dashboard is Phase 4. Test through Swagger at http://127.0.0.1:8000/docs or the commands below. Phase 2 agent/session tools, patient verification, dialogue state, relative-date resolution and voice integration have not started. These staff bearer credentials must never be handed to an LLM.
+Phase 1 implements staff-facing API foundations. See [verification results](phase-1-results.md) for the 48-test PostgreSQL suite, retained 63-test evaluation suite, review fixes and CI evidence. The separate React dashboard is Phase 4. Test through Swagger at http://127.0.0.1:8000/docs or the commands below. Phase 2 agent/session tools, patient verification, dialogue state, relative-date resolution and voice integration have not started. These staff bearer credentials must never be handed to an LLM.
 
 ## Start or restart locally
 
@@ -37,7 +37,7 @@ This prompts privately for a password. It creates a new clinic without schedulin
 5. Submit the identical request/key again: it must return the exact original appointment. Change its starts_at while keeping the key: expect 409 `idempotency_conflict`. Submit the same slot with a new key: expect 409 `slot_unavailable`, with up to three alternatives. The database range includes buffers.
 6. POST `/appointments/{id}/reschedule` with a different offered starts_at, confirmed true, and a new key. It returns a linked replacement; the old row becomes cancelled. Try moving to an occupied slot: the original must remain booked. POST `/appointments/{id}/cancel` with confirmed true/new key, then verify cancellation and that its time can be booked again.
 7. Log in as clinic B. Clinic A patient/provider/appointment IDs must appear not found. Tenant identity is derived from the signed access token and database user record; adding a tenant_id to a mutation body is rejected.
-8. POST `/auth/refresh` once: receive a replacement refresh token. Reuse the old refresh token: it must fail and revoke that family, including the replacement. Logout revokes the refresh family. Access tokens last fifteen minutes; logout does not retroactively revoke an already issued access token. Disabling a user denies their subsequent authenticated requests.
+8. POST `/auth/refresh` once: receive a replacement refresh token. Reuse the old refresh token: it must fail and revoke that family, including the replacement. Logout revokes the refresh family. Access tokens last fifteen minutes; logout does not retroactively revoke an already issued access token. Automated tests also verify that disabling a user in the database denies subsequent authenticated requests. User deactivation management is not exposed by this checkpoint.
 
 Default editable policies: two hours' minimum notice, ninety-day horizon, twenty-four-hour cancellation window and three booked appointments per patient/local day. PATCH `/clinic` to test changes. These are API-enforced for every staff role; there is no silent policy override. A 409 `transaction_conflict` is a rolled-back database deadlock/serialization abort: retry with the same idempotency key. There is no hidden retry.
 
