@@ -112,6 +112,19 @@ class ScoringTests(unittest.TestCase):
 
 
 class ConfigurationTests(unittest.TestCase):
+    def test_comparison_models_use_documented_individual_settings(self):
+        minimax = build_payload('minimaxai/minimax-m3.1-flash', 'Hello')
+        self.assertEqual(minimax['temperature'], 1.0)
+        self.assertEqual(minimax['top_p'], 0.95)
+        self.assertNotIn('chat_template_kwargs', minimax)
+        muse = build_payload('meta/muse-glimmer-30b', 'Hello')
+        self.assertEqual(muse['reasoning_effort'], 'none')
+        self.assertEqual(muse['temperature'], 0.95)
+        self.assertEqual(muse['top_p'], 1.0)
+        diffusion = build_payload('google/diffusiongemma-26b-a4b-it', 'Hello')
+        self.assertEqual(diffusion['chat_template_kwargs'], {'enable_thinking': False})
+        self.assertEqual(diffusion['max_tokens'], 300)
+
     def test_nemotron_request_explicitly_disables_thinking(self):
         payload = build_payload('nvidia/nemotron-3.5-bolt-e4b', 'کل وقت چاہیے۔')
         self.assertEqual(payload['chat_template_kwargs'], {'enable_thinking': False})
@@ -164,6 +177,15 @@ class ConfigurationTests(unittest.TestCase):
             failure = HTTPError('https://example.com', status, 'secret-key', {}, io.BytesIO(b'secret-key'))
             with self.subTest(status=status), patch('evaluation.cli.OPENER.open', side_effect=failure):
                 with self.assertRaisesRegex(RuntimeError, f'HTTP {status}') as caught:
+                    request_stream('https://example.com/v1', 'secret-key', {}, 3)
+                self.assertNotIn('secret-key', str(caught.exception))
+
+    def test_timeout_and_invalid_stream_are_distinct_without_secret_details(self):
+        for failure, message in [(TimeoutError('secret-key'), 'Provider timed out'),
+                                 (ValueError('secret-key'), 'Provider returned an invalid or incomplete stream')]:
+            with self.subTest(failure=type(failure).__name__), \
+                    patch('evaluation.cli.OPENER.open', side_effect=failure):
+                with self.assertRaisesRegex(RuntimeError, message) as caught:
                     request_stream('https://example.com/v1', 'secret-key', {}, 3)
                 self.assertNotIn('secret-key', str(caught.exception))
 

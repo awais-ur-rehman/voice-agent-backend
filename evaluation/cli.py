@@ -41,8 +41,17 @@ def build_payload(model: str, text: str) -> dict:
     payload = {'model': model, 'messages': [{'role': 'system', 'content': SYSTEM},
                {'role': 'user', 'content': text}], 'tools': TOOLS,
                'tool_choice': 'auto', 'stream': True, 'temperature': 0.3, 'max_tokens': 300}
-    if model.removeprefix('stg/') == 'nvidia/nemotron-3.5-bolt-e4b':
+    canonical_model = model.removeprefix('stg/')
+    if canonical_model == 'nvidia/nemotron-3.5-bolt-e4b':
         payload.update(temperature=1.0, top_p=0.95, parallel_tool_calls=False,
+                       chat_template_kwargs={'enable_thinking': False})
+    elif canonical_model == 'minimaxai/minimax-m3.1-flash':
+        # No thinking-off control is documented for this hosted endpoint.
+        payload.update(temperature=1.0, top_p=0.95)
+    elif canonical_model == 'meta/muse-glimmer-30b':
+        payload.update(temperature=0.95, top_p=1.0, reasoning_effort='none')
+    elif canonical_model == 'google/diffusiongemma-26b-a4b-it':
+        payload.update(temperature=1.0, top_p=0.95,
                        chat_template_kwargs={'enable_thinking': False})
     return payload
 
@@ -83,8 +92,12 @@ def request_stream(base_url: str, key: str, payload: dict, timeout: float) -> di
             return read_stream(response, started)
     except HTTPError as exc:
         raise RuntimeError(f'Provider returned HTTP {exc.code}; no retry attempted') from None
-    except (URLError, OSError, ValueError):
-        raise RuntimeError('Provider connection, timeout, or stream failure; no retry attempted') from None
+    except TimeoutError:
+        raise RuntimeError('Provider timed out; no retry attempted') from None
+    except ValueError:
+        raise RuntimeError('Provider returned an invalid or incomplete stream; no retry attempted') from None
+    except (URLError, OSError):
+        raise RuntimeError('Provider connection failure; no retry attempted') from None
 
 
 def load_cases() -> tuple[list[dict], str]:
@@ -165,6 +178,7 @@ def main(argv: list[str] | None = None) -> int:
                                         if key not in {'model', 'messages', 'tools'}},
                   'reasoning_control': ('request: enable_thinking=false'
                                         if payload.get('chat_template_kwargs', {}).get('enable_thinking') is False
+                                        else 'request: reasoning_effort=none' if payload.get('reasoning_effort') == 'none'
                                         else 'prompt_only; model-specific controls not verified'),
                   'human_urdu_quality': None, 'gpu_voice_gate': 'pending',
                   'summary': summary, 'cases': rows}

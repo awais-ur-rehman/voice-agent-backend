@@ -42,3 +42,15 @@ Reports go to ignored `results/` with private file permissions. They contain syn
 `first_output_ms` is the first meaningful content/tool fragment, while `first_content_ms` is the first content delta and can be absent for tool-only responses. These measure client-observed deltas, not tokenizer-level TTFT. `first_usable_content_ms` is unassessed if inline thinking/analysis tags appear; such responses fail the reasoning-leak check. Raw content/output timing remains available for diagnosis. Percentiles use nearest rank over completed requests and expose sample counts; inspect failure counts alongside latency. The 30-second default socket timeout is an experimental measurement ceiling, not the production three-second fallback threshold.
 
 Urdu-input prose checks detect Arabic-script text and reject Devanagari; mixed-input prose has no assumed output language. These heuristics cannot establish Urdu fluency, respectful register, or absence of Roman Urdu. Tool-only replies have no prose score. For `nvidia/nemotron-3.5-bolt-e4b` (and its explicit `stg/` alias), the runner sends `chat_template_kwargs.enable_thinking=false`, `parallel_tool_calls=false`, temperature 1.0, and top_p 0.95. These model-specific sampling settings follow NVIDIA's model card rather than the generic 0.3 baseline. Reports record the exact generation configuration and the number of separately returned reasoning characters. Other models retain prompt-only suppression until their adapters are verified. Native-speaker review, audio tests, GPU performance, and real account rate limits remain pending.
+
+### Additional Phase 0 candidates
+
+The user selected three additional NIM candidates. Request profiles follow their model-specific API references; endpoint inference remains unverified because the initial tool and basic-text requests timed out. See [comparison status](docs/model-comparison-status.md).
+
+| Model | Configured reasoning control | Sampling |
+| --- | --- | --- |
+| `minimaxai/minimax-m3.1-flash` | Prompt only; no thinking-off control verified for the hosted endpoint | temperature 1.0, top_p 0.95 |
+| `meta/muse-glimmer-30b` | `reasoning_effort=none`, documented by its API reference; not yet observed live | temperature 0.95, top_p 1.0 |
+| `google/diffusiongemma-26b-a4b-it` | `chat_template_kwargs.enable_thinking=false`; not yet observed live | temperature 1.0, top_p 0.95 |
+
+Commented `.env` assignments remain ignored by the normal runner. Keep one active `LLM_API_KEY` and set `LLM_MODEL` to its intended candidate, or pass `--model` explicitly. Never uncomment multiple assignments with the same name: the loader preserves the first value, which can cause the wrong key to be used. The owner-approved comparison attempts selected each labeled key in process memory using a temporary local script; the secret-bearing `.env` was not published.
