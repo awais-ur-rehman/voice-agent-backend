@@ -1,6 +1,6 @@
 # Phase 0: bilingual voice feasibility
 
-Status: CPU evaluation tooling implemented on the Phase 0 feature branch; no live benchmark has run. Owner confirmed on October 27, 2026 that no GPU is available and a NIM API key still needs to be generated. Owner selected CPU + hosted NIM first, leaving GPU voice latency checks pending.
+Status: CPU evaluation tooling implemented on the Phase 0 feature branch; one live Nemotron text/tool evaluation has run; see [results](nemotron-phase-0-results.md). Owner confirmed on October 27, 2026 that no GPU is available and a NIM API key was initially pending and has since been configured locally. Owner selected CPU + hosted NIM first, leaving GPU voice latency checks pending.
 
 ## Governing specifications
 

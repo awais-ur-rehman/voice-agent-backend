@@ -3,3 +3,9 @@
 Project source uses MIT. The experimental CPU runner uses Python's standard library only (Python Software Foundation license: https://docs.python.org/3/license.html). No third-party runtime dependency, model weights, or voice artifact has been installed or approved yet. NVIDIA hosted API access is a service governed by NVIDIA/account/model terms, not covered by this project's MIT license.
 
 Before adoption, record the exact artifact identifier, version/revision, upstream license URL, license, redistribution obligations, and review date. Models, model weights, engines, and individual voices need separate entries. A candidate in the spec is not a verified license entry.
+
+## Hosted Phase 0 candidate: Nemotron 3.5 Bolt E4B
+
+Reviewed October 27, 2026. Requested API identifier: `nvidia/nemotron-3.5-bolt-e4b`. The hosted alias does not expose an immutable model-weight revision in our request; do not represent it as a pinned BF16 or quantized artifact. No weights have been downloaded.
+
+NVIDIA's [hosted model card](https://build.nvidia.com/nvidia/nemotron-3.5-bolt-e4b/modelcard) lists API Trial Terms for hosting and OpenMDW-1.1 for model use, with additional Apache-2.0 information. The [upstream BF16 card](https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Bolt-E4B-BF16) also identifies OpenMDW-1.1 as governing and Apache-2.0 for the Gemma base. This is not an MIT/Apache-only model approval; redistribution obligations and equivalence to the project's license requirement remain to be reviewed before self-hosting/adoption. Current use is the owner-requested hosted synthetic evaluation only.

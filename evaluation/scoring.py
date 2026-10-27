@@ -52,10 +52,12 @@ def score(case: dict, response: dict) -> dict:
     if case['lang'] == 'ur' and text.strip():
         script_ok = bool(re.search(r'[\u0621-\u064a\u066e-\u06d3]', text)) and not bool(re.search(r'[\u0900-\u097f]', text))
     reasoning_leak = bool(re.search(r'</?(?:think|analysis)\b', text, re.IGNORECASE))
+    reasoning_returned = reasoning_leak or response.get('reasoning_chars', 0) > 0
     return {'schema_valid': bool(valid), 'tool_match': tool_match,
             'arguments_match': bool(arguments_match), 'urdu_script_ok': script_ok,
             'reasoning_leak': reasoning_leak,
-            'passed': bool(valid and tool_match and arguments_match and script_ok is not False and not reasoning_leak)}
+            'reasoning_returned': reasoning_returned,
+            'passed': bool(valid and tool_match and arguments_match and script_ok is not False and not reasoning_returned)}
 
 
 def percentile(values: list[float], percent: int) -> float | None:

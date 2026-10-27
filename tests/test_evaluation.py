@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 from evaluation.scoring import percentile, score
 from evaluation.stream import read_stream
-from evaluation.cli import load_env, validate_endpoint, request_stream, main
+from evaluation.cli import load_env, validate_endpoint, request_stream, main, build_payload
 
 
 def event(delta, finish=None):
@@ -53,6 +53,7 @@ class StreamTests(unittest.TestCase):
         result = read_stream(io.BytesIO(data), 0, iter([0.1, 0.2, 0.3, 0.4, 0.5]).__next__)
         self.assertEqual(result['content'], 'جی')
         self.assertAlmostEqual(result['first_content_ms'], 300)
+        self.assertEqual(result['reasoning_chars'], 6)
 
     def test_incomplete_or_error_stream_is_not_successful(self):
         for data in [event({'content': 'partial'}), b'data: {"error":{"message":"bad"}}\n\n',
@@ -77,6 +78,13 @@ class ScoringTests(unittest.TestCase):
         case = dict(self.case, lang='en')
         result = score(case, self.response('{"field":"hours"}', content='<think>reasoning</think>'))
         self.assertTrue(result['reasoning_leak'])
+        self.assertFalse(result['passed'])
+
+    def test_separate_reasoning_is_reported_even_when_tools_are_correct(self):
+        response = self.response('{"field":"hours"}')
+        response['reasoning_chars'] = 6
+        result = score(self.case, response)
+        self.assertTrue(result['reasoning_returned'])
         self.assertFalse(result['passed'])
 
     def test_mixed_input_does_not_assume_urdu_response(self):
@@ -104,6 +112,15 @@ class ScoringTests(unittest.TestCase):
 
 
 class ConfigurationTests(unittest.TestCase):
+    def test_nemotron_request_explicitly_disables_thinking(self):
+        payload = build_payload('nvidia/nemotron-3.5-bolt-e4b', 'کل وقت چاہیے۔')
+        self.assertEqual(payload['chat_template_kwargs'], {'enable_thinking': False})
+        self.assertIs(payload['parallel_tool_calls'], False)
+        self.assertEqual(payload['temperature'], 1.0)
+        self.assertEqual(payload['top_p'], 0.95)
+        self.assertEqual(payload['messages'][-1]['content'], 'کل وقت چاہیے۔')
+        self.assertNotIn('chat_template_kwargs', build_payload('another-model', 'Hello'))
+
     def test_report_counts_failed_scores_and_redacts_echoed_key(self):
         from contextlib import redirect_stdout, redirect_stderr
         import shutil

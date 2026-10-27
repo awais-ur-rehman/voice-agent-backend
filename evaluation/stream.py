@@ -14,6 +14,7 @@ def read_stream(source: BinaryIO, started: float, clock: Callable[[], float] = t
     done = False
     data: list[str] = []
     usage = None
+    reasoning_chars = 0
     for raw in source:
         line = raw.decode('utf-8').rstrip('\r\n')
         if line.startswith('data:'):
@@ -37,6 +38,10 @@ def read_stream(source: BinaryIO, started: float, clock: Callable[[], float] = t
                     continue
                 finish = choice.get('finish_reason') or finish
                 delta = choice.get('delta') or {}
+                reasoning = delta.get('reasoning_content') or delta.get('reasoning') or ''
+                if not isinstance(reasoning, str):
+                    raise ValueError('Malformed reasoning delta')
+                reasoning_chars += len(reasoning)
                 text = delta.get('content') or ''
                 if not isinstance(text, str):
                     raise ValueError('Malformed content delta')
@@ -65,5 +70,6 @@ def read_stream(source: BinaryIO, started: float, clock: Callable[[], float] = t
     return {'content': text, 'tools': [tools[key] for key in sorted(tools)],
             'first_output_ms': first_output, 'first_content_ms': first_content,
             'reasoning_leak': reasoning_leak,
+            'reasoning_chars': reasoning_chars,
             'first_usable_content_ms': None if reasoning_leak else first_content,
             'total_ms': elapsed, 'finish_reason': finish, 'usage': usage}

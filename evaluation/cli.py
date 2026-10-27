@@ -37,6 +37,16 @@ SYSTEM = (
 )
 
 
+def build_payload(model: str, text: str) -> dict:
+    payload = {'model': model, 'messages': [{'role': 'system', 'content': SYSTEM},
+               {'role': 'user', 'content': text}], 'tools': TOOLS,
+               'tool_choice': 'auto', 'stream': True, 'temperature': 0.3, 'max_tokens': 300}
+    if model.removeprefix('stg/') == 'nvidia/nemotron-3.5-bolt-e4b':
+        payload.update(temperature=1.0, top_p=0.95, parallel_tool_calls=False,
+                       chat_template_kwargs={'enable_thinking': False})
+    return payload
+
+
 def load_env(path: Path) -> None:
     if not path.exists():
         return
@@ -129,9 +139,7 @@ def main(argv: list[str] | None = None) -> int:
         for index, case in enumerate(cases[:args.limit]):
             if index:
                 time.sleep(args.interval)
-            payload = {'model': model, 'messages': [{'role': 'system', 'content': SYSTEM},
-                       {'role': 'user', 'content': case['text']}], 'tools': TOOLS,
-                       'tool_choice': 'auto', 'stream': True, 'temperature': 0.3, 'max_tokens': 300}
+            payload = build_payload(model, case['text'])
             row = {'id': case['id'], 'lang': case['lang']}
             try:
                 response = request_stream(endpoint, key, payload, args.timeout)
@@ -153,7 +161,11 @@ def main(argv: list[str] | None = None) -> int:
                   'model': model, 'endpoint': endpoint, 'fixture_sha256': digest,
                   'python': platform.python_version(), 'platform': platform.platform(),
                   'interval_seconds': args.interval, 'socket_timeout_seconds': args.timeout,
-                  'reasoning_control': 'prompt_only; model-specific controls not verified',
+                  'generation_config': {key: value for key, value in payload.items()
+                                        if key not in {'model', 'messages', 'tools'}},
+                  'reasoning_control': ('request: enable_thinking=false'
+                                        if payload.get('chat_template_kwargs', {}).get('enable_thinking') is False
+                                        else 'prompt_only; model-specific controls not verified'),
                   'human_urdu_quality': None, 'gpu_voice_gate': 'pending',
                   'summary': summary, 'cases': rows}
         # Defense in depth: a provider may echo the credential in generated content.
