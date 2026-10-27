@@ -85,6 +85,7 @@ class ConfirmationTests(unittest.TestCase):
 
     def test_confirmation_only_cli_needs_no_key_and_has_no_model_latency_samples(self):
         import shutil
+        (ROOT/'results').mkdir(exist_ok=True)
         folder=Path(tempfile.mkdtemp(dir=ROOT/'results'));self.addCleanup(shutil.rmtree,folder)
         output=folder/'code-only.json'
         with patch('evaluation.flows.load_env',side_effect=AssertionError('No credentials needed')), \
