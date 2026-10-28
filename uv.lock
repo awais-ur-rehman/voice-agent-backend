@@ -767,13 +767,23 @@ wheels = [
 ]
 
 [[package]]
+name = "valkey"
+version = "6.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/90/c7/38b3ae24672abcc19e668858c4c8c4f7b7d0dda06973f46d755190452fdc/valkey-6.2.0.tar.gz", hash = "sha256:7337c493ce55d7fe58ab44c93c37f56552dad75f9512e97c5808374ab5af4939", size = 4596658, upload-time = "2026-10-12T10:24:28.403Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/da/10/84312ccb0d328702e27f2e79c18aa84004482dd1737dc58d2b352d7289e2/valkey-6.2.0-py3-none-any.whl", hash = "sha256:94a12c87cd070e356b2c89e2946fa582d9f65ec2e003ab1867e987220e2beae8", size = 261233, upload-time = "2026-10-12T10:24:26.871Z" },
+]
+
+[[package]]
 name = "voice-agent-backend"
-version = "0.1.0"
+version = "0.2.0"
 source = { virtual = "." }
 dependencies = [
     { name = "alembic" },
     { name = "email-validator" },
     { name = "fastapi" },
+    { name = "httpx2" },
     { name = "jsonschema" },
     { name = "phonenumbers" },
     { name = "psycopg", extra = ["binary"] },
@@ -782,11 +792,11 @@ dependencies = [
     { name = "pyjwt" },
     { name = "sqlalchemy" },
     { name = "uvicorn" },
+    { name = "valkey" },
 ]
 
 [package.dev-dependencies]
 dev = [
-    { name = "httpx2" },
     { name = "mypy" },
     { name = "pytest" },
     { name = "ruff" },
@@ -797,6 +807,7 @@ requires-dist = [
     { name = "alembic", specifier = ">=1.20,<1.21" },
     { name = "email-validator", specifier = ">=2.3,<3" },
     { name = "fastapi", specifier = ">=0.162,<0.163" },
+    { name = "httpx2", specifier = ">=2.16,<2.17" },
     { name = "jsonschema", specifier = ">=4.25,<5" },
     { name = "phonenumbers", specifier = ">=9.0.42,<9.1" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.6,<3.4" },
@@ -805,11 +816,11 @@ requires-dist = [
     { name = "pyjwt", specifier = ">=2.15,<2.16" },
     { name = "sqlalchemy", specifier = ">=2.1.6,<2.2" },
     { name = "uvicorn", specifier = ">=0.54,<0.55" },
+    { name = "valkey", specifier = ">=6.2,<6.3" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "httpx2", specifier = ">=2.16,<2.17" },
     { name = "mypy", specifier = ">=2.4,<2.5" },
     { name = "pytest", specifier = ">=9.1,<9.2" },
     { name = "ruff", specifier = ">=0.17,<0.18" },

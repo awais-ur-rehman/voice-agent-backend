@@ -1,27 +1,36 @@
 [project]
 name = "voice-agent-backend"
-version = "0.1.0"
+version = "0.2.0"
 description = "Clinic scheduling API and separate synthetic voice evaluation tools"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-  "jsonschema>=4.25,<5", "fastapi>=0.162,<0.163", "uvicorn>=0.54,<0.55",
-  "sqlalchemy>=2.1.6,<2.2", "alembic>=1.20,<1.21", "psycopg[binary]>=3.3.6,<3.4",
-  "pydantic-settings>=2.16,<2.17", "PyJWT>=2.15,<2.16", "pwdlib[argon2]>=0.3.1,<0.4",
-  "phonenumbers>=9.0.42,<9.1", "email-validator>=2.3,<3",
+  "jsonschema>=4.25,<5",
+  "fastapi>=0.162,<0.163",
+  "uvicorn>=0.54,<0.55",
+  "sqlalchemy>=2.1.6,<2.2",
+  "alembic>=1.20,<1.21",
+  "psycopg[binary]>=3.3.6,<3.4",
+  "pydantic-settings>=2.16,<2.17",
+  "PyJWT>=2.15,<2.16",
+  "pwdlib[argon2]>=0.3.1,<0.4",
+  "phonenumbers>=9.0.42,<9.1",
+  "email-validator>=2.3,<3",
+  "valkey>=6.2,<6.3",
+  "httpx2>=2.16,<2.17",
 ]
 
 [dependency-groups]
-dev = ["pytest>=9.1,<9.2", "httpx2>=2.16,<2.17", "ruff>=0.17,<0.18", "mypy>=2.4,<2.5"]
+dev = ["pytest>=9.1,<9.2", "ruff>=0.17,<0.18", "mypy>=2.4,<2.5"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests_api", "tests_environment"]
+testpaths = ["tests_api", "tests_environment", "tests_brain"]
 pythonpath = ["."]
 addopts = "-ra"
 
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-include = ["scheduler/**/*.py", "tests_api/**/*.py", "scripts/**/*.py", "migrations/**/*.py", "tests_environment/**/*.py"]
+include = ["brain/**/*.py", "tests_brain/**/*.py", "scheduler/**/*.py", "tests_api/**/*.py", "scripts/**/*.py", "migrations/**/*.py", "tests_environment/**/*.py"]
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I"]
@@ -29,7 +38,7 @@ select = ["E4", "E7", "E9", "F", "I"]
 [tool.mypy]
 python_version = "3.12"
 plugins = ["pydantic.mypy"]
-files = ["scheduler"]
+files = ["scheduler", "brain"]
 check_untyped_defs = true
 warn_unused_ignores = true
 

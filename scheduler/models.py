@@ -48,6 +48,7 @@ class RefreshToken(Row, Base):
 class Provider(Row, Base):
     __tablename__ = "providers"
     name: Mapped[str]
+    name_ur: Mapped[str | None]
     specialty: Mapped[str] = mapped_column(default="")
     active: Mapped[bool] = mapped_column(default=True)
 
@@ -55,6 +56,7 @@ class Provider(Row, Base):
 class Service(Row, Base):
     __tablename__ = "services"
     name: Mapped[str]
+    name_ur: Mapped[str | None]
     duration_min: Mapped[int]
     buffer_before_min: Mapped[int] = mapped_column(default=0)
     buffer_after_min: Mapped[int] = mapped_column(default=0)
@@ -91,6 +93,7 @@ class ExceptionDay(Row, Base):
 class Patient(Row, Base):
     __tablename__ = "patients"
     name: Mapped[str]
+    name_ur: Mapped[str | None]
     name_key: Mapped[str]
     phone: Mapped[str]
     dob: Mapped[date | None]
@@ -129,7 +132,59 @@ class Idempotency(Base):
 
 class Audit(Row, Base):
     __tablename__ = "audit_log"
-    actor_id: Mapped[UUID]
+    actor_id: Mapped[UUID | None]
+    agent_id: Mapped[UUID | None]
     action: Mapped[str]
     entity_id: Mapped[UUID]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Agent(Row, Base):
+    __tablename__ = "agents"
+    name: Mapped[str]
+    enabled: Mapped[bool] = mapped_column(default=True)
+    active_version_id: Mapped[UUID | None]
+
+
+class AgentVersion(Row, Base):
+    __tablename__ = "agent_versions"
+    agent_id: Mapped[UUID]
+    config: Mapped[dict] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AgentSession(Row, Base):
+    __tablename__ = "agent_sessions"
+    agent_id: Mapped[UUID]
+    version_id: Mapped[UUID]
+    revision: Mapped[int] = mapped_column(default=0)
+    checkpoint: Mapped[dict | None] = mapped_column(JSONB)
+    status: Mapped[str] = mapped_column(default="active")
+    token_jti_hash: Mapped[str]
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class CommandReceipt(Row, Base):
+    __tablename__ = "command_receipts"
+    session_id: Mapped[UUID]
+    command_id: Mapped[str]
+    request_digest: Mapped[str]
+    revision: Mapped[int]
+    response: Mapped[dict | None] = mapped_column(JSONB)
+    checkpoint: Mapped[dict | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class Callback(Row, Base):
+    __tablename__ = "callbacks"
+    session_id: Mapped[UUID]
+    agent_id: Mapped[UUID]
+    phone: Mapped[str | None]
+    reason: Mapped[str] = mapped_column(default="caller_requested")
+    status: Mapped[str] = mapped_column(default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

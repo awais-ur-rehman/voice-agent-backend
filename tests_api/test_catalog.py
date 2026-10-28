@@ -1,4 +1,4 @@
-from conftest import PASSWORD
+from tests_api.conftest import PASSWORD
 
 
 def test_role_scoping_and_hidden_cross_tenant_ids(owner, seed):
@@ -108,3 +108,17 @@ def test_out_of_horizon_extreme_calendar_dates_return_empty_slots(owner, seed):
     response = owner.get("/slots", params=query)
     assert response.status_code == 200
     assert response.json() == []
+
+
+def test_reviewed_urdu_names_can_be_saved_and_are_cleared_on_rename(owner, seed):
+    response = owner.patch("/providers/" + str(seed["provider_a"]), json={"name_ur": "ڈاکٹر نمونہ"})
+    assert response.status_code == 200, response.text
+    assert response.json()["name_ur"] == "ڈاکٹر نمونہ"
+    changed = owner.patch(
+        "/providers/" + str(seed["provider_a"]), json={"name": "Renamed Provider"}
+    )
+    assert changed.status_code == 200 and changed.json()["name_ur"] is None
+    patient = owner.post(
+        "/patients", json={"name": "Demo Urdu", "name_ur": "نمونہ مریض", "phone": "03007654321"}
+    )
+    assert patient.status_code == 201 and patient.json()["name_ur"] == "نمونہ مریض"

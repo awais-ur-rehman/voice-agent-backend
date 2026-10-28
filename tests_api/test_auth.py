@@ -2,8 +2,9 @@ from datetime import UTC, datetime, timedelta
 
 import jwt
 import pytest
-from conftest import PASSWORD, SECRET
 from sqlalchemy import text
+
+from tests_api.conftest import PASSWORD, SECRET
 
 
 def login(client, email="owner-a@example.com", password=PASSWORD):

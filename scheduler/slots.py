@@ -99,7 +99,7 @@ def search(
     last: date,
     now: datetime,
     provider_id: UUID | None = None,
-    limit: int = 100,
+    limit: int | None = 100,
 ) -> list[Slot]:
     if last < first or (last - first).days > 30:
         raise AppError("validation_error", 422, "Search at most 31 days")

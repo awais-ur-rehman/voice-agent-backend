@@ -10,6 +10,12 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="SCHEDULER_", extra="ignore")
     database_url: SecretStr
     jwt_secret: SecretStr = Field(min_length=32)
+    runtime_secret: SecretStr | None = Field(default=None, min_length=32)
+    valkey_url: SecretStr | None = None
+    llm_api_key: SecretStr | None = None
+    llm_model: str = "nvidia/nemotron-3.5-bolt-e4b"
+    llm_timeout_seconds: float = Field(default=30, ge=1, le=60)
+    llm_request_budget: int = Field(default=100, ge=1, le=1000)
     jwt_issuer: str = "voice-agent-api"
     jwt_audience: str = "voice-agent-staff"
     access_minutes: int = Field(default=15, ge=1, le=60)

@@ -12,6 +12,12 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import sessionmaker
+from valkey import Valkey
+from valkey.exceptions import ValkeyError
+
+from brain import routes as brain_routes
+from brain.provider import Nemotron
+from brain.store import StateStore
 
 from . import appointments, auth, catalog
 from .config import Settings, load_settings
@@ -56,10 +62,26 @@ def create_app(settings: Settings | None = None, clock=None) -> FastAPI:
             engine.dispose()
             raise
         yield
+        if getattr(app.state, "brain_store", None):
+            app.state.brain_store.client.close()
+        app.state.brain_planner.close()
         engine.dispose()
 
-    app = FastAPI(title="Voice Agent Scheduling API", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="Voice Agent Scheduling API", version="0.2.0", lifespan=lifespan)
     app.state.settings, app.state.engine = settings, engine
+    app.state.brain_planner = Nemotron(settings)
+    app.state.brain_store = (
+        StateStore(
+            Valkey.from_url(
+                settings.valkey_url.get_secret_value(),
+                decode_responses=True,
+                socket_connect_timeout=2,
+                socket_timeout=2,
+            )
+        )
+        if settings.valkey_url
+        else None
+    )
     app.state.session_factory = sessionmaker(engine, expire_on_commit=False)
     app.state.clock = clock or (lambda: datetime.now(UTC))
     app.add_middleware(
@@ -120,8 +142,14 @@ def create_app(settings: Settings | None = None, clock=None) -> FastAPI:
     def ready():
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
+        if app.state.brain_store:
+            try:
+                app.state.brain_store.client.ping()
+            except ValkeyError:
+                raise AppError("cache_unavailable", 503) from None
         return {"status": "ready"}
 
+    app.include_router(brain_routes.router)
     app.include_router(appointments.router)
     app.include_router(auth.router)
     app.include_router(catalog.router)

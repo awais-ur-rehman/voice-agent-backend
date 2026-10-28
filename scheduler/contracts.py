@@ -67,11 +67,13 @@ class UserCreate(Contract):
 
 
 class ProviderCreate(Contract):
+    name_ur: Name | None = None
     name: Name
     specialty: str = Field(default="", max_length=120)
 
 
 class ProviderPatch(Patch):
+    name_ur: Name | None = None
     name: Name | None = None
     specialty: str | None = Field(default=None, max_length=120)
     active: bool | None = None
@@ -83,6 +85,7 @@ class ProviderOut(ProviderCreate):
 
 
 class ServiceCreate(Contract):
+    name_ur: Name | None = None
     name: Name
     duration_min: int = Field(ge=1, le=480)
     buffer_before_min: int = Field(default=0, ge=0, le=120)
@@ -91,6 +94,7 @@ class ServiceCreate(Contract):
 
 
 class ServicePatch(Patch):
+    name_ur: Name | None = None
     name: Name | None = None
     duration_min: int | None = Field(default=None, ge=1, le=480)
     buffer_before_min: int | None = Field(default=None, ge=0, le=120)
@@ -152,6 +156,7 @@ class ExceptionOut(ExceptionCreate):
 
 
 class PatientCreate(Contract):
+    name_ur: Name | None = None
     name: Name
     phone: str = Field(min_length=5, max_length=40)
     dob: date | None = None
