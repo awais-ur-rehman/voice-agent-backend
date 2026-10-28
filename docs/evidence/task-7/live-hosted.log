@@ -1,0 +1,9 @@
+turn 1 revision 1 actions [('find_patient', None, True)]
+turn 2 revision 2 actions [('verify_patient', None, True)]
+turn 3 revision 3 actions [('update_dialogue_state', None, True)]
+turn 4 revision 4 actions [('get_available_slots', None, True)]
+turn 5 revision 5 actions [('hold_slot', None, True)]
+turn 6 revision 6 actions [('read_back', None, True)]
+turn 7 revision 7 actions [('confirm', None, True)]
+Live parent schedule unchanged: PASS
+Live isolated scope ended: PASS

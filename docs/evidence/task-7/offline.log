@@ -1,0 +1,79 @@
+test_all_original_oracles_remain_eligible_but_never_enter_the_request (test_action_eligibility.EligibilityTests.test_all_original_oracles_remain_eligible_but_never_enter_the_request) ... ok
+test_already_retrieved_multiple_appointments_require_selection (test_action_eligibility.EligibilityTests.test_already_retrieved_multiple_appointments_require_selection) ... ok
+test_decode_rejects_a_globally_valid_but_ineligible_action_without_repair (test_action_eligibility.EligibilityTests.test_decode_rejects_a_globally_valid_but_ineligible_action_without_repair) ... ok
+test_emergency_and_server_failure_causes_take_priority (test_action_eligibility.EligibilityTests.test_emergency_and_server_failure_causes_take_priority) ... ok
+test_invalid_late_eligibility_is_rejected_before_credentials_or_inference (test_action_eligibility.EligibilityTests.test_invalid_late_eligibility_is_rejected_before_credentials_or_inference) ... ok
+test_known_provider_subject_and_parked_task_updates_do_not_grant_verification (test_action_eligibility.EligibilityTests.test_known_provider_subject_and_parked_task_updates_do_not_grant_verification) ... ok
+test_mismatched_verified_subject_cannot_lookup_cancel_or_reschedule (test_action_eligibility.EligibilityTests.test_mismatched_verified_subject_cannot_lookup_cancel_or_reschedule) ... ok
+test_mutation_requires_confirmed_fields_and_exact_server_identifiers (test_action_eligibility.EligibilityTests.test_mutation_requires_confirmed_fields_and_exact_server_identifiers) ... ok
+test_oversized_input_and_non_fixture_state_fail_closed (test_action_eligibility.EligibilityTests.test_oversized_input_and_non_fixture_state_fail_closed) ... ok
+test_questions_are_eligible_only_for_the_pending_stage (test_action_eligibility.EligibilityTests.test_questions_are_eligible_only_for_the_pending_stage) ... ok
+test_raw_date_is_a_literal_span_and_cannot_be_translated_or_copied_from_examples (test_action_eligibility.EligibilityTests.test_raw_date_is_a_literal_span_and_cannot_be_translated_or_copied_from_examples) ... ok
+test_search_and_readonly_digressions_remain_available_without_invented_filters (test_action_eligibility.EligibilityTests.test_search_and_readonly_digressions_remain_available_without_invented_filters) ... ok
+test_state_is_not_mutated_and_native_protocol_cannot_bypass_eligibility (test_action_eligibility.EligibilityTests.test_state_is_not_mutated_and_native_protocol_cannot_bypass_eligibility) ... ok
+test_verification_threshold_and_private_lookup_gate (test_action_eligibility.EligibilityTests.test_verification_threshold_and_private_lookup_gate) ... ok
+test_function_text_unknown_tool_duplicate_keys_and_extra_arguments_fail_closed (test_action_protocol.ActionProtocolTests.test_function_text_unknown_tool_duplicate_keys_and_extra_arguments_fail_closed) ... ok
+test_reasoning_and_mixed_native_protocol_are_rejected (test_action_protocol.ActionProtocolTests.test_reasoning_and_mixed_native_protocol_are_rejected) ... ok
+test_structured_mode_keeps_all_tools_without_expected_answer (test_action_protocol.ActionProtocolTests.test_structured_mode_keeps_all_tools_without_expected_answer) ... ok
+test_unicode_escaped_devanagari_is_checked_after_json_decoding (test_action_protocol.ActionProtocolTests.test_unicode_escaped_devanagari_is_checked_after_json_decoding) ... ok
+test_whole_valid_json_action_is_decoded_and_raw_output_preserved (test_action_protocol.ActionProtocolTests.test_whole_valid_json_action_is_decoded_and_raw_output_preserved) ... ok
+test_authoritative_confirmation_bypasses_network_completely (test_action_protocol.ConfirmationTests.test_authoritative_confirmation_bypasses_network_completely) ... ok
+test_authoritative_confirmation_cannot_be_built_as_a_model_request (test_action_protocol.ConfirmationTests.test_authoritative_confirmation_cannot_be_built_as_a_model_request) ... ok
+test_confirmation_is_exact_and_never_appended_or_rephrased (test_action_protocol.ConfirmationTests.test_confirmation_is_exact_and_never_appended_or_rephrased) ... ok
+test_confirmation_only_cli_needs_no_key_and_has_no_model_latency_samples (test_action_protocol.ConfirmationTests.test_confirmation_only_cli_needs_no_key_and_has_no_model_latency_samples) ... 1/3 say-date-ur: ok
+2/3 say-fee-ur: ok
+3/3 say-date-en: ok
+ok
+test_invalid_envelope_and_blank_say_fail_closed (test_action_protocol.ConfirmationTests.test_invalid_envelope_and_blank_say_fail_closed) ... ok
+test_invalid_late_confirmation_fixture_is_rejected_before_any_model_request (test_action_protocol.ConfirmationTests.test_invalid_late_confirmation_fixture_is_rejected_before_any_model_request) ... Configuration error: check fixtures, local credentials, numeric options, and new report path.
+ok
+test_all_golden_ranges_and_recording_slots_are_present (test_assets.AssetTests.test_all_golden_ranges_and_recording_slots_are_present) ... ok
+test_tool_envelope_forbids_success_error_and_failure_patient_data (test_assets.AssetTests.test_tool_envelope_forbids_success_error_and_failure_patient_data) ... ok
+test_action_selection_uses_zero_temperature_without_enabling_thinking (test_decision_prompt.DecisionPromptTests.test_action_selection_uses_zero_temperature_without_enabling_thinking) ... ok
+test_date_and_provider_fact_questions_have_bilingual_contrasts (test_decision_prompt.DecisionPromptTests.test_date_and_provider_fact_questions_have_bilingual_contrasts) ... ok
+test_dynamic_state_is_an_unambiguous_json_block_after_static_rules (test_decision_prompt.DecisionPromptTests.test_dynamic_state_is_an_unambiguous_json_block_after_static_rules) ... ok
+test_generalization_is_separate_bilingual_and_retains_all_action_options (test_decision_prompt.DecisionPromptTests.test_generalization_is_separate_bilingual_and_retains_all_action_options) ... ok
+test_oracle_and_reporting_metadata_cannot_change_any_action_request (test_decision_prompt.DecisionPromptTests.test_oracle_and_reporting_metadata_cannot_change_any_action_request) ... ok
+test_cli_dry_run_and_missing_key (test_evaluation.ConfigurationTests.test_cli_dry_run_and_missing_key) ... ok
+test_comparison_models_use_documented_individual_settings (test_evaluation.ConfigurationTests.test_comparison_models_use_documented_individual_settings) ... ok
+test_endpoint_rejects_remote_http_credentials_and_query (test_evaluation.ConfigurationTests.test_endpoint_rejects_remote_http_credentials_and_query) ... ok
+test_env_is_data_and_existing_environment_wins (test_evaluation.ConfigurationTests.test_env_is_data_and_existing_environment_wins) ... ok
+test_nemotron_request_explicitly_disables_thinking (test_evaluation.ConfigurationTests.test_nemotron_request_explicitly_disables_thinking) ... ok
+test_report_counts_failed_scores_and_redacts_echoed_key (test_evaluation.ConfigurationTests.test_report_counts_failed_scores_and_redacts_echoed_key) ... ok
+test_timeout_and_invalid_stream_are_distinct_without_secret_details (test_evaluation.ConfigurationTests.test_timeout_and_invalid_stream_are_distinct_without_secret_details) ... ok
+test_transport_does_not_leak_error_body_or_follow_redirect (test_evaluation.ConfigurationTests.test_transport_does_not_leak_error_body_or_follow_redirect) ... ok
+test_inline_reasoning_fails_even_when_tool_arguments_are_correct (test_evaluation.ScoringTests.test_inline_reasoning_fails_even_when_tool_arguments_are_correct) ... ok
+test_invalid_json_unknown_fields_and_tool_names_fail (test_evaluation.ScoringTests.test_invalid_json_unknown_fields_and_tool_names_fail) ... ok
+test_mixed_input_does_not_assume_urdu_response (test_evaluation.ScoringTests.test_mixed_input_does_not_assume_urdu_response) ... ok
+test_nearest_rank_percentiles_handle_empty_and_small_samples (test_evaluation.ScoringTests.test_nearest_rank_percentiles_handle_empty_and_small_samples) ... ok
+test_schema_validity_does_not_imply_correct_arguments (test_evaluation.ScoringTests.test_schema_validity_does_not_imply_correct_arguments) ... ok
+test_separate_reasoning_is_reported_even_when_tools_are_correct (test_evaluation.ScoringTests.test_separate_reasoning_is_reported_even_when_tools_are_correct) ... ok
+test_urdu_script_check_is_not_assumed_for_tool_only_response (test_evaluation.ScoringTests.test_urdu_script_check_is_not_assumed_for_tool_only_response) ... ok
+test_content_timing_excludes_reasoning_and_metadata (test_evaluation.StreamTests.test_content_timing_excludes_reasoning_and_metadata) ... ok
+test_fragmented_think_tags_do_not_claim_usable_content_timing (test_evaluation.StreamTests.test_fragmented_think_tags_do_not_claim_usable_content_timing) ... ok
+test_incomplete_or_error_stream_is_not_successful (test_evaluation.StreamTests.test_incomplete_or_error_stream_is_not_successful) ... ok
+test_malformed_content_and_indices_raise_value_error (test_evaluation.StreamTests.test_malformed_content_and_indices_raise_value_error) ... ok
+test_merges_tool_fragments_and_ignores_role_only_delta (test_evaluation.StreamTests.test_merges_tool_fragments_and_ignores_role_only_delta) ... ok
+test_devanagari_in_tool_arguments_and_duplicate_keys_fail (test_flows.ActionScoringTests.test_devanagari_in_tool_arguments_and_duplicate_keys_fail) ... ok
+test_numeric_one_cannot_impersonate_json_boolean_true (test_flows.ActionScoringTests.test_numeric_one_cannot_impersonate_json_boolean_true) ... ok
+test_valid_call_cannot_hide_reasoning_or_free_prose (test_flows.ActionScoringTests.test_valid_call_cannot_hide_reasoning_or_free_prose) ... ok
+test_wrong_subject_and_added_tenant_argument_fail (test_flows.ActionScoringTests.test_wrong_subject_and_added_tenant_argument_fail) ... ok
+test_code_say_cannot_be_rephrased (test_flows.LanguageScoringTests.test_code_say_cannot_be_rephrased) ... ok
+test_script_and_digits_and_extra_questions_are_rejected (test_flows.LanguageScoringTests.test_script_and_digits_and_extra_questions_are_rejected) ... ok
+test_dry_run_is_offline (test_flows.ProbeTests.test_dry_run_is_offline) ... ok
+test_html_escapes_model_output_and_marks_human_review_pending (test_flows.ProbeTests.test_html_escapes_model_output_and_marks_human_review_pending) ... ok
+test_loader_pairs_thirty_scenarios_and_has_human_review_samples (test_flows.ProbeTests.test_loader_pairs_thirty_scenarios_and_has_human_review_samples) ... ok
+test_one_scenario_can_be_retested_in_both_languages_offline (test_flows.ProbeTests.test_one_scenario_can_be_retested_in_both_languages_offline) ... ok
+test_payload_keeps_thinking_off_and_does_not_expose_expected_answer (test_flows.ProbeTests.test_payload_keeps_thinking_off_and_does_not_expose_expected_answer) ... ok
+
+----------------------------------------------------------------------
+Ran 63 tests in 1.231s
+
+OK
+{"cases": 40, "languages": {"ur": 20, "en": 10, "mixed": 10}, "sha256": "4e4f00546e43382b42ea07de796c779581eb3265f04eb7001b934caec9df9dc6", "network_requests": 0}
+{"probes": 100, "suites": {"actions": 88, "language": 12}, "languages": {"en": 47, "ur": 53}, "network_requests": 0}
+1/3 say-date-ur: ok
+2/3 say-fee-ur: ok
+3/3 say-date-en: ok
+{"report": "/Users/awaisurrehman/Documents/experimental/voice-agent/backend/results/flows-20261028T201955939740Z.json", "summary": {"requested": 3, "attempted": 3, "completed": 3, "passed": 3, "human_review": "pending", "code_deliveries": 3, "model_responses": 0, "single_eligible_action_responses": 0, "protocol_rejections": 0, "model_requests_attempted": 0, "actions": {"completed": 0, "passed": 0, "latency_samples": 0, "model_generated": 0, "code_delivered": 0, "first_output_p50_ms": null, "first_output_p95_ms": null, "action_ready_samples": 0, "action_ready_p50_ms": null, "action_ready_p95_ms": null}, "language": {"completed": 3, "passed": 3, "latency_samples": 0, "model_generated": 0, "code_delivered": 3, "first_output_p50_ms": null, "first_output_p95_ms": null, "action_ready_samples": 0, "action_ready_p50_ms": null, "action_ready_p95_ms": null}}}
+{"action_probes": 60, "language_probes": 12, "number_values": 101, "normalizer_cases": 15, "resolver_cases": 35, "recording_prompts": {"ur": 200, "mixed": 50}, "speakers": 10, "recorded_audio": 0, "envelope_examples": 5, "native_review": "pending", "resolver_implementation": "not implemented", "normalizer_implementation": "not implemented"}

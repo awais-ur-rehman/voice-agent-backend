@@ -43,6 +43,14 @@ class LegacyAgentConfig(AgentSettings):
 
 
 class AgentConfig(AgentSettings):
+    @field_validator("name")
+    @classmethod
+    def nonblank_name(cls, value):
+        value = value.strip()
+        if not value:
+            raise ValueError("Agent name is required")
+        return value
+
     schema_version: Literal[2] = 2
     greeting_en: str = Field(default="Hello. How can I help you today?", max_length=500)
     greeting_ur: str = Field(default="السلام علیکم۔ آپ کیسے ہیں؟", max_length=500)

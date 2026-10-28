@@ -1,6 +1,6 @@
 # Voice Agent Backend
 
-Phase 3 adds guarded voice-session/media code and a separate minimal browser console. The [safe-code owner checkpoint](docs/phase-3-testing.md) and [measured results](docs/phase-3-results.md) distinguish passing API/RTC checks from blocked speech acceptance. Both English and Urdu speech readiness remain disabled on the tested memory budget; the Phase 4 dashboard is not started. Phase 2's guarded text agent remains available, with its [owner guide](docs/phase-2-testing.md) and [provider evidence](docs/phase-2-results.md) preserved.
+Phase 4 adds clinic registration, settings, scheduling and patient projections, revisioned agent drafts, immutable publication/rollback, and isolated synthetic draft tests. See the [testing guide](docs/phase-4-testing.md) and [measured results](docs/phase-4-results.md). English/Urdu native speech acceptance remains blocked on the recorded memory budget; voice stays disabled. Phase 2's guarded text runtime and Phase 3 media contracts remain intact.
 
 The staff API retains authentication, tenant isolation, scheduling configuration, slot generation, and transactional booking/rescheduling/cancellation. The separate `evaluation/` package retains the synthetic CPU-only Phase 0 evidence.
 
@@ -35,7 +35,7 @@ The default Compose command above loads only `.env.api` and starts without the N
 docker compose --env-file .env.api --env-file .env up --build -d api
 ```
 
-Compose maps `LLM_API_KEY` into the API process only; it is not a build argument or an image file. Never print resolved Compose configuration or environment values into logs/reports. See the [full owner guide](docs/phase-2-testing.md) for actual endpoint contracts, caller contact versus patient identity, trusted events, resume, retention and the remaining acceptance evidence. Phase 2 was merged into `develop` after owner authorization; Phase 3 remains on its feature branch.
+Compose maps `LLM_API_KEY` into the API process only; it is not a build argument or an image file. Never print resolved Compose configuration or environment values into logs/reports. See the [full owner guide](docs/phase-2-testing.md) for actual endpoint contracts, caller contact versus patient identity, trusted events, resume, retention and the remaining acceptance evidence. Phase 2 was merged into `develop` after owner authorization; Phase 3 was merged before the Phase 4 work.
 
 ## Retained Phase 0 evaluation
 

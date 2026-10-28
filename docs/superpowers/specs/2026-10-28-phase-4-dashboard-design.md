@@ -1,6 +1,6 @@
 # Phase 4: clinic operations dashboard
 
-Status: design proposal; owner selected the compact operations direction, isolated synthetic draft tests, and a browser mockup. Product implementation has not begun. Written design and visual proposal await approval.
+Status: design and compact operations direction approved by the owner on 2026-10-28. Phase 4 implementation and local integration verification are recorded in the testing/results documents. Fresh whole-branch review, public draft PRs and owner acceptance are tracked separately; this status is not a merge approval.
 
 ## Intent and checkpoint
 

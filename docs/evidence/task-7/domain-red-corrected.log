@@ -1,0 +1,55 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.13, pytest-9.1.1, pluggy-1.7.0
+rootdir: /Users/awaisurrehman/Documents/experimental/voice-agent/backend
+configfile: pyproject.toml
+plugins: anyio-4.15.1
+collected 21 items / 19 deselected / 2 selected
+
+tests_brain/test_agent_management.py FF                                  [100%]
+
+=================================== FAILURES ===================================
+___________ test_new_agent_names_normalized_without_changing_legacy ____________
+
+    def test_new_agent_names_normalized_without_changing_legacy():
+        from brain.agent_config import AgentConfig, LegacyAgentConfig
+        from scheduler.dashboard.agents import AgentCreate
+    
+        for model in (AgentCreate, AgentConfig):
+>           with pytest.raises(ValidationError):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValidationError
+
+tests_brain/test_agent_management.py:465: Failed
+_______ test_publisher_display_is_tenant_scoped_with_historical_fallback _______
+
+owner = <starlette.testclient.TestClient object at 0x10b2c31a0>
+database = Engine(postgresql+psycopg://postgres:***@127.0.0.1:55433/voice_agent_test)
+seed = {'owner_a': UUID('091d3466-c50c-4d5e-bfd2-5ef93d0fbc3c'), 'staff_a': UUID('20d34d73-91c4-4336-81b1-66be6940c897'), 'tenant_a': UUID('e9eac1bc-6a04-4624-9cfb-bbdaa5824355'), 'provider_a': UUID('7c0c4de0-4682-4b37-b5f0-85923e846ff8'), ...}
+
+    def test_publisher_display_is_tenant_scoped_with_historical_fallback(owner, database, seed):
+        from sqlalchemy.orm import Session
+        from scheduler.models import User
+    
+        with Session(database) as db, db.begin():
+            db.get(User, seed["owner_a"]).display_name = "QA Clinic Owner"
+            db.get(User, seed["owner_b"]).display_name = "Private Other Clinic"
+        path = "/dashboard/agents/" + str(seed["agent_a"])
+        versions = owner.get(path + "/versions").json()
+        assert owner.get("/dashboard/agents/" + str(seed["agent_b"]) + "/versions").status_code == 404
+>       assert versions[-1]["publisher_name"] is None
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'publisher_name'
+
+tests_brain/test_agent_management.py:481: KeyError
+---------------------------- Captured stderr setup -----------------------------
+{"request_id": "34a6f544-e198-44a8-9534-074c38d15e54", "method": "POST", "route": "/auth/login", "status": 200, "duration_ms": 57.92}
+----------------------------- Captured stderr call -----------------------------
+{"request_id": "842f115a-abfd-4a48-9eae-b16dae64f8a1", "method": "GET", "route": "/dashboard/agents/{identity}/versions", "status": 200, "duration_ms": 21.22}
+{"request_id": "c1c07769-54eb-409b-91d4-fae85ef16c39", "method": "GET", "route": "/dashboard/agents/{identity}/versions", "status": 404, "duration_ms": 4.83}
+------------------------------ Captured log call -------------------------------
+INFO     scheduler.requests:main.py:137 {"request_id": "842f115a-abfd-4a48-9eae-b16dae64f8a1", "method": "GET", "route": "/dashboard/agents/{identity}/versions", "status": 200, "duration_ms": 21.22}
+INFO     scheduler.requests:main.py:137 {"request_id": "c1c07769-54eb-409b-91d4-fae85ef16c39", "method": "GET", "route": "/dashboard/agents/{identity}/versions", "status": 404, "duration_ms": 4.83}
+=========================== short test summary info ============================
+FAILED tests_brain/test_agent_management.py::test_new_agent_names_normalized_without_changing_legacy
+FAILED tests_brain/test_agent_management.py::test_publisher_display_is_tenant_scoped_with_historical_fallback
+======================= 2 failed, 19 deselected in 0.60s =======================

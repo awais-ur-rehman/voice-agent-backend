@@ -1,0 +1,4 @@
+Live profile/provider/service/hours/Friday/Ramadan preview and apply: PASS
+Live manual booking, move, cancel, Urdu search and explicit merge: PASS
+Live immutable history rollback and disable: PASS
+Live staff role denials: PASS

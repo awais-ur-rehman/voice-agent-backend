@@ -19,7 +19,7 @@ from scheduler.appointments import IdempotencyKey, audit
 from scheduler.contracts import Contract
 from scheduler.db import Principal, manager, principal, session
 from scheduler.errors import AppError
-from scheduler.models import Agent, AgentDraft, AgentVersion, Idempotency, Tenant
+from scheduler.models import Agent, AgentDraft, AgentVersion, Idempotency, Tenant, User
 from scheduler.slots import get
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard agents"])
@@ -41,6 +41,14 @@ class VoiceOut(Contract):
 
 class AgentCreate(Contract):
     name: str = Field(min_length=1, max_length=100)
+
+    @field_validator("name")
+    @classmethod
+    def nonblank_name(cls, value):
+        value = value.strip()
+        if not value:
+            raise ValueError("Agent name is required")
+        return value
 
 
 class Revision(Contract):
@@ -89,6 +97,7 @@ class VersionOut(Contract):
     number: int | None
     config: dict
     publisher_id: UUID | None
+    publisher_name: str | None = None
     created_at: AwareDatetime
     rollback_source_id: UUID | None
     warnings: list[str] = Field(default_factory=list)
@@ -230,14 +239,24 @@ def save(
     return row
 
 
-def version_out(row):
+def version_out(db, row):
+    publisher_name = (
+        db.scalar(
+            select(User.display_name).where(
+                User.id == row.publisher_id, User.tenant_id == row.tenant_id
+            )
+        )
+        if row.publisher_id
+        else None
+    )
     return VersionOut.model_validate(row).model_copy(
         update={
+            "publisher_name": publisher_name,
             "warnings": [
                 "Selected voice profiles are provisional; speech admission remains unavailable."
             ]
             if row.config.get("schema_version") == 2
-            else []
+            else [],
         }
     )
 
@@ -269,7 +288,7 @@ def publish_version(db, user, agent, draft, config, source=None):
     draft.updated_by = user.id
     audit(db, user, "agent.rollback" if source else "agent.publish", agent.id)
     db.flush()
-    return version_out(version).model_dump(mode="json")
+    return version_out(db, version).model_dump(mode="json")
 
 
 def publication(db, user, identity, body, key, rollback=False):
@@ -347,7 +366,7 @@ def rollback(
 def versions(identity: UUID, user: Principal = Depends(manager), db: Session = Depends(session)):
     get(db, Agent, identity)
     return [
-        version_out(row)
+        version_out(db, row)
         for row in db.scalars(
             select(AgentVersion)
             .where(AgentVersion.agent_id == identity, AgentVersion.purpose == "production")

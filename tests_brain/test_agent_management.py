@@ -455,3 +455,56 @@ def test_seed_default_publication_explicitly_remains_legacy(database, tmp_path):
             config = db.get(AgentVersion, UUID(row["version_id"])).config
             assert config["schema_version"] == 1
             assert "voice_profiles" not in config
+
+
+def test_new_agent_names_normalized_without_changing_legacy():
+    from brain.agent_config import AgentConfig, LegacyAgentConfig
+    from scheduler.dashboard.agents import AgentCreate
+
+    for model in (AgentCreate, AgentConfig):
+        with pytest.raises(ValidationError):
+            model(name=" \t\n ")
+        assert model(name=" Reception ").name == "Reception"
+    assert LegacyAgentConfig(name="   ").name == "   "
+
+
+def test_publisher_display_is_tenant_scoped_with_historical_fallback(owner, database, seed):
+    from sqlalchemy.orm import Session
+
+    from scheduler.models import User
+
+    with Session(database) as db, db.begin():
+        db.get(User, seed["owner_a"]).display_name = "QA Clinic Owner"
+        db.get(User, seed["owner_b"]).display_name = "Private Other Clinic"
+        # Defense in depth even for an inconsistent historical row: projection cannot
+        # resolve another clinic's staff through a privileged maintenance session.
+        from datetime import UTC, datetime
+        from types import SimpleNamespace
+
+        from scheduler.dashboard.agents import version_out
+
+        historical = SimpleNamespace(
+            id=seed["version_a"],
+            number=1,
+            config={},
+            publisher_id=seed["owner_b"],
+            tenant_id=seed["tenant_a"],
+            created_at=datetime.now(UTC),
+            rollback_source_id=None,
+        )
+        assert version_out(db, historical).publisher_name is None
+    path = "/dashboard/agents/" + str(seed["agent_a"])
+    versions = owner.get(path + "/versions").json()
+    assert owner.get("/dashboard/agents/" + str(seed["agent_b"]) + "/versions").status_code == 404
+    assert versions[-1]["publisher_name"] is None
+    created = owner.post("/dashboard/agents", json={"name": "QA Reception"}).json()
+    path = "/dashboard/agents/" + created["id"]
+    published = owner.post(
+        path + "/publish", json={"revision": 1}, headers={"Idempotency-Key": "publisher-projection"}
+    )
+    assert published.status_code == 200
+    assert published.json()["publisher_name"] == "QA Clinic Owner"
+    assert owner.get(path + "/versions").json()[0]["publisher_name"] == "QA Clinic Owner"
+    with Session(database) as db, db.begin():
+        db.get(User, seed["owner_a"]).display_name = None
+    assert owner.get(path + "/versions").json()[0]["publisher_name"] is None

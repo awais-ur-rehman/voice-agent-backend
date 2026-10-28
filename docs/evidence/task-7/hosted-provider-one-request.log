@@ -1,0 +1,4 @@
+model nvidia/nemotron-3.5-bolt-e4b
+thinking False
+actual_provider_requests 1
+validated_action ask_caller

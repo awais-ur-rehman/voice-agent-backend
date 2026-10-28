@@ -1,0 +1,97 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.13, pytest-9.1.1, pluggy-1.7.0
+rootdir: /Users/awaisurrehman/Documents/experimental/voice-agent/backend
+configfile: pyproject.toml
+plugins: anyio-4.15.1
+collected 21 items / 19 deselected / 2 selected
+
+tests_brain/test_agent_management.py FE                                  [100%]
+
+==================================== ERRORS ====================================
+_ ERROR at setup of test_publisher_display_is_tenant_scoped_with_historical_fallback _
+
+    @pytest.fixture(scope="session")
+    def database():
+>       yield from api_database.__wrapped__()
+
+tests_brain/conftest.py:13: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests_api/conftest.py:44: in database
+    init_database(ADMIN_URL, os.environ.get("TEST_APP_PASSWORD", "phase1_app_test_only"))
+scripts/init_db.py:14: in init_database
+    with psycopg.connect(connection_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'psycopg.Connection'>
+conninfo = 'user=postgres password=phase1_test_only dbname=voice_agent_test host=127.0.0.1 port=55433 hostaddr=127.0.0.1'
+autocommit = True, prepare_threshold = 5, context = None, row_factory = None
+cursor_factory = None, kwargs = {}
+
+    @classmethod
+    def connect(
+        cls,
+        conninfo: str = "",
+        *,
+        autocommit: bool = False,
+        prepare_threshold: int | None = 5,
+        context: AdaptContext | None = None,
+        row_factory: RowFactory[Row] | None = None,
+        cursor_factory: type[Cursor[Row]] | None = None,
+        **kwargs: ConnParam,
+    ) -> Self:
+        """
+        Connect to a database server and return a new `Connection` instance.
+        """
+    
+        params = cls._get_connection_params(conninfo, **kwargs)
+        timeout = timeout_from_conninfo(params)
+        rv = None
+        attempts = conninfo_attempts(params)
+        conn_errors: list[tuple[e.Error, str]] = []
+        for attempt in attempts:
+            tdescr = (attempt.get("host"), attempt.get("port"), attempt.get("hostaddr"))
+            descr = "host: %r, port: %r, hostaddr: %r" % tdescr
+            logger.debug("connection attempt: %s", descr)
+            try:
+                conninfo = make_conninfo("", **attempt)
+                gen = cls._connect_gen(conninfo)
+                rv = waiting.wait_conn(gen, interval=_WAIT_INTERVAL, timeout=timeout)
+            except e._WaitTimeout:
+                tex = e.ConnectionTimeout("connection timeout expired")
+                logger.debug("connection failed: %s: %s", descr, str(tex))
+                conn_errors.append((tex, descr))
+            except e.Error as ex:
+                logger.debug("connection failed: %s: %s", descr, str(ex))
+                conn_errors.append((ex, descr))
+            except e._NO_TRACEBACK as ex:
+                raise ex.with_traceback(None)
+            else:
+                logger.debug("connection succeeded: %s", descr)
+                break
+    
+        if not rv:
+            last_ex = conn_errors[-1][0]
+            if len(conn_errors) == 1:
+>               raise last_ex.with_traceback(None)
+E               psycopg.OperationalError: connection is bad: connection to server at "127.0.0.1", port 55433 failed: Operation not permitted
+E               	Is the server running on that host and accepting TCP/IP connections?
+
+.venv/lib/python3.12/site-packages/psycopg/connection.py:126: OperationalError
+=================================== FAILURES ===================================
+___________ test_new_agent_names_normalized_without_changing_legacy ____________
+
+    def test_new_agent_names_normalized_without_changing_legacy():
+        from brain.agent_config import AgentConfig, LegacyAgentConfig
+        from scheduler.dashboard.agents import AgentCreate
+    
+        for model in (AgentCreate, AgentConfig):
+>           with pytest.raises(ValidationError):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValidationError
+
+tests_brain/test_agent_management.py:465: Failed
+=========================== short test summary info ============================
+ERROR tests_brain/test_agent_management.py::test_publisher_display_is_tenant_scoped_with_historical_fallback
+FAILED tests_brain/test_agent_management.py::test_new_agent_names_normalized_without_changing_legacy
+================== 1 failed, 19 deselected, 1 error in 0.26s ===================

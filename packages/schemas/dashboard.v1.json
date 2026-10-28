@@ -3036,6 +3036,17 @@
             ],
             "title": "Publisher Id"
           },
+          "publisher_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publisher Name"
+          },
           "rollback_source_id": {
             "anyOf": [
               {
