@@ -3,7 +3,7 @@ import json
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, or_, select, text, update
+from sqlalchemy import and_, func, literal_column, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -60,6 +60,11 @@ def patients(
             Patient.name.ilike(pattern),
             Patient.name_ur.ilike(pattern),
             Patient.phone.ilike(pattern),
+            literal_column(
+                "to_tsvector('simple'::regconfig, coalesce(name,'') || ' ' || coalesce(name_ur,''))"
+            ).op("@@")(func.plainto_tsquery(literal_column("'simple'::regconfig"), q)),
+            and_(Patient.name.op("%")(q), func.similarity(Patient.name, q) >= 0.6),
+            and_(Patient.name_ur.op("%")(q), func.similarity(Patient.name_ur, q) >= 0.6),
         ]
         try:
             clauses.append(Patient.phone == PatientCreate.phone_number(q))

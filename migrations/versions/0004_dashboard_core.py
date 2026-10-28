@@ -10,6 +10,7 @@ depends_on = None
 
 def upgrade():
     op.execute("""
+    CREATE EXTENSION IF NOT EXISTS pg_trgm;
     ALTER TABLE tenants ADD COLUMN revision integer NOT NULL DEFAULT 1 CHECK(revision>0),
       ADD COLUMN address_en text NOT NULL DEFAULT '', ADD COLUMN address_ur text NOT NULL DEFAULT '',
       ADD COLUMN preparation_en text NOT NULL DEFAULT '', ADD COLUMN preparation_ur text NOT NULL DEFAULT '';
@@ -20,6 +21,10 @@ def upgrade():
       ADD CONSTRAINT patient_merge_not_self CHECK(merged_into_id IS DISTINCT FROM id);
     ALTER TABLE patients DROP CONSTRAINT patients_tenant_id_phone_name_key_key;
     CREATE UNIQUE INDEX patients_active_identity ON patients(tenant_id,phone,name_key) WHERE merged_into_id IS NULL;
+    CREATE INDEX patients_name_trgm ON patients USING gin(name gin_trgm_ops) WHERE merged_into_id IS NULL;
+    CREATE INDEX patients_name_ur_trgm ON patients USING gin(name_ur gin_trgm_ops) WHERE merged_into_id IS NULL;
+    CREATE INDEX patients_name_simple ON patients USING gin(to_tsvector('simple'::regconfig,
+      coalesce(name,'') || ' ' || coalesce(name_ur,''))) WHERE merged_into_id IS NULL;
     CREATE FUNCTION dashboard_revision() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public AS $$
     BEGIN NEW.revision := OLD.revision+1; RETURN NEW; END $$;
     CREATE TRIGGER clinic_revision BEFORE UPDATE ON tenants FOR EACH ROW EXECUTE FUNCTION dashboard_revision();
@@ -54,6 +59,7 @@ def downgrade():
     DROP FUNCTION provision_clinic(text,text,text,text,text); DROP FUNCTION registration_admit(text);
     DROP TABLE registration_attempts;
     DROP TRIGGER clinic_revision ON tenants; DROP TRIGGER patient_revision ON patients; DROP FUNCTION dashboard_revision();
+    DROP INDEX IF EXISTS patients_name_simple; DROP INDEX IF EXISTS patients_name_ur_trgm; DROP INDEX IF EXISTS patients_name_trgm;
     DROP INDEX patients_active_identity;
     ALTER TABLE patients DROP CONSTRAINT patient_merge_target, DROP CONSTRAINT patient_merge_not_self,
       DROP COLUMN merged_into_id, DROP COLUMN revision;

@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import Field
 
-from scheduler.contracts import ClinicOut, ClinicPatch, Contract, PatientCreate, PatientOut
+from scheduler.contracts import ClinicOut, ClinicPatch, Contract, Name, PatientCreate, PatientOut
 
 
 class ClinicProfile(ClinicOut):
@@ -44,7 +44,7 @@ class PatientPage(Contract):
 
 
 class RetainedFields(PatientCreate):
-    name_ur: str | None = Field(max_length=120)
+    name_ur: Name | None
     dob: date | None
 
 

@@ -479,3 +479,110 @@ def test_merge_contract_exposes_every_retained_field_as_required(owner):
     schemas = owner.get("/openapi.json").json()["components"]["schemas"]
     retained = schemas["Merge"]["properties"]["fields"]["$ref"].split("/")[-1]
     assert set(schemas[retained]["required"]) == {"name", "name_ur", "phone", "dob"}
+
+
+def test_merge_urdu_retained_name_validated_before_any_write(owner, seed, database):
+    from sqlalchemy import text
+
+    source = str(seed["patient_a"])
+    dest = add_patient(owner)
+    with database.connect() as conn:
+        before = conn.execute(
+            text("SELECT id,name,name_ur,revision,merged_into_id FROM patients ORDER BY id")
+        ).all()
+    for invalid in ("", "   "):
+        response = merge(
+            owner,
+            source,
+            dest,
+            fields={"name": "Retained", "name_ur": invalid, "phone": "+923008887777", "dob": None},
+        )
+        assert response.status_code == 422, response.text
+        with database.connect() as conn:
+            assert (
+                conn.execute(
+                    text("SELECT id,name,name_ur,revision,merged_into_id FROM patients ORDER BY id")
+                ).all()
+                == before
+            )
+            assert conn.execute(text("SELECT count(*) FROM idempotency_records")).scalar_one() == 0
+            assert conn.execute(text("SELECT count(*) FROM audit_log")).scalar_one() == 0
+    response = merge(
+        owner,
+        source,
+        dest,
+        fields={"name": "Retained", "name_ur": "  عائشہ   ", "phone": "+923008887777", "dob": None},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["name_ur"] == "عائشہ"
+
+
+def test_patient_simple_urdu_search_and_name_trigram(owner, seed, database):
+    from sqlalchemy import text
+
+    identity = add_patient(owner, name="Synthetic Alexandra", name_ur="عائشہ فاطمہ")
+    # Token conjunction is order-independent under the required simple configuration.
+    result = owner.get("/dashboard/patients", params={"q": "فاطمہ عائشہ"}).json()
+    assert [p["id"] for p in result["items"]] == [identity]
+    # Trigram name support tolerates a small spelling error.
+    result = owner.get("/dashboard/patients", params={"q": "Synthetic Alexandar"}).json()
+    assert [p["id"] for p in result["items"]] == [identity]
+    assert owner.get("/dashboard/patients", params={"q": "%"}).json()["total"] == 0
+    assert owner.get("/dashboard/patients", params={"q": "_"}).json()["total"] == 0
+    assert owner.get("/dashboard/patients", params={"q": "03009998888"}).json()["total"] == 1
+    with database.connect() as conn:
+        assert conn.execute(
+            text("SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname='pg_trgm')")
+        ).scalar_one()
+        indexes = (
+            conn.execute(text("SELECT indexdef FROM pg_indexes WHERE tablename='patients'"))
+            .scalars()
+            .all()
+        )
+        assert any("gin_trgm_ops" in index for index in indexes)
+        assert any("to_tsvector" in index and "'simple'" in index for index in indexes)
+
+
+def test_patient_search_migration_preserves_existing_phase3_patients(database, seed):
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import text
+    from sqlalchemy.engine import make_url
+
+    from tests_api.conftest import ADMIN_URL, ROOT
+
+    assert make_url(ADMIN_URL).database == "voice_agent_test"
+    with database.connect() as conn:
+        assert conn.execute(text("SELECT current_database()")).scalar_one() == "voice_agent_test"
+        before = conn.execute(
+            text("SELECT id,tenant_id,name,name_ur,phone FROM patients ORDER BY id")
+        ).all()
+    cfg = Config(str(ROOT / "alembic.ini"))
+    cfg.set_main_option("script_location", str(ROOT / "migrations"))
+    cfg.set_main_option("sqlalchemy.url", ADMIN_URL.replace("%", "%%"))
+    command.downgrade(cfg, "0003")
+    with database.connect() as conn:
+        assert (
+            conn.execute(
+                text("SELECT id,tenant_id,name,name_ur,phone FROM patients ORDER BY id")
+            ).all()
+            == before
+        )
+    command.upgrade(cfg, "head")
+    with database.connect() as conn:
+        assert (
+            conn.execute(
+                text("SELECT id,tenant_id,name,name_ur,phone FROM patients ORDER BY id")
+            ).all()
+            == before
+        )
+        assert conn.execute(
+            text("SELECT bool_and(revision=1 AND merged_into_id IS NULL) FROM patients")
+        ).scalar_one()
+        indexes = (
+            conn.execute(text("SELECT indexdef FROM pg_indexes WHERE tablename='patients'"))
+            .scalars()
+            .all()
+        )
+        assert sum("gin_trgm_ops" in index for index in indexes) == 2
+        assert any("to_tsvector" in index and "'simple'" in index for index in indexes)
