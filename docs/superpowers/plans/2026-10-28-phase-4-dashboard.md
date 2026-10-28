@@ -71,6 +71,24 @@
 - [ ] Add typed config/draft domain with atomic locks and audit metadata. Keep immutable DB trigger; backfill only via migration. Source catalog metadata from pinned existing model assets, max three profiles/gender/language, exact licenses and provisional status. Wire greeting/tone/profile through actual session/runtime readers and voice fields through native synthesis/cache. Do not claim untested voices ready.
 - [ ] Run new tests, current brain/voice suites and native control/config tests (no inference). Commit after passing.
 
+### Task 8: Dashboard scheduling projections and atomic templates
+
+**Execution order:** after Task 2 and before Task 3. Read-only integration inspection found that legacy APIs cannot read provider/service associations, calendar rows contain IDs without names, and multi-request templates would permit partial updates. This task closes those interfaces before exporting the frontend contract; it implements already-approved scheduling scope, not a new phase.
+
+**Files:** Create `scheduler/dashboard/scheduling.py`, `tests_api/test_dashboard_scheduling.py`; extend dashboard router/contracts. No migration unless an actual constraint requires it; existing provider row locks supply serialization.
+
+**Interfaces:**
+- `GET /dashboard/provider-services?limit=&offset=` -> `{items:[{provider_id,service_id}],total,limit,offset}` for persisted assignment editing.
+- `GET /dashboard/appointments?date_from=&date_to=&provider_id=&limit=&offset=` -> paginated AppointmentOut plus patient/provider/service English/Urdu display names. Require a bounded clinic-local date range up to 42 inclusive days; use UTC comparisons as existing appointments API, no DOB/phone projection or N+1 browser requests.
+- `GET /dashboard/providers/{id}/availability` -> `{revision,rules,exceptions}`, revision is a deterministic digest of the authoritative provider snapshot.
+- `POST /dashboard/providers/{id}/availability/preview` and `/apply` take the same typed template body `{revision,template,break_start?,break_end?,start_date?,end_date?,start_time?,end_time?}`. Preview returns `{revision,changes,after}` without writes; apply requires Idempotency-Key and returns the new snapshot. `friday_prayer` defaults12:45–14:30 and splits only overlapping Friday rules. `ramadan` creates explicit custom_hours over the given range; reject conflicting unrelated exceptions rather than overwriting holidays. Exact repeated template is a no-op, stable retries replay; changed snapshot ->409.
+
+- [ ] Write failing real DB tests for tenant/role projections, pagination/count/date-range limits/timezone boundaries, provider/service relation persistence and synthetic Urdu display names.
+- [ ] Write failing template tests: preview no writes, Friday changes only selected provider/Friday interval, Ramadan conflicts preserve existing holidays, repeated template/noop/idempotency, stale revisions reject, atomic rollback on validation failure and competing edits under provider lock.
+- [ ] Run `UV_CACHE_DIR=.local/uv-cache uv run --locked pytest tests_api/test_dashboard_scheduling.py -q` and observe red before implementation.
+- [ ] Implement typed projections and one provider-locked template service shared by preview/apply, with code-owned deterministic transformations. Retain existing CRUD API compatibility and tenant RLS.
+- [ ] Run focused and full API/brain suites, Ruff/mypy; commit after passing. Task 3 must export these paths; Tasks 4–5 must consume them instead of assembling unsafe partial template writes or fetching patient names per event.
+
 ### Task 3: Isolated synthetic draft testing and public contracts
 
 **Files:** Create `brain/{draft_tests,draft_test_routes}.py`, migration `0006_draft_tests.py`, `tests_brain/test_draft_tests.py`, `scripts/export_dashboard_contracts.py`, `packages/schemas/dashboard.v1.json`; modify session service adapters only where required.
