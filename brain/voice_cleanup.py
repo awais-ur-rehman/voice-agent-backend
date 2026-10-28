@@ -79,7 +79,11 @@ async def cleanup_loop(app, stop):
     failed = False
     while not stop.is_set():
         try:
-            await asyncio.to_thread(sweep, app)
+            from .draft_tests import sweep as draft_sweep
+
+            await asyncio.to_thread(draft_sweep, app)
+            if app.state.settings.voice_bootstrap_secret:
+                await asyncio.to_thread(sweep, app)
             failed = False
         except Exception:
             # One structured warning per failure streak; no identifying exception text.

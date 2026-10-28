@@ -16,8 +16,8 @@ from sqlalchemy.orm import sessionmaker
 from valkey import Valkey
 from valkey.exceptions import ValkeyError
 
+from brain import draft_test_routes, voice_routes, voice_worker_routes
 from brain import routes as brain_routes
-from brain import voice_routes, voice_worker_routes
 from brain.provider import Nemotron
 from brain.store import StateStore
 
@@ -65,7 +65,7 @@ def create_app(settings: Settings | None = None, clock=None) -> FastAPI:
             raise
         cleanup_stop = asyncio.Event()
         cleanup_task = None
-        if app.state.brain_store and settings.voice_bootstrap_secret:
+        if app.state.brain_store:
             from brain.voice_cleanup import cleanup_loop
 
             cleanup_task = asyncio.create_task(cleanup_loop(app, cleanup_stop))
@@ -162,6 +162,7 @@ def create_app(settings: Settings | None = None, clock=None) -> FastAPI:
                 raise AppError("cache_unavailable", 503) from None
         return {"status": "ready"}
 
+    app.include_router(draft_test_routes.router)
     app.include_router(brain_routes.router)
     app.include_router(voice_worker_routes.router)
     app.include_router(voice_routes.router)

@@ -231,3 +231,20 @@ class VoiceSession(Row, Base):
     call_deadline: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     delivery: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DraftTest(Row, Base):
+    __tablename__ = "draft_tests"
+    creator_id: Mapped[UUID]
+    agent_id: Mapped[UUID]
+    draft_revision: Mapped[int]
+    child_tenant_id: Mapped[UUID]
+    child_actor_id: Mapped[UUID]
+    child_agent_id: Mapped[UUID | None]
+    session_id: Mapped[UUID | None]
+    voice_session_id: Mapped[UUID | None]
+    request_key: Mapped[str]
+    status: Mapped[str]
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    fixtures: Mapped[dict] = mapped_column(JSONB)
+    cleanup_done: Mapped[bool] = mapped_column(default=False)

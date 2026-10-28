@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from valkey.exceptions import ValkeyError
 
+from scheduler.contracts import Contract
 from scheduler.db import Principal, principal, session, tenant_context
 from scheduler.errors import AppError
 from scheduler.models import Agent, AgentSession, AgentVersion
@@ -189,12 +190,12 @@ def _release_capacity(store, identity):
     store.client.eval(_RELEASE_CAPACITY, 1, "voice:capacity", str(identity))
 
 
-def _end_locked(parent, voice, store, now, status):
+def _end_locked(parent, voice, store, now, status, *, release_hold=True):
     cleanup_failed = False
     if voice.status not in {"ended", "failed"}:
         state = deepcopy(parent.checkpoint or {})
         hold = state.pop("hold", None)
-        if hold:
+        if hold and release_hold:
             try:
                 store.release_hold(
                     str(parent.tenant_id), hold["provider"], str(parent.id), hold["hold_id"]
@@ -253,10 +254,12 @@ def _terminate(request, user, identity, *, status="ended", expected_generation=N
     return snapshot
 
 
-def _provision(request, user, identity, room, generation):
+def _provision(request, user, identity, room, generation, *, internal_auth=None):
     try:
         LiveKitRooms(request.app.state.settings).create(room)
         with request.app.state.session_factory() as db, db.begin():
+            if internal_auth:
+                internal_auth(db)
             parent, voice = _owned_pair(db, user, identity)
             now = request.app.state.clock()
             if (
@@ -283,7 +286,17 @@ def _provision(request, user, identity, room, generation):
         raise AppError("voice_unavailable", 503) from None
 
 
-@router.get("/agents")
+class VoiceAgent(Contract):
+    id: UUID
+    name: str
+    language_mode: str
+
+
+class VoiceAgents(Contract):
+    agents: list[VoiceAgent]
+
+
+@router.get("/agents", response_model=VoiceAgents)
 def agents(request: Request, user: Principal = Depends(principal), auth_db=Depends(session)):
     auth_db.commit()
     with request.app.state.session_factory() as db, db.begin():
