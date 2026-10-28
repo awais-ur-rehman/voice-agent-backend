@@ -60,10 +60,15 @@ def child_user(row):
     return Principal(row.child_actor_id, row.child_tenant_id, "", "owner")
 
 
-def internal_actor(db, request, user, identity, session_id):
+def command_scope(db, request, user, identity, session_id):
     row = owned(db, user, identity, request.app.state.clock())
     if row.session_id != session_id:
         raise AppError("test_expired", 410)
+    return row
+
+
+def internal_actor(db, request, user, identity, session_id):
+    row = command_scope(db, request, user, identity, session_id)
     tenant_context(db, row.child_tenant_id)
     session = db.get(AgentSession, session_id)
     if session is None or session.tenant_id != row.child_tenant_id:
@@ -73,6 +78,19 @@ def internal_actor(db, request, user, identity, session_id):
     )
     active_guard(session, actor, request.app.state.clock())
     return actor
+
+
+def complete_command(db, request, user, identity, session_id, state):
+    """Recheck the parent scope after execution, allowing a legitimate terminal child.
+
+    command() has already checked active SQL authority, nonce and revision before
+    effects and once again before its own terminal transition. Do not require the
+    child to remain active after that transition.
+    """
+    row = command_scope(db, request, user, identity, session_id)
+    if state.get("ended") or state.get("stage") == "ended":
+        row.status = "ended"
+        db.flush()  # Release the parent allocation atomically with the terminal receipt.
 
 
 def revoke(db, row, request, status="ended"):
@@ -94,10 +112,11 @@ def revoke(db, row, request, status="ended"):
         )
         if voice:
             _end_locked(session, voice, store, now, "ended", release_hold=False)
-        elif session.status == "active":
-            session.revision += 1
+        else:
+            if session.status == "active":
+                session.revision += 1
             session.status = "ended"
-            session.revoked_at = now
+            session.revoked_at = session.revoked_at or now
             session.token_jti_hash = ""
             session.lease_until = now
             session.checkpoint = {"revision": session.revision, "ended": True}

@@ -157,6 +157,7 @@ def run_command(
     voice_authority=None,
     voice_input=None,
     internal_auth=None,
+    internal_complete=None,
 ):
     store = require_store(request)
     factory = request.app.state.session_factory
@@ -350,8 +351,8 @@ def run_command(
             clock=request.app.state.clock,
             voice_authority=voice_authority,
         )
-        if internal_auth:
-            internal_auth(db)  # Recheck scope deadline after execution, before SQL commit.
+        if internal_complete:
+            internal_complete(db, next_state)  # Parent scope check permits terminal children.
     cache_ready = repair(store, identity, next_state)
     return {
         "result": response,

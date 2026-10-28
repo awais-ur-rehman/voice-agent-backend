@@ -587,3 +587,98 @@ def test_end_releases_real_slot_hold_and_clears_recovery(dashboard, seed, databa
                 select(CommandReceipt).where(CommandReceipt.session_id == mapping["session_id"])
             )
         )
+
+
+def test_planner_end_call_commits_terminal_turn_and_releases_scope(dashboard, seed, database):
+    from brain.contracts import Action
+    from scheduler.models import AgentSession, CommandReceipt, DraftTest
+
+    class TerminalPlanner(BookingPlanner):
+        def plan(self, state, utterance, config, facts):
+            if utterance == "goodbye":
+                return Action(name="end_call", arguments={})
+            return super().plan(state, utterance, config, facts)
+
+    body = start(dashboard, seed["agent_a"]).json()
+    dashboard.app.state.brain_planner = TerminalPlanner()
+    person = body["fixtures"]["patients"][1]
+    revision = 0
+    for utterance in (person["phone"], person["dob"], "2026-11-04", "slots", "first"):
+        response = send(dashboard, body["id"], revision, utterance)
+        assert response.status_code == 200 and response.json()["tool_trace"][0]["ok"]
+        revision = response.json()["revision"]
+    with Session(database) as db:
+        scope = db.get(DraftTest, body["id"])
+        sid, child = scope.session_id, scope.child_tenant_id
+        hold = db.get(AgentSession, sid).checkpoint["hold"]
+    assert dashboard.app.state.brain_store.holds(str(child), hold["provider"])
+
+    response = send(dashboard, body["id"], revision, "goodbye", "terminal-command")
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "ended"
+    assert response.json()["revision"] == revision + 1
+    assert response.json()["tool_trace"] == [{"action": "end_call", "ok": True, "code": None}]
+    assert response.json()["messages"][0]["text"]
+    with Session(database) as db:
+        scope = db.get(DraftTest, body["id"])
+        runtime = db.get(AgentSession, sid)
+        receipt = db.scalar(
+            select(CommandReceipt).where(
+                CommandReceipt.session_id == sid, CommandReceipt.command_id == "terminal-command"
+            )
+        )
+        assert scope.status == "ended" and scope.cleanup_done
+        assert runtime.status == "ended" and runtime.revoked_at is not None
+        assert runtime.revision == receipt.revision == revision + 1
+        assert not runtime.token_jti_hash and runtime.lease_until == NOW
+        assert runtime.checkpoint["ended"] and "hold" not in runtime.checkpoint
+        assert receipt.response is None and receipt.checkpoint is None
+    assert not dashboard.app.state.brain_store.holds(str(child), hold["provider"])
+    inspected = dashboard.get(f"/dashboard/tests/{body['id']}").json()
+    assert inspected["status"] == "ended" and inspected["conversation"]["revision"] == revision + 1
+    assert send(dashboard, body["id"], revision, "goodbye", "terminal-command").status_code == 410
+    assert send(dashboard, body["id"], revision + 1, "hello").status_code == 410
+    assert start(dashboard, seed["agent_a"]).status_code == 201
+
+
+def test_terminal_turn_still_rolls_back_if_scope_expires_after_tool_execution(
+    dashboard, seed, database, monkeypatch
+):
+    from datetime import timedelta
+
+    from brain.contracts import Action
+    from brain.tools import ToolEngine
+    from scheduler.models import CommandReceipt, DraftTest
+
+    class Planner(BookingPlanner):
+        def plan(self, state, utterance, config, facts):
+            return Action(
+                name="end_call" if utterance == "goodbye" else "get_clinic_info",
+                arguments={} if utterance == "goodbye" else {"topic": "services"},
+            )
+
+    scope = start(dashboard, seed["agent_a"]).json()["id"]
+    dashboard.app.state.brain_planner = Planner()
+    dashboard.app.state.clock = lambda: NOW + timedelta(minutes=29)
+    assert send(dashboard, scope, 0, "information").status_code == 200
+    execute = ToolEngine.execute
+
+    def expires_after_effects(self, *args, **kwargs):
+        response = execute(self, *args, **kwargs)
+        dashboard.app.state.clock = lambda: NOW + timedelta(minutes=31)
+        return response
+
+    monkeypatch.setattr(ToolEngine, "execute", expires_after_effects)
+    response = send(dashboard, scope, 1, "goodbye", "expired-terminal")
+    assert response.status_code == 410, response.text
+    with Session(database) as db:
+        sid = db.get(DraftTest, scope).session_id
+        assert (
+            db.scalar(
+                select(CommandReceipt).where(
+                    CommandReceipt.session_id == sid,
+                    CommandReceipt.command_id == "expired-terminal",
+                )
+            )
+            is None
+        )

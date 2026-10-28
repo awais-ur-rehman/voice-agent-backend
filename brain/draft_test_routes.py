@@ -217,7 +217,12 @@ def turn(
         None,
         live=True,
         internal_auth=lambda db: scopes.internal_actor(db, request, user, identity, sid),
+        internal_complete=lambda db, state: scopes.complete_command(
+            db, request, user, identity, sid, state
+        ),
     )
+    if result["state"].get("ended") or result["state"].get("stage") == "ended":
+        scopes.finish(request, user, identity)
     envelope = result["result"]
     language = result["state"].get("lang", "en")
     return TurnResult(
