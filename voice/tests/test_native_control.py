@@ -1,6 +1,7 @@
 """Control boundaries only; these tests never load speech weights or open RTC."""
 
 import asyncio
+
 import pytest
 
 from voice_runtime.delivery import DeliveryLedger
@@ -219,10 +220,11 @@ def test_interrupted_filler_is_never_resumed_as_a_task_answer():
 def test_selected_profile_reaches_native_child_and_cache(monkeypatch, tmp_path):
     import json
     from types import SimpleNamespace
+
     from voice_runtime.cache import PublicClipCache
+    from voice_runtime.config import BACKEND
     from voice_runtime.speech.kokoro import KokoroAdapter
     from voice_runtime.worker import gate_fingerprint
-    from voice_runtime.config import BACKEND
 
     records = json.loads((BACKEND / "voice/catalog.json").read_text())
     selected = next(row for row in records if row["id"] == "kokoro-am-adam-v1")
@@ -262,6 +264,7 @@ def test_selected_profile_reaches_native_child_and_cache(monkeypatch, tmp_path):
 
 def test_missing_selected_tensor_never_starts_inference(monkeypatch, tmp_path):
     import json
+
     from voice_runtime.config import BACKEND
     from voice_runtime.speech.kokoro import KokoroAdapter
 

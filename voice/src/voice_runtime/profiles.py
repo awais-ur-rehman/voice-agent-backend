@@ -1,6 +1,7 @@
 """Validate frozen server profile snapshots without importing API dependencies."""
 
 import json
+
 from voice_runtime.config import BACKEND, FROZEN_VOICES
 
 

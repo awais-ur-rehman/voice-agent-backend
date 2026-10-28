@@ -133,6 +133,7 @@ def test_unlisted_candidate_tensor_never_qualifies_readiness(
     baseline_with_unlisted_candidate, monkeypatch
 ):
     import json
+
     import voice_runtime.assets as assets
     import voice_runtime.worker as worker
 

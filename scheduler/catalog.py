@@ -224,6 +224,21 @@ def create_rule(
     return row
 
 
+def locked_availability_row(db, model, identity, destination=None):
+    row = get(db, model, identity)
+    provider_ids = {row.provider_id}
+    if destination is not None:
+        provider_ids.add(destination)
+    for provider_id in sorted(provider_ids):
+        get(db, Provider, provider_id, True)
+    # The initial read can precede a concurrent template or provider transfer.
+    # Refresh only after provider locks; never add another provider lock out of order.
+    row = get(db, model, identity, True)
+    if row.provider_id not in provider_ids:
+        raise AppError("transaction_conflict", 409)
+    return row
+
+
 @router.put("/availability-rules/{identity}", response_model=c.RuleOut)
 def update_rule(
     identity: UUID,
@@ -231,17 +246,13 @@ def update_rule(
     user: Principal = Depends(manager),
     db: Session = Depends(session),
 ):
-    row = get(db, Schedule, identity)
-    for provider_id in sorted({row.provider_id, body.provider_id}):
-        get(db, Provider, provider_id, True)
+    row = locked_availability_row(db, Schedule, identity, body.provider_id)
     return apply(db, row, body)
 
 
 @router.delete("/availability-rules/{identity}", status_code=204)
 def delete_rule(identity: UUID, user: Principal = Depends(manager), db: Session = Depends(session)):
-    row = get(db, Schedule, identity)
-    get(db, Provider, row.provider_id, True)
-    db.delete(row)
+    db.delete(locked_availability_row(db, Schedule, identity))
     return Response(status_code=204)
 
 
@@ -272,9 +283,7 @@ def update_exception(
     user: Principal = Depends(manager),
     db: Session = Depends(session),
 ):
-    row = get(db, ExceptionDay, identity)
-    for provider_id in sorted({row.provider_id, body.provider_id}):
-        get(db, Provider, provider_id, True)
+    row = locked_availability_row(db, ExceptionDay, identity, body.provider_id)
     return apply(db, row, body)
 
 
@@ -282,9 +291,7 @@ def update_exception(
 def delete_exception(
     identity: UUID, user: Principal = Depends(manager), db: Session = Depends(session)
 ):
-    row = get(db, ExceptionDay, identity)
-    get(db, Provider, row.provider_id, True)
-    db.delete(row)
+    db.delete(locked_availability_row(db, ExceptionDay, identity))
     return Response(status_code=204)
 
 
