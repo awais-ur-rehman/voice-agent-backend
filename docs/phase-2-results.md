@@ -1,14 +1,14 @@
 # Phase 2 verification checkpoint
 
-Measured October 28, 2026 on `feat/phase-2-agent-brain`; implementation commit `5dad11b`. Phase 1 PR #2 was merged into `develop` with owner approval. Phase 2 remains a draft for owner testing; Phase 3 has not started.
+Measured October 28, 2026 on `feat/phase-2-agent-brain`; final cancellation-correction implementation on this branch. Phase 1 PR #2 was merged into `develop` with owner approval. Phase 2 remains a draft for owner testing; Phase 3 has not started.
 
 ## Executed checks
 
 | Check | Observed result |
 | --- | --- |
-| Full application/environment/brain suite | 428 passed, four explicitly hosted tests skipped; 47.30 s |
+| Full application/environment/brain suite | 429 passed, four explicitly hosted tests skipped; final serial rerun 46.16 s |
 | Retained Phase 0 offline checks | 63 passed |
-| Hosted NIM acceptance suite | Four passed together; 52.54 s |
+| Hosted NIM acceptance suite | Four passed together; 67.00 s |
 | Ruff / format / mypy | Passed; 66 formatted files, 32 typed source modules |
 | PostgreSQL migration round trip | 0002 → 0001 → 0002 passed; head has 17 forced-RLS tenant tables |
 | Rebuilt Docker HTTP smoke | Passed: runtime/staff separation, tenant denial, verification, holds, booking/replay, reschedule, cancellation and ended-session rejection; zero provider calls |
@@ -32,6 +32,12 @@ Model: `nvidia/nemotron-3.5-bolt-e4b`, hosted alias. Thinking explicitly disable
 Phone/factor checks, explicit confirmation and clear family-subject authority resets execute directly in code. They are not counted as model requests. The model receives actual tool-derived state/public catalog facts; no expected fixture action or precomputed patient authorization enters inference. Critical output comes from bilingual code templates, including names, phone digits, original/replacement dates and times.
 
 These are bounded acceptance paths through the constrained pipeline, not an unrestricted model accuracy claim. New-patient identity collection also executes through code, with an explicit reviewed Urdu name and separate name/phone readback. Correcting a phone invalidates prior verification/holds even if the replacement is invalid. Earlier hosted runs exposed malformed action keys, omitted/unsupported literal fields, inferred subject resets, clinic-hours/slot confusion, resume errors and a missed family change. They failed their assertions. They drove schema, stage, language and authority-reset fixes before the final combined pass. The first CI run also caught a publisher test using a local database port; it now reuses the migrated, environment-configured isolated fixture. Later runs have unique private evidence files in ignored `results/`; the first diagnostic runs reused a filename, so their command outcomes remain in the task history rather than a complete separate raw transcript. No failed run is counted as a pass.
+
+## Retry-test investigation
+
+An earlier local full-suite run twice returned an unexpected unsuccessful result from the synthetic one-transient-failure booking test. Its original assertion did not include the error/attempt details, so a cause was not established. The test now retains the returned envelope, attempt count and Valkey lease deadline/server time on failure. Assertions remain strict; no retry, timeout or lease was relaxed to obtain a pass.
+
+The failure did not recur in twenty isolated retry runs, eight complete workflow-suite runs, or five serial full-suite runs (429 passed each). Independent inspection found no deterministic retry-state defect. This is an unreproduced test failure with improved diagnostics, not a claimed root-cause fix. Any recurrence should be investigated from those diagnostics before accepting the phase for production.
 
 ## Owner testing
 

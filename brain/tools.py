@@ -3,12 +3,12 @@
 import hashlib
 import json
 from copy import deepcopy
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import Time, cast, func, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from valkey.exceptions import ValkeyError
 
@@ -178,6 +178,12 @@ class ToolEngine:
                 original = get(db, Appointment, UUID(s["appointment"]))
                 if a["service_id"] != str(original.service_id):
                     return result(error="validation_error", field="service_id")
+            if s.get("task") == "cancel" and any(
+                k in a for k in ("date_phrase", "provider_id", "service_id")
+            ):
+                self.release(s)
+                s.pop("appointment", None)
+                s.pop("appointments", None)
             fields = s.setdefault("fields", {})
             if any(k in a for k in ("date_phrase", "service_id", "provider_id")):
                 self.release(s)
@@ -188,6 +194,8 @@ class ToolEngine:
                     if not row.active:
                         return result(error="validation_error", field=key)
                     fields[key] = a[key]
+                    if s.get("task") == "cancel" and key == "service_id":
+                        fields["source_service_id"] = a[key]
             if "date_phrase" in a:
                 from scheduler.models import AgentVersion, ExceptionDay, ProviderService
 
@@ -202,7 +210,7 @@ class ToolEngine:
                     a["date_phrase"],
                     now=self.now,
                     timezone=tenant.timezone,
-                    context="booking",
+                    context="history" if s.get("task") == "cancel" else "booking",
                     prayer_break=prayer,
                 )
                 ambiguity = resolved.get("clarify") == "am_or_pm"
@@ -536,18 +544,39 @@ class ToolEngine:
             self.release(s)
             s.pop("appointment", None)
             s["stage"] = "choose_appointment"
-            rows = list(
-                db.scalars(
-                    select(Appointment)
-                    .where(
-                        Appointment.patient_id == UUID(s["subject"]),
-                        Appointment.status == "booked",
-                        Appointment.starts_at >= self.now,
-                    )
-                    .order_by(Appointment.starts_at)
-                    .limit(20)
-                )
+            fields = s.get("fields", {})
+            query = select(Appointment).where(
+                Appointment.patient_id == UUID(s["subject"]),
+                Appointment.status == "booked",
+                Appointment.starts_at >= self.now,
             )
+            if s.get("task") == "cancel":
+                if fields.get("temporal_pending"):
+                    return result(error="validation_error", field="date_phrase")
+                if fields.get("date"):
+                    first = date.fromisoformat(fields["date"])
+                    last = date.fromisoformat(fields.get("date_to") or fields["date"])
+                    zone = ZoneInfo(tenant.timezone)
+                    query = query.where(
+                        Appointment.starts_at >= datetime.combine(first, time.min, zone)
+                    )
+                    if last < date.max:
+                        query = query.where(
+                            Appointment.starts_at
+                            < datetime.combine(last + timedelta(days=1), time.min, zone)
+                        )
+                if fields.get("provider_id"):
+                    query = query.where(Appointment.provider_id == UUID(fields["provider_id"]))
+                if fields.get("source_service_id"):
+                    query = query.where(Appointment.service_id == UUID(fields["source_service_id"]))
+                local_clock = cast(func.timezone(tenant.timezone, Appointment.starts_at), Time)
+                if fields.get("time_exact"):
+                    query = query.where(local_clock == time.fromisoformat(fields["time_exact"]))
+                if fields.get("time_from"):
+                    query = query.where(local_clock >= time.fromisoformat(fields["time_from"]))
+                if fields.get("time_to") and fields["time_to"] != "24:00":
+                    query = query.where(local_clock < time.fromisoformat(fields["time_to"]))
+            rows = list(db.scalars(query.order_by(Appointment.starts_at).limit(20)))
             s["appointments"] = [
                 {"ref": str(uuid4()), "id": str(r.id), "starts_at": r.starts_at.isoformat()}
                 for r in rows
@@ -898,6 +927,8 @@ class ToolEngine:
     def next_question(state):
         if not state.get("verified"):
             return "factor" if state.get("candidates") else "phone"
+        if state.get("fields", {}).get("temporal_pending"):
+            return "date"
         if state.get("task") in ("cancel", "reschedule") and not state.get("appointment"):
             return "find_ready"
         if not state.get("fields", {}).get("service_id"):

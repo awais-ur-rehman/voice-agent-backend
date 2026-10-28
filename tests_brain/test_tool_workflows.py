@@ -208,8 +208,9 @@ def test_transient_mutation_retries_once_then_hands_off(
     import brain.tools as tools
     from scheduler.models import Callback, Idempotency
 
-    turn, state, db, *_ = workflow
+    turn, state, db, store, actor = workflow
     prepare(turn, state, seed)
+    held_until = state["hold"]["expires_at_ms"]
     original = tools.book_transaction
     attempts = 0
 
@@ -225,7 +226,18 @@ def test_transient_mutation_retries_once_then_hands_off(
 
     monkeypatch.setattr(tools, "book_transaction", fail_then_execute)
     r = turn("book_appointment", text="yes")
-    assert r["ok"]
+    if not r["ok"]:
+        seconds, microseconds = store.client.time()
+        pytest.fail(
+            str(
+                {
+                    "result": r,
+                    "attempts": attempts,
+                    "lease_expires_at_ms": held_until,
+                    "server_now_ms": seconds * 1000 + microseconds // 1000,
+                }
+            )
+        )
     rows = list(db.scalars(select(Appointment)))
     assert len(rows) == (1 if want_success else 0)
     if want_success:
@@ -266,3 +278,28 @@ def test_invalid_phone_after_lookup_cannot_leave_orphaned_candidates(workflow):
     assert not turn("find_patient", {"phone": "1111111111"})["ok"]
     assert not state.get("candidates")
     assert not turn("verify_patient", {"factor": "Synthetic Patient"})["ok"]
+
+
+def test_cancel_date_correction_reselects_matching_appointment(workflow, seed):
+    turn, state, db, *_ = workflow
+    prepare(turn, state, seed)
+    first = turn("book_appointment", text="yes")["data"]["appointment"]["id"]
+    turn("update_dialogue_state", {"date_phrase": "2026-11-04"})
+    turn("get_available_slots")
+    turn("hold_slot", {"ref": state["offers"][0]["ref"]})
+    turn("read_back")
+    second = turn("book_appointment", text="yes")["data"]["appointment"]["id"]
+    turn("update_dialogue_state", {"task": "cancel"})
+    turn("find_appointments")
+    turn("select_appointment", {"ref": state["appointments"][0]["ref"]})
+    assert turn("update_dialogue_state", {"date_phrase": "2026-11-04"})["ok"]
+    assert not state.get("appointment")
+    assert not turn("cancel_appointment", text="yes")["ok"]
+    found = turn("find_appointments")
+    assert found["ok"] and len(state["appointments"]) == 1
+    assert state["appointments"][0]["id"] == second
+    turn("select_appointment", {"ref": state["appointments"][0]["ref"]})
+    turn("read_back")
+    assert turn("cancel_appointment", text="yes")["ok"]
+    assert db.get(Appointment, UUID(first)).status == "booked"
+    assert db.get(Appointment, UUID(second)).status == "cancelled"

@@ -46,6 +46,8 @@ def allowed_next(state: dict) -> list[str]:
         if state.get("readback", {}) and state["readback"].get("kind") == "patient":
             common += ["create_patient", "confirm"]
         return common
+    if state.get("fields", {}).get("temporal_pending"):
+        return sorted(set(common))
     if state.get("task") in ("cancel", "reschedule"):
         common += ["find_appointments"]
         if state.get("appointments") and not state.get("appointment"):
