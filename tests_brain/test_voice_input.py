@@ -75,6 +75,7 @@ def verify(factor, names):
         SimpleNamespace(
             id=uuid4(),
             name_key="synthetic patient",
+            revision=1,
             name_ur=name,
             dob=None,
         )

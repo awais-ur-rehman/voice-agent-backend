@@ -295,8 +295,10 @@ def patients(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ):
-    query = select(Patient).where(
-        Patient.name.ilike("%" + search + "%") | Patient.phone.ilike("%" + search + "%")
+    query = (
+        select(Patient)
+        .where(Patient.merged_into_id.is_(None))
+        .where(Patient.name.ilike("%" + search + "%") | Patient.phone.ilike("%" + search + "%"))
     )
     return list(db.scalars(query.order_by(Patient.id).limit(limit).offset(offset)))
 
@@ -318,7 +320,13 @@ def patient(identity: UUID, db: Session = Depends(session)):
 
 @router.put("/patients/{identity}", response_model=c.PatientOut)
 def update_patient(identity: UUID, body: c.PatientCreate, db: Session = Depends(session)):
+    from .dashboard.patients import patient_gate
+
+    original = get(db, Patient, identity)
+    patient_gate(db, original.tenant_id)
     row = get(db, Patient, identity, True)
+    if row.merged_into_id:
+        raise AppError("patient_merged", 409)
     row.name_key = body.name.casefold()
     return apply(db, row, body)
 

@@ -58,6 +58,34 @@ class ToolEngine:
         name, args = action.name, action.arguments
         if name not in allowed_next(state):
             return result(error="not_verified" if not state.get("verified") else "validation_error")
+        from scheduler.dashboard.patients import patient_gate
+
+        patient_gate(self.db, self.actor.tenant_id)
+        if state.get("verified") and state.get("subject"):
+            from scheduler.dashboard.patients import canonical_patient
+
+            patient = canonical_patient(
+                self.db, self.actor.tenant_id, UUID(state["subject"]), lock=True
+            )
+            legacy_merged = (
+                state.get("verified_revision") is None
+                and self.db.scalar(
+                    select(Patient.id).where(Patient.merged_into_id == patient.id).limit(1)
+                )
+                is not None
+            )
+            if (
+                str(patient.id) != state["subject"]
+                or legacy_merged
+                or (
+                    state.get("verified_revision") is not None
+                    and patient.revision != state["verified_revision"]
+                )
+            ):
+                self.release(state)
+                state.update(verified=False, stage="identify", offers=[])
+                state.pop("subject", None)
+                return result(error="not_verified")
         before = deepcopy(state)
         try:
             # Business failures roll back all DB effects, including partial reschedules.
@@ -333,7 +361,11 @@ class ToolEngine:
             s.pop("lookup_phone", None)
             s["lookup_empty"] = False
             phone = PatientCreate.phone_number(a["phone"])
-            rows = list(db.scalars(select(Patient).where(Patient.phone == phone)))
+            rows = list(
+                db.scalars(
+                    select(Patient).where(Patient.phone == phone, Patient.merged_into_id.is_(None))
+                )
+            )
             s["lookup_phone"] = phone
             s["candidates"] = [str(p.id) for p in rows]
             s["lookup_empty"] = not rows
@@ -346,6 +378,7 @@ class ToolEngine:
                     select(Patient).where(
                         Patient.id.in_([UUID(v) for v in s["candidates"]]),
                         Patient.phone == s["lookup_phone"],
+                        Patient.merged_into_id.is_(None),
                     )
                 )
             )
@@ -367,6 +400,7 @@ class ToolEngine:
                 return result(error="verification_failed")
             s["subject"] = str(matches[0].id)
             s["verified"] = True
+            s["verified_revision"] = matches[0].revision
             s["stage"] = "collect_need"
             s.pop("candidates", None)
             s.pop("lookup_phone", None)
@@ -415,6 +449,7 @@ class ToolEngine:
             s.update(
                 subject=str(row.id),
                 verified=True,
+                verified_revision=row.revision,
                 stage="collect_need",
                 readback=None,
                 lookup_empty=False,

@@ -21,6 +21,11 @@ class Tenant(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     name: Mapped[str]
     timezone: Mapped[str] = mapped_column(default="Asia/Karachi")
+    revision: Mapped[int] = mapped_column(default=1)
+    address_en: Mapped[str] = mapped_column(default="")
+    address_ur: Mapped[str] = mapped_column(default="")
+    preparation_en: Mapped[str] = mapped_column(default="")
+    preparation_ur: Mapped[str] = mapped_column(default="")
     currency: Mapped[str] = mapped_column(default="PKR")
     min_notice_min: Mapped[int] = mapped_column(default=120)
     horizon_days: Mapped[int] = mapped_column(default=90)
@@ -30,6 +35,7 @@ class Tenant(Base):
 
 class User(Row, Base):
     __tablename__ = "users"
+    display_name: Mapped[str | None]
     email: Mapped[str]
     password_hash: Mapped[str] = mapped_column(Text)
     role: Mapped[str] = mapped_column(default="staff")
@@ -94,6 +100,8 @@ class Patient(Row, Base):
     __tablename__ = "patients"
     name: Mapped[str]
     name_ur: Mapped[str | None]
+    revision: Mapped[int] = mapped_column(default=1)
+    merged_into_id: Mapped[UUID | None]
     name_key: Mapped[str]
     phone: Mapped[str]
     dob: Mapped[date | None]
