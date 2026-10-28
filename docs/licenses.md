@@ -46,3 +46,21 @@ The full locked runtime/development graph and published license metadata are rec
 | httpx2 | `2.16.0` | BSD-3-Clause; [versioned PyPI metadata](https://pypi.org/project/httpx2/2.16.0/), [existing Phase 1 inventory](phase-1-dependencies.md) | Previously reviewed in Phase 1; now also a runtime dependency for the NIM HTTP adapter. Retain upstream notices, conditions and disclaimer; respect non-endorsement. |
 
 The Valkey image was pulled successfully and its registry digest checked before use. Both local services require authentication. Server/driver adoption does not change the hosted Nemotron terms recorded above, approve a self-hosted weight artifact, or establish native language/voice acceptance.
+
+## Phase 3 CPU speech artifacts — October 28, 2026
+
+These pins authorize owner-requested local synthetic evaluation; native voice quality and production deployment approval remain pending. Store downloaded artifacts and copied upstream notices under ignored `.local/`, outside Git and application images. Runtime hashes are recorded by the download manifest. Gated access does not supersede the published license or account terms.
+
+| Artifact | Immutable revision | Primary license source | Obligations |
+| --- | --- | --- | --- |
+| `mobiuslabsgmbh/faster-whisper-large-v3-turbo` | `0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf` | [model card](https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo), MIT | Preserve MIT notices; converted Whisper weights are distinct from the engine package. |
+| `hexgrad/Kokoro-82M` | `f3ff3571791e39611d31c381e3a41a3af07b4987` | [model card](https://huggingface.co/hexgrad/Kokoro-82M), Apache-2.0 | Preserve license, copyright and applicable NOTICE; identify modifications. Voice tensors must come from this pinned repository and retain its notices. |
+| `ai4bharat/indic-parler-tts` | `660bc53c64ae83150613264111708a0465211237` | [model card](https://huggingface.co/ai4bharat/indic-parler-tts), Apache-2.0 metadata | Access accepted by owner; preserve upstream license/NOTICE and attribution. No redistribution of the downloaded model in this project. |
+
+The isolated speech dependency graph and engine/transitive-license review are recorded in `phase-3-dependencies.md`; this entry does not characterize every dependency as permissively licensed or approve an arbitrary replacement voice/model.
+
+Indic Parler's description tokenizer is `google/flan-t5-large` at `0613663d0d48ea86ba8cb3d7a44f0f65dc596a2a` ([upstream model card](https://huggingface.co/google/flan-t5-large), Apache-2.0 metadata). Only tokenizer/config files are used; preserve their upstream notices. This is not adoption of a separate Flan language-model inference service.
+
+LiveKit server `v1.13.11` is pinned to registry digest `sha256:25cd902de7cacbd5f1f779f6a6ac1eae20ba8f56b0935934ce6b0ab80d1e3d20`; the [upstream LICENSE](https://github.com/livekit/livekit/blob/v1.13.11/LICENSE) is Apache-2.0. Retain upstream license/NOTICE and identify modifications. The local container provides transport only, without recording/egress. Individual OS dependencies retain their own licenses. Pipecat's pinned distribution includes its Silero ONNX VAD asset; see the speech inventory for the engine and bundled-asset notices rather than downloading an unpinned Torch Hub model.
+
+The [Phase 3 engine inventory](phase-3-dependencies.md#engine-and-bundled-asset-license-inventory) records exact native versions and actual transitive GPL/LGPL components, including phonemizer/eSpeak-NG and soxr. Kokoro/Parler weight licenses do not make every engine dependency Apache/MIT. The bundled Silero VAD artifact is pinned by Pipecat wheel plus SHA256 and attributed to the upstream MIT-licensed model. Native environment/wheel/model redistribution is outside this source-only checkpoint; preserve all applicable upstream obligations.

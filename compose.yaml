@@ -48,6 +48,13 @@ services:
       SCHEDULER_DATABASE_URL: postgresql+psycopg://scheduler_app:${DEV_APP_PASSWORD:-}@postgres:5432/voice_agent
       SCHEDULER_JWT_SECRET: ${SCHEDULER_JWT_SECRET:-}
       SCHEDULER_RUNTIME_SECRET: ${SCHEDULER_RUNTIME_SECRET:-}
+      SCHEDULER_VOICE_ENABLED: ${SCHEDULER_VOICE_ENABLED:-false}
+      SCHEDULER_VOICE_BOOTSTRAP_SECRET: ${SCHEDULER_VOICE_BOOTSTRAP_SECRET:-}
+      SCHEDULER_VOICE_WORKER_SECRET: ${SCHEDULER_VOICE_WORKER_SECRET:-}
+      SCHEDULER_LIVEKIT_API_KEY: ${SCHEDULER_LIVEKIT_API_KEY:-}
+      SCHEDULER_LIVEKIT_API_SECRET: ${SCHEDULER_LIVEKIT_API_SECRET:-}
+      SCHEDULER_LIVEKIT_API_URL: http://livekit:7880
+      SCHEDULER_LIVEKIT_URL: ws://127.0.0.1:7880
       SCHEDULER_LLM_API_KEY: ${LLM_API_KEY:-}
       SCHEDULER_VALKEY_URL: valkey://:${DEV_VALKEY_PASSWORD:-}@valkey:6379/0
     ports:
@@ -57,6 +64,22 @@ services:
         condition: service_completed_successfully
       valkey:
         condition: service_healthy
+
+  livekit:
+    profiles: ["voice"]
+    image: livekit/livekit-server:v1.13.11@sha256:25cd902de7cacbd5f1f779f6a6ac1eae20ba8f56b0935934ce6b0ab80d1e3d20
+    command: ["--config", "/etc/livekit.json"]
+    volumes:
+      - type: bind
+        source: ./.local/livekit.json
+        target: /etc/livekit.json
+        read_only: true
+        bind:
+          create_host_path: false
+    ports:
+      - "127.0.0.1:7880:7880"
+      - "127.0.0.1:7881:7881"
+      - "127.0.0.1:7882:7882/udp"
 
   valkey:
     image: valkey/valkey:8.1.11-alpine@sha256:2602ace2be6569bc2bbb06f873776516ab9089821525be34f4305c67eb9db02a
