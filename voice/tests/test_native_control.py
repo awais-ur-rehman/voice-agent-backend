@@ -243,6 +243,12 @@ def test_selected_profile_reaches_native_child_and_cache(monkeypatch, tmp_path):
     monkeypatch.setattr("voice_runtime.speech.adapter.snapshot", lambda *args: tmp_path)
     (tmp_path / "voices").mkdir()
     (tmp_path / "voices" / "am_adam.pt").write_bytes(b"synthetic-test-placeholder")
+    # This wire/config unit test assumes adoption; real unapproved files are rejected in test_assets.
+    approved_file = tmp_path / "voices" / "am_adam.pt"
+    monkeypatch.setattr(
+        "voice_runtime.speech.adapter.require_manifest_file", lambda *args: approved_file
+    )
+    monkeypatch.setattr("voice_runtime.worker.require_manifest_file", lambda *args: approved_file)
     KokoroAdapter(supervisor=Supervisor()).synthesize("hello", "en", selected)
     assert requests[0]["voice_config"] == selected
     cache = PublicClipCache(tmp_path)
@@ -273,5 +279,5 @@ def test_missing_selected_tensor_never_starts_inference(monkeypatch, tmp_path):
         "voice_runtime.speech.adapter.require_headroom", lambda *args, **kwargs: None
     )
     monkeypatch.setattr("voice_runtime.speech.adapter.snapshot", lambda *args: tmp_path)
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises((FileNotFoundError, ValueError)):
         KokoroAdapter(supervisor=Supervisor()).synthesize("hello", "en", selected)

@@ -3,7 +3,7 @@
 import base64
 import json
 
-from voice_runtime.assets import snapshot
+from voice_runtime.assets import require_manifest_file, snapshot
 from voice_runtime.config import Settings, require_headroom
 from voice_runtime.speech.contracts import PCMChunk
 from voice_runtime.speech.process import Supervisor
@@ -34,15 +34,9 @@ class SpeechAdapter:
         import psutil
 
         require_headroom(self.engine, available_bytes=psutil.virtual_memory().available)
-        assets = snapshot(self.engine, self.settings)
-        if (
-            voice_config
-            and self.engine == "kokoro"
-            and not (assets / "voices" / (config["name"] + ".pt")).is_file()
-        ):
-            raise FileNotFoundError(
-                "Selected voice tensor is unavailable; explicit asset adoption required"
-            )
+        snapshot(self.engine, self.settings)
+        if voice_config and self.engine == "kokoro":
+            require_manifest_file("kokoro", "voices/" + config["name"] + ".pt", self.settings)
         request = {"engine": self.engine, "text": text, "voice_config": voice_config or {}}
         result = self.supervisor.run(
             [str(self.settings.inference_python), "-m", "voice_runtime.speech.child"],

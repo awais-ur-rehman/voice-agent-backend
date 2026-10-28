@@ -8,7 +8,7 @@ import uuid
 
 import httpx
 
-from voice_runtime.assets import ARTIFACTS, snapshot
+from voice_runtime.assets import ARTIFACTS, require_manifest_file, snapshot
 from voice_runtime.config import BACKEND, LOCAL
 
 
@@ -29,6 +29,14 @@ def gate_fingerprint(language, voice_profile=None):
 
     if voice_profile:
         result["profile_fingerprint"] = voice_profile["config_fingerprint"]
+        if language == "en":
+            relative = "voices/" + voice_profile["config"]["name"] + ".pt"
+            file = require_manifest_file("kokoro", relative)
+            with file.open("rb") as source:
+                result["selected_tensor"] = {
+                    "file": relative,
+                    "sha256": hashlib.file_digest(source, "sha256").hexdigest(),
+                }
     return result
 
 
@@ -68,12 +76,9 @@ def qualified_profiles():
             ) != gate_fingerprint(language, profile):
                 continue
             snapshot("whisper")
-            assets = snapshot(profile["engine"])
-            if (
-                language == "en"
-                and not (assets / "voices" / (profile["config"]["name"] + ".pt")).is_file()
-            ):
-                continue
+            snapshot(profile["engine"])
+            if language == "en":
+                require_manifest_file("kokoro", "voices/" + profile["config"]["name"] + ".pt")
             if language == "ur":
                 snapshot("description")
             qualified.append(profile["config_fingerprint"])

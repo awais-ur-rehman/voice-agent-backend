@@ -32,7 +32,9 @@ uv run --locked python -m scripts.export_agent_contracts --check
 Legacy config has no `schema_version` (or version 1). Its reader preserves the
 old frozen voice defaults and old readiness policy. A rollback of a legacy
 version preserves its original config; it does not quietly select v2 voices.
-To publish v2 afterward, explicitly save schema 2 and both voice IDs. New v2
+The CLI also reads legacy JSON through the versioned reader; the synthetic demo
+seed explicitly publishes legacy defaults. Neither silently adopts the new female
+Urdu profile. To publish v2 afterward, explicitly save schema 2 and both voice IDs. New v2
 bilingual configurations require matching configured gender. The catalog has
 three candidates per gender per language. It is metadata only: all profiles
 are provisional and all preview controls must be disabled, using the returned
@@ -44,8 +46,9 @@ qualify profile evidence only from
 `.local/voice/profile-<config_fingerprint>-loopback.json` with `status=passed`
 and a fingerprint exactly matching `gate_fingerprint(language, profile)`.
 That fingerprint includes ASR/model/description-tokenizer revisions, frozen
-profile config and dependency-lock digests. Asset manifests and selected tensor
-presence are checked separately. Existing legacy loopback files cannot qualify
+profile config, dependency-lock digests and the selected English tensor digest.
+Selected tensors must be explicitly allowlisted, uniquely listed in the valid
+pinned manifest, and match its SHA256 before synthesis or readiness qualification. Existing legacy loopback files cannot qualify
 a v2 profile. No such v2 evidence was generated in this checkpoint; current ASR
 and Urdu acceptance remain blocked. Most English candidate tensors are not in
 the installed allowlist/manifest and require a separately authorized asset

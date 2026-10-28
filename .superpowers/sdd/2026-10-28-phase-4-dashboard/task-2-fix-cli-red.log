@@ -1,0 +1,60 @@
+.................FF                                                      [100%]
+=================================== FAILURES ===================================
+_________ test_cli_legacy_json_preserves_voice_and_readiness_defaults __________
+
+database = Engine(postgresql+psycopg://postgres:***@127.0.0.1:55433/voice_agent_test)
+seed = {'owner_a': UUID('51bd4a27-85d2-4cf1-94ea-54ad6af251dd'), 'staff_a': UUID('8ccbd567-566c-4808-a7d5-265e722916ec'), 'tenant_a': UUID('02aff8fe-a91b-4377-94db-cc53c8574d74'), 'provider_a': UUID('11b4ddc1-ae7c-42bf-ade9-a0d5372051da'), ...}
+tmp_path = PosixPath('/private/var/folders/c2/_gzxjt9x1gg6xf7nrw7k6p6h0000gn/T/pytest-of-awaisurrehman/pytest-105/test_cli_legacy_json_preserves0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x113316000>
+
+    def test_cli_legacy_json_preserves_voice_and_readiness_defaults(database, seed, tmp_path, monkeypatch):
+        import sys
+        from types import SimpleNamespace
+    
+        from pydantic import SecretStr
+        from sqlalchemy.orm import Session
+    
+        from brain import bootstrap
+        from brain.voice_routes import _language_mode
+        from scheduler.models import Agent, AgentVersion
+        from tests_api.conftest import APP_URL
+    
+        legacy = tmp_path / 'legacy.json'
+        legacy.write_text('{"language_mode":"bilingual"}')
+        monkeypatch.setattr(bootstrap, 'load_settings', lambda: SimpleNamespace(database_url=SecretStr(APP_URL)))
+        monkeypatch.setattr(sys, 'argv', ['brain.bootstrap', '--publish', '--tenant-id',str(seed['tenant_a']), '--agent-id',str(seed['agent_a']),'--config',str(legacy)])
+        bootstrap.main()
+        with Session(database) as db:
+            agent = db.get(Agent,seed['agent_a'])
+            version = db.get(AgentVersion,agent.active_version_id)
+>           assert version.config['schema_version']==1
+E           assert 2 == 1
+
+tests_brain/test_agent_management.py:420: AssertionError
+----------------------------- Captured stdout call -----------------------------
+d53df54d-15de-40aa-869f-c43e81b438fb
+___________ test_seed_default_publication_explicitly_remains_legacy ____________
+
+database = Engine(postgresql+psycopg://postgres:***@127.0.0.1:55433/voice_agent_test)
+tmp_path = PosixPath('/private/var/folders/c2/_gzxjt9x1gg6xf7nrw7k6p6h0000gn/T/pytest-of-awaisurrehman/pytest-105/test_seed_default_publication_0')
+
+    def test_seed_default_publication_explicitly_remains_legacy(database,tmp_path):
+        from sqlalchemy.orm import Session
+    
+        from brain.bootstrap import seed_brain_demo
+        from scheduler.models import AgentVersion
+        from tests_api.conftest import ADMIN_URL
+    
+        summary=seed_brain_demo(ADMIN_URL,tmp_path/'synthetic-credentials.json')
+        with Session(database) as db:
+            for row in summary:
+                from uuid import UUID
+                config=db.get(AgentVersion,UUID(row['version_id'])).config
+>               assert config['schema_version']==1
+E               assert 2 == 1
+
+tests_brain/test_agent_management.py:438: AssertionError
+=========================== short test summary info ============================
+FAILED tests_brain/test_agent_management.py::test_cli_legacy_json_preserves_voice_and_readiness_defaults
+FAILED tests_brain/test_agent_management.py::test_seed_default_publication_explicitly_remains_legacy
+2 failed, 17 passed in 3.86s

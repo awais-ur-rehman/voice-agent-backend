@@ -395,3 +395,63 @@ def test_public_voice_response_has_frozen_typed_schema(owner):
         "application/json"
     ]["schema"]["items"]
     assert items["$ref"].endswith("/VoiceOut")
+
+
+def test_cli_legacy_json_preserves_voice_and_readiness_defaults(
+    database, seed, tmp_path, monkeypatch
+):
+    import sys
+    from types import SimpleNamespace
+
+    from pydantic import SecretStr
+    from sqlalchemy.orm import Session
+
+    from brain import bootstrap
+    from brain.voice_routes import _language_mode
+    from scheduler.models import Agent, AgentVersion
+    from tests_api.conftest import APP_URL
+
+    legacy = tmp_path / "legacy.json"
+    legacy.write_text('{"language_mode":"bilingual"}')
+    monkeypatch.setattr(
+        bootstrap, "load_settings", lambda: SimpleNamespace(database_url=SecretStr(APP_URL))
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "brain.bootstrap",
+            "--publish",
+            "--tenant-id",
+            str(seed["tenant_a"]),
+            "--agent-id",
+            str(seed["agent_a"]),
+            "--config",
+            str(legacy),
+        ],
+    )
+    bootstrap.main()
+    with Session(database) as db:
+        agent = db.get(Agent, seed["agent_a"])
+        version = db.get(AgentVersion, agent.active_version_id)
+        assert version.config["schema_version"] == 1
+        assert "voice_profiles" not in version.config
+        assert "voice_en_id" not in version.config and "voice_ur_id" not in version.config
+        assert _language_mode(db, SimpleNamespace(version_id=version.id)) == "bilingual"
+
+
+def test_seed_default_publication_explicitly_remains_legacy(database, tmp_path):
+    from sqlalchemy.orm import Session
+
+    from brain.bootstrap import seed_brain_demo
+    from scheduler.models import AgentVersion
+    from tests_api.conftest import ADMIN_URL
+
+    summary = seed_brain_demo(ADMIN_URL, tmp_path / "synthetic-credentials.json")
+    with Session(database) as db:
+        for row in summary:
+            from uuid import UUID
+
+            config = db.get(AgentVersion, UUID(row["version_id"])).config
+            assert config["schema_version"] == 1
+            assert "voice_profiles" not in config

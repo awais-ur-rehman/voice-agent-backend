@@ -58,3 +58,36 @@ Updated: brain/bootstrap.py, prompts.py, security.py, sessions.py, templates.py,
 - Exact-profile readiness currently additionally requires the legacy language gate; this is deliberately conservative and cannot admit an unqualified profile. Any later adoption/evidence change must qualify the whole chosen runtime rather than inferring readiness from metadata.
 - The unchanged native process-group cancellation failure above should remain visible in later verification. Both the failing run and the clean repeat were escalated; this was not a default-sandbox run. The clean repeated full native run is evidence of this task's passing control/config regressions, not proof the cancellation issue is resolved.
 - No frontend behavior/browser acceptance or isolated draft-test implementation belongs to this task. The typed contracts are prepared for those subsequent tasks.
+
+## Review round 1 fixes (base 8df0382)
+
+Both Important findings in task-2-review.md were verified against the actual callers and fixed. Original Task 2 test evidence above was console-only: no historical raw logs were saved, and none have been reconstructed. This round saves the new raw output files listed below, including setup/invocation errors.
+
+### Legacy CLI semantics
+
+`brain.bootstrap.main` now parses the config file with `read_config`, and `publish_agent` accepts either typed version. A file without schema_version therefore publishes v1 and retains absent voice_profiles/voice IDs and the legacy readiness branch. The synthetic demo seed explicitly constructs LegacyAgentConfig. Dashboard-created agents still start at v2; no historical immutable versions were changed. New tests invoke the actual CLI main with old JSON and the real isolated database, then inspect the published row and readiness reader. A separate test invokes actual synthetic seeding and checks every created agent version remains v1. Settings/credentials in tests are explicit synthetic values; no private env files were read.
+
+### Manifest-owned tensor boundary
+
+`voice_runtime.assets.require_manifest_file` now requires an explicitly approved artifact path, a unique member of the valid pinned manifest, matching size through snapshot validation and matching selected-file SHA256. Both native synthesis and readiness qualification invoke this boundary; merely placing am_adam.pt alongside valid baseline af_heart assets cannot qualify or synthesize it. Even adding the candidate to a local manifest does not adopt an unapproved path. No allowlist was expanded and no assets were downloaded/adopted. V2 English gate fingerprints additionally carry the verified selected tensor path/SHA256 so a changed tensor cannot reuse old exact-profile evidence. Legacy fingerprint shape stays unchanged.
+
+The no-inference regressions build an actual synthetic snapshot tree and a valid pinned baseline manifest, then place an unlisted candidate file beside it. RED proved synthesis reached the fake supervisor and readiness advertised that candidate. GREEN proves both paths reject it. Further checks cover approved af_heart success, manifest membership despite on-disk presence, same-size digest tampering, unapproved-but-listed candidate rejection, and gate fingerprint changes with validated tensor content. The existing wire propagation unit test explicitly mocks the approved-file boundary; asset-ownership tests use the real boundary.
+
+### Captured commands and results
+
+All log paths below are relative to `.superpowers/sdd/2026-10-28-phase-4-dashboard/`. API/database commands used `sandbox_permissions=require_escalated` for only the isolated PostgreSQL loopback. No two DB test processes ran together. Focused assets/control tests used the default sandbox (no subprocess inference). Final whole-native tests used require_escalated for existing process-control tests.
+
+- `task-2-fix-cli-red.log`: `UV_CACHE_DIR=.local/uv-cache uv run --locked pytest tests_brain/test_agent_management.py -q` → 2 failed, 17 passed. Exact RED names: test_cli_legacy_json_preserves_voice_and_readiness_defaults; test_seed_default_publication_explicitly_remains_legacy. Both published schema 2 instead of expected schema 1.
+- `task-2-fix-cli-green.log`: same command → 19 passed in 4.42 seconds.
+- `task-2-fix-assets-red-setup.log`: initial `voice/.venv/bin/python -m pytest voice/tests/test_assets.py voice/tests/test_native_control.py -q` → 2 failed, 15 passed, existing audioop warning. The synthesis fixture initially lacked inference_python, causing AttributeError after bypassing the intended asset boundary; the readiness test already showed the real erroneous qualification. Preserved this setup-error output and completed the fake settings before the decisive RED run.
+- `task-2-fix-assets-red.log`: same focused native command → 2 failed, 15 passed, existing audioop warning. Exact intended RED names: test_unlisted_candidate_tensor_never_starts_synthesis (fake supervisor assertion that unlisted candidate reached inference); test_unlisted_candidate_tensor_never_qualifies_readiness (candidate fingerprint returned instead of empty list).
+- `task-2-fix-assets-green.log`: same command after the boundary fix → 17 passed, existing audioop warning, in 0.66 seconds.
+- `task-2-fix-assets-final.log`: same command including additional positive/membership/digest/fingerprint coverage → 19 passed, existing audioop warning, in 0.66 seconds.
+- `task-2-fix-native-final.log`: `voice/.venv/bin/python -m pytest voice/tests -q` → 38 passed, one unchanged audioop deprecation warning, in 1.17 seconds. No model inference was run. The earlier escalated killpg cancellation failure remains an unresolved observation; no process.py cancellation code was changed, and this pass is not a cancellation fix.
+- `task-2-fix-static-invocation-error.log`: ruff and mypy passed, then a command typo `python -m scripts/export_agent_contracts` produced ModuleNotFoundError. The slash was corrected to the module's dotted name; no production change was needed.
+- `task-2-fix-static-final.log`: ruff check passed, mypy passed (49 files), `UV_CACHE_DIR=.local/uv-cache uv run --locked python -m scripts.export_agent_contracts --check` passed, git diff --check passed. The final two successful commands produce no stdout; all commands ran under shell set -e.
+- `task-2-fix-pytest-final.log`: `UV_CACHE_DIR=.local/uv-cache uv run --locked pytest -q` → 616 passed, 4 existing explicit-hosted skips, in 71.24 seconds.
+
+Changed in this round: brain/bootstrap.py; tests_brain/test_agent_management.py; voice/src/voice_runtime/assets.py, speech/adapter.py, worker.py; voice/tests/test_assets.py, test_native_control.py; docs/phase-4-agents.md; this appended report and raw logs. No API schema, migration, catalog profile, dependency, model pin, allowlist, resource limit, inference engine or frontend changes were made.
+
+Known acceptance limits are unchanged: all profile previews remain missing/provisional; ASR/Urdu acceptance stays blocked. Neither the audioop warning nor the earlier cancellation PermissionError is described as fixed.

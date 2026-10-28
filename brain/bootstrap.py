@@ -17,7 +17,7 @@ from scheduler.config import load_settings
 from scheduler.db import tenant_context
 from scheduler.models import Agent, AgentVersion, Patient, Provider, Service
 
-from .agent_config import AgentConfig
+from .agent_config import AgentConfig, LegacyAgentConfig, read_config
 from .sessions import purge_recovery
 
 
@@ -65,7 +65,9 @@ def update_demo_identifiers(path: Path, summary: list[dict]) -> None:
             Path(temporary).unlink(missing_ok=True)
 
 
-def publish_agent(db: Session, tenant_id: UUID, agent_id: UUID, config: AgentConfig) -> UUID:
+def publish_agent(
+    db: Session, tenant_id: UUID, agent_id: UUID, config: AgentConfig | LegacyAgentConfig
+) -> UUID:
     """Publish a fresh immutable version; existing sessions keep their original version."""
     tenant_context(db, tenant_id)
     agent = db.scalar(
@@ -118,7 +120,7 @@ def seed_brain_demo(admin_url: str, credentials_path: Path) -> list[dict]:
                     agent = Agent(id=agent_id, tenant_id=tenant_id, name="Synthetic Receptionist")
                     db.add(agent)
                     db.flush()
-                    publish_agent(db, tenant_id, agent.id, AgentConfig())
+                    publish_agent(db, tenant_id, agent.id, LegacyAgentConfig())
                 for model, key, name_ur in (
                     (Provider, "provider_id", "ڈاکٹر مصنوعی"),
                     (Service, "service_id", "مشاورت"),
@@ -179,9 +181,7 @@ def main() -> None:
             with Session(engine) as db, db.begin():
                 tenant_context(db, args.tenant_id)
                 if args.publish:
-                    agent_config = AgentConfig.model_validate_json(
-                        args.config.read_text(encoding="utf-8")
-                    )
+                    agent_config = read_config(json.loads(args.config.read_text(encoding="utf-8")))
                     print(publish_agent(db, args.tenant_id, args.agent_id, agent_config))
                 else:
                     print(json.dumps(purge_recovery(db, datetime.now(UTC), args.limit)))
