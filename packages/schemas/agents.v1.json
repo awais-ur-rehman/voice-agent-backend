@@ -1,0 +1,577 @@
+{
+  "$defs": {
+    "AgentConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "clinic_profile": {
+          "$ref": "#/$defs/ClinicProfile"
+        },
+        "greeting_en": {
+          "default": "Hello. How can I help you today?",
+          "maxLength": 500,
+          "title": "Greeting En",
+          "type": "string"
+        },
+        "greeting_ur": {
+          "default": "السلام علیکم۔ آپ کیسے ہیں؟",
+          "maxLength": 500,
+          "title": "Greeting Ur",
+          "type": "string"
+        },
+        "instructions": {
+          "default": "Ask one question at a time.",
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Instructions",
+          "type": "string"
+        },
+        "language_mode": {
+          "default": "bilingual",
+          "enum": [
+            "en",
+            "ur",
+            "bilingual"
+          ],
+          "title": "Language Mode",
+          "type": "string"
+        },
+        "name": {
+          "default": "Synthetic Receptionist",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "prayer_break": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prayer Break"
+        },
+        "read_digits_in_english": {
+          "default": false,
+          "title": "Read Digits In English",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": 2,
+          "default": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "tone": {
+          "default": "friendly",
+          "enum": [
+            "friendly",
+            "formal",
+            "concise"
+          ],
+          "title": "Tone",
+          "type": "string"
+        },
+        "voice_en_id": {
+          "default": "kokoro-af-heart-v1",
+          "title": "Voice En Id",
+          "type": "string"
+        },
+        "voice_profiles": {
+          "additionalProperties": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Voice Profiles",
+          "type": "object"
+        },
+        "voice_ur_id": {
+          "default": "parler-ur-female-v1",
+          "title": "Voice Ur Id",
+          "type": "string"
+        }
+      },
+      "title": "AgentConfig",
+      "type": "object"
+    },
+    "AgentCreate": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "AgentCreate",
+      "type": "object"
+    },
+    "AgentOut": {
+      "additionalProperties": false,
+      "properties": {
+        "active_version_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Active Version Id"
+        },
+        "archived_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Archived At"
+        },
+        "draft_changed": {
+          "title": "Draft Changed",
+          "type": "boolean"
+        },
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "language_mode": {
+          "title": "Language Mode",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "published_number": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Published Number"
+        },
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "revision",
+        "id",
+        "name",
+        "enabled",
+        "archived_at",
+        "active_version_id",
+        "language_mode",
+        "published_number",
+        "draft_changed"
+      ],
+      "title": "AgentOut",
+      "type": "object"
+    },
+    "AgentPatch": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "revision",
+        "enabled"
+      ],
+      "title": "AgentPatch",
+      "type": "object"
+    },
+    "ClinicProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "address_en": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Address En"
+        },
+        "address_ur": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Address Ur"
+        },
+        "preparation_en": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Preparation En"
+        },
+        "preparation_ur": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Preparation Ur"
+        }
+      },
+      "title": "ClinicProfile",
+      "type": "object"
+    },
+    "DraftOut": {
+      "additionalProperties": false,
+      "properties": {
+        "config": {
+          "additionalProperties": true,
+          "title": "Config",
+          "type": "object"
+        },
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "revision",
+        "config",
+        "updated_at"
+      ],
+      "title": "DraftOut",
+      "type": "object"
+    },
+    "DraftPut": {
+      "additionalProperties": false,
+      "properties": {
+        "config": {
+          "$ref": "#/$defs/AgentConfig"
+        },
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "revision",
+        "config"
+      ],
+      "title": "DraftPut",
+      "type": "object"
+    },
+    "LegacyAgentConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "clinic_profile": {
+          "$ref": "#/$defs/ClinicProfile"
+        },
+        "instructions": {
+          "default": "Ask one question at a time.",
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Instructions",
+          "type": "string"
+        },
+        "language_mode": {
+          "default": "bilingual",
+          "enum": [
+            "en",
+            "ur",
+            "bilingual"
+          ],
+          "title": "Language Mode",
+          "type": "string"
+        },
+        "name": {
+          "default": "Synthetic Receptionist",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "prayer_break": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prayer Break"
+        },
+        "read_digits_in_english": {
+          "default": false,
+          "title": "Read Digits In English",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "title": "LegacyAgentConfig",
+      "type": "object"
+    },
+    "Revision": {
+      "additionalProperties": false,
+      "properties": {
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "revision"
+      ],
+      "title": "Revision",
+      "type": "object"
+    },
+    "Rollback": {
+      "additionalProperties": false,
+      "properties": {
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "version_id": {
+          "format": "uuid",
+          "title": "Version Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "revision",
+        "version_id"
+      ],
+      "title": "Rollback",
+      "type": "object"
+    },
+    "VersionOut": {
+      "additionalProperties": false,
+      "properties": {
+        "config": {
+          "additionalProperties": true,
+          "title": "Config",
+          "type": "object"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "number": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Number"
+        },
+        "publisher_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Publisher Id"
+        },
+        "rollback_source_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Rollback Source Id"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "number",
+        "config",
+        "publisher_id",
+        "created_at",
+        "rollback_source_id"
+      ],
+      "title": "VersionOut",
+      "type": "object"
+    },
+    "VoiceOut": {
+      "additionalProperties": false,
+      "properties": {
+        "config_fingerprint": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Config Fingerprint",
+          "type": "string"
+        },
+        "engine": {
+          "enum": [
+            "kokoro",
+            "parler"
+          ],
+          "title": "Engine",
+          "type": "string"
+        },
+        "gender": {
+          "enum": [
+            "female",
+            "male"
+          ],
+          "title": "Gender",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "language": {
+          "enum": [
+            "en",
+            "ur"
+          ],
+          "title": "Language",
+          "type": "string"
+        },
+        "license": {
+          "title": "License",
+          "type": "string"
+        },
+        "model_revision": {
+          "title": "Model Revision",
+          "type": "string"
+        },
+        "preview_available": {
+          "const": false,
+          "title": "Preview Available",
+          "type": "boolean"
+        },
+        "preview_url": {
+          "title": "Preview Url",
+          "type": "null"
+        },
+        "readiness": {
+          "const": "provisional",
+          "title": "Readiness",
+          "type": "string"
+        },
+        "unavailable_reason": {
+          "title": "Unavailable Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "language",
+        "gender",
+        "engine",
+        "model_revision",
+        "config_fingerprint",
+        "license",
+        "readiness",
+        "preview_available",
+        "preview_url",
+        "unavailable_reason"
+      ],
+      "title": "VoiceOut",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Dashboard agent contracts v1; agent configuration v2"
+}

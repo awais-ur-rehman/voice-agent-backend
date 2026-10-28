@@ -29,6 +29,7 @@ router = APIRouter(prefix="/voice/worker", tags=["Internal voice worker"])
 class Readiness(Contract):
     en: bool = Field(strict=True)
     ur: bool = Field(strict=True)
+    profiles: list[str] = Field(default_factory=list, max_length=12)
 
 
 class WorkerNext(Contract):
@@ -127,6 +128,8 @@ def _claim(request, body):
         return grant.model_dump(mode="json") | {
             "language_mode": version.config.get("language_mode", "bilingual"),
             "caller_participant": voice.participant,
+            "voice_profiles": version.config.get("voice_profiles", {}),
+            "greetings": parent.checkpoint.get("greeting", {}),
         }
 
 
@@ -179,6 +182,8 @@ def inspect(
             "generation": voice.generation,
             "language_mode": version.config.get("language_mode", "bilingual"),
             "caller_participant": voice.participant,
+            "voice_profiles": version.config.get("voice_profiles", {}),
+            "greetings": parent.checkpoint.get("greeting", {}),
         }
 
 

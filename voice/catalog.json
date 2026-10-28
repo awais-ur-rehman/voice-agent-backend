@@ -1,0 +1,176 @@
+[
+  {
+    "id": "kokoro-af-heart-v1",
+    "language": "en",
+    "gender": "female",
+    "engine": "kokoro",
+    "model_revision": "f3ff3571791e39611d31c381e3a41a3af07b4987",
+    "config": {
+      "name": "af_heart",
+      "seed": 42,
+      "speed": 1
+    },
+    "license": "Apache-2.0",
+    "config_fingerprint": "249ebfcc2bf05bbcb50beae3b51f7976d779cec5bc671bd83e1ebfa698267ed0"
+  },
+  {
+    "id": "kokoro-af-bella-v1",
+    "language": "en",
+    "gender": "female",
+    "engine": "kokoro",
+    "model_revision": "f3ff3571791e39611d31c381e3a41a3af07b4987",
+    "config": {
+      "name": "af_bella",
+      "seed": 42,
+      "speed": 1
+    },
+    "license": "Apache-2.0",
+    "config_fingerprint": "81b1052810dcf3c10334d08a1c36f188a9d688b86f37fbd10b2af5b987c72770"
+  },
+  {
+    "id": "kokoro-af-nicole-v1",
+    "language": "en",
+    "gender": "female",
+    "engine": "kokoro",
+    "model_revision": "f3ff3571791e39611d31c381e3a41a3af07b4987",
+    "config": {
+      "name": "af_nicole",
+      "seed": 42,
+      "speed": 1
+    },
+    "license": "Apache-2.0",
+    "config_fingerprint": "21a472cfe09f73756eea7baf65fb2b1ae7c841832398359694dcda6cbd8c82c9"
+  },
+  {
+    "id": "kokoro-am-adam-v1",
+    "language": "en",
+    "gender": "male",
+    "engine": "kokoro",
+    "model_revision": "f3ff3571791e39611d31c381e3a41a3af07b4987",
+    "config": {
+      "name": "am_adam",
+      "seed": 42,
+      "speed": 1
+    },
+    "license": "Apache-2.0",
+    "config_fingerprint": "bc225226acf48dd36aa34b472eafbc85acd1459037a18dd06474db9c336e36a0"
+  },
+  {
+    "id": "kokoro-am-michael-v1",
+    "language": "en",
+    "gender": "male",
+    "engine": "kokoro",
+    "model_revision": "f3ff3571791e39611d31c381e3a41a3af07b4987",
+    "config": {
+      "name": "am_michael",
+      "seed": 42,
+      "speed": 1
+    },
+    "license": "Apache-2.0",
+    "config_fingerprint": "ad1f4f62d9814a146d5c1d4fddb7c3e578cb2168e0972decdadc209b930bd649"
+  },
+  {
+    "id": "kokoro-am-puck-v1",
+    "language": "en",
+    "gender": "male",
+    "engine": "kokoro",
+    "model_revision": "f3ff3571791e39611d31c381e3a41a3af07b4987",
+    "config": {
+      "name": "am_puck",
+      "seed": 42,
+      "speed": 1
+    },
+    "license": "Apache-2.0",
+    "config_fingerprint": "52e52529d33555e3d32713f6630618d36825a2daae13c50bf6dee633faa07c2e"
+  },
+  {
+    "id": "parler-ur-female-v1",
+    "language": "ur",
+    "gender": "female",
+    "engine": "parler",
+    "model_revision": "660bc53c64ae83150613264111708a0465211237",
+    "config": {
+      "description": "A female speaker delivers clear Urdu speech at a moderate speed, close recording with no background noise.",
+      "seed": 42,
+      "do_sample": false,
+      "max_new_tokens": 1000
+    },
+    "license": "Apache-2.0",
+    "config_fingerprint": "53cfb98ae557a033d9d739b98cb9b7dffa816506dfd3a42616ccae2b61115f27"
+  },
+  {
+    "id": "parler-ur-female-2-v1",
+    "language": "ur",
+    "gender": "female",
+    "engine": "parler",
+    "model_revision": "660bc53c64ae83150613264111708a0465211237",
+    "config": {
+      "description": "A female speaker delivers clear Urdu speech at a slow speed, close recording with no background noise.",
+      "seed": 42,
+      "do_sample": false,
+      "max_new_tokens": 1000
+    },
+    "license": "Apache-2.0",
+    "config_fingerprint": "1b9f639b0e0cceec236ce6f2a3d6dc9b723ccee55dda7cd1c9ed6f70397a6411"
+  },
+  {
+    "id": "parler-ur-female-3-v1",
+    "language": "ur",
+    "gender": "female",
+    "engine": "parler",
+    "model_revision": "660bc53c64ae83150613264111708a0465211237",
+    "config": {
+      "description": "A female speaker delivers clear Urdu speech at a brisk speed, close recording with no background noise.",
+      "seed": 42,
+      "do_sample": false,
+      "max_new_tokens": 1000
+    },
+    "license": "Apache-2.0",
+    "config_fingerprint": "44019e099ce9ac23ee1236e16e9c17a7b30acb9d4c9429bd1f4d4f7c61f577b4"
+  },
+  {
+    "id": "parler-ur-male-v1",
+    "language": "ur",
+    "gender": "male",
+    "engine": "parler",
+    "model_revision": "660bc53c64ae83150613264111708a0465211237",
+    "config": {
+      "description": "A male speaker delivers clear Urdu speech at a moderate speed, close recording with no background noise.",
+      "seed": 42,
+      "do_sample": false,
+      "max_new_tokens": 1000
+    },
+    "license": "Apache-2.0",
+    "config_fingerprint": "30ea108c0f28ceade6685ba972a46b8e6684ec6f51e5871cd08e213327fb7e1c"
+  },
+  {
+    "id": "parler-ur-male-2-v1",
+    "language": "ur",
+    "gender": "male",
+    "engine": "parler",
+    "model_revision": "660bc53c64ae83150613264111708a0465211237",
+    "config": {
+      "description": "A male speaker delivers clear Urdu speech at a slow speed, close recording with no background noise.",
+      "seed": 42,
+      "do_sample": false,
+      "max_new_tokens": 1000
+    },
+    "license": "Apache-2.0",
+    "config_fingerprint": "225caeb3919a76a09901af263137ca4c06dfea0deb0b8c67416479d91ad60135"
+  },
+  {
+    "id": "parler-ur-male-3-v1",
+    "language": "ur",
+    "gender": "male",
+    "engine": "parler",
+    "model_revision": "660bc53c64ae83150613264111708a0465211237",
+    "config": {
+      "description": "A male speaker delivers clear Urdu speech at a brisk speed, close recording with no background noise.",
+      "seed": 42,
+      "do_sample": false,
+      "max_new_tokens": 1000
+    },
+    "license": "Apache-2.0",
+    "config_fingerprint": "c09251b24759bd9078e9c2b571609d38615bdc1b44e1571201783b6835f1acb9"
+  }
+]

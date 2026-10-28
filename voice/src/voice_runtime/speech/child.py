@@ -5,7 +5,7 @@ import json
 import time
 
 from voice_runtime.assets import snapshot
-from voice_runtime.config import FROZEN_VOICES
+from voice_runtime.profiles import selected_config
 
 
 def main():
@@ -67,8 +67,9 @@ def main():
     else:
         import torch
 
+        config = selected_config("en" if engine == "kokoro" else "ur", request.get("voice_config"))
         torch.set_num_threads(2)
-        torch.manual_seed(FROZEN_VOICES["en" if engine == "kokoro" else "ur"]["seed"])
+        torch.manual_seed(config["seed"])
         text = request["text"]
         if engine == "kokoro":
             from kokoro import KModel, KPipeline
@@ -86,7 +87,7 @@ def main():
                 lang_code="a", repo_id="hexgrad/Kokoro-82M", model=model, device="cpu"
             )
             voice = torch.load(
-                path / "voices" / (FROZEN_VOICES["en"]["name"] + ".pt"),
+                path / "voices" / (config["name"] + ".pt"),
                 weights_only=True,
                 map_location="cpu",
             )
@@ -94,7 +95,7 @@ def main():
             arrays = []
             first = None
             with torch.inference_mode():
-                for result in pipeline(text, voice=voice, speed=FROZEN_VOICES["en"]["speed"]):
+                for result in pipeline(text, voice=voice, speed=config["speed"]):
                     if first is None:
                         first = time.monotonic() - started
                     arrays.append(result.audio.numpy())
@@ -120,7 +121,7 @@ def main():
             description_tokenizer = AutoTokenizer.from_pretrained(
                 str(description_path), local_files_only=True
             )
-            description = FROZEN_VOICES["ur"]["description"]
+            description = config["description"]
             caption = description_tokenizer(description, return_tensors="pt")
             prompt = tokenizer(text, return_tensors="pt")
             loaded = time.monotonic()
@@ -130,8 +131,8 @@ def main():
                     attention_mask=caption.attention_mask,
                     prompt_input_ids=prompt.input_ids,
                     prompt_attention_mask=prompt.attention_mask,
-                    do_sample=FROZEN_VOICES["ur"]["do_sample"],
-                    max_new_tokens=FROZEN_VOICES["ur"]["max_new_tokens"],
+                    do_sample=config["do_sample"],
+                    max_new_tokens=config["max_new_tokens"],
                 )
             audio = generated.cpu().numpy().squeeze()
             rate = model.config.sampling_rate

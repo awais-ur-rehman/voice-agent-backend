@@ -6,6 +6,7 @@ from pathlib import Path
 
 from voice_runtime.assets import ARTIFACTS
 from voice_runtime.config import FROZEN_VOICES, LOCAL
+from voice_runtime.profiles import selected_config
 from voice_runtime.speech.contracts import PCMChunk
 
 PUBLIC = {
@@ -18,7 +19,7 @@ class PublicClipCache:
     def __init__(self, directory: Path = LOCAL / "public-clips"):
         self.directory = directory
 
-    def key(self, text, language):
+    def key(self, text, language, voice_profile=None):
         if text not in PUBLIC.get(language, frozenset()):
             raise ValueError("only exact public phrases may be cached")
         engine = "kokoro" if language == "en" else "parler"
@@ -26,17 +27,21 @@ class PublicClipCache:
             "artifact": ARTIFACTS[engine].revision,
             "text": text,
             "lang": language,
-            "voice_config": FROZEN_VOICES[language],
+            "voice_config": selected_config(language, voice_profile)
+            if voice_profile
+            else FROZEN_VOICES[language],
             "seed": 42,
             "speed": 1,
             "sample_rate": 24000,
             "encoding": "s16le",
             "channels": 1,
         }
+        if voice_profile:
+            config["profile_fingerprint"] = voice_profile["config_fingerprint"]
         return hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()
 
-    def put(self, text, language, pcm):
-        key = self.key(text, language)
+    def put(self, text, language, pcm, voice_profile=None):
+        key = self.key(text, language, voice_profile)
         if pcm.sample_rate != 24000:
             raise ValueError("public cache requires transport rate 24000Hz")
         self.directory.mkdir(parents=True, exist_ok=True)
@@ -44,8 +49,8 @@ class PublicClipCache:
         temporary.write_bytes(pcm.samples)
         temporary.replace(self.directory / (key + ".pcm"))
 
-    def get(self, text, language):
-        path = self.directory / (self.key(text, language) + ".pcm")
+    def get(self, text, language, voice_profile=None):
+        path = self.directory / (self.key(text, language, voice_profile) + ".pcm")
         return PCMChunk(path.read_bytes(), 24000) if path.exists() else None
 
 

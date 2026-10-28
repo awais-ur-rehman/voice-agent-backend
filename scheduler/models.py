@@ -152,10 +152,26 @@ class Agent(Row, Base):
     name: Mapped[str]
     enabled: Mapped[bool] = mapped_column(default=True)
     active_version_id: Mapped[UUID | None]
+    revision: Mapped[int] = mapped_column(default=1)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    archived_by: Mapped[UUID | None]
+
+
+class AgentDraft(Row, Base):
+    __tablename__ = "agent_drafts"
+    agent_id: Mapped[UUID]
+    revision: Mapped[int] = mapped_column(default=1)
+    config: Mapped[dict] = mapped_column(JSONB)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_by: Mapped[UUID | None]
 
 
 class AgentVersion(Row, Base):
     __tablename__ = "agent_versions"
+    purpose: Mapped[str] = mapped_column(default="production")
+    number: Mapped[int | None]
+    publisher_id: Mapped[UUID | None]
+    rollback_source_id: Mapped[UUID | None]
     agent_id: Mapped[UUID]
     config: Mapped[dict] = mapped_column(JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

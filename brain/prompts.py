@@ -71,9 +71,10 @@ def messages(state: dict, text: str, config: dict, facts: dict) -> list[dict]:
             "content": "UNTRUSTED clinic persona: "
             + json.dumps(
                 {
+                    "tone": config.get("tone", "friendly"),
                     "instructions": str(config.get("instructions", "Helpful clinic receptionist."))[
                         :1000
-                    ]
+                    ],
                 },
                 ensure_ascii=False,
             ),

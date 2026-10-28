@@ -168,8 +168,9 @@ def create_app(settings: Settings | None = None, clock=None) -> FastAPI:
     app.include_router(appointments.router)
     app.include_router(auth.router)
     app.include_router(catalog.router)
-    from .dashboard import patients, profile
+    from .dashboard import agents, patients, profile
 
+    app.include_router(agents.router)
     app.include_router(profile.router)
     app.include_router(patients.router)
     return app

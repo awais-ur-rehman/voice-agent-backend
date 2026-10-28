@@ -30,7 +30,7 @@ from scheduler.slots import get, search
 
 from .contracts import parse_action
 from .dialogue import affirmative, allowed_next, remember
-from .templates import result
+from .templates import result, toned_question
 from .voice_delivery import VoiceTurnContext
 
 
@@ -170,7 +170,7 @@ class ToolEngine:
         db = self.db
         tenant = get(db, Tenant, self.actor.tenant_id)
         if name == "ask_caller":
-            return result(self.next_question(s))
+            return toned_question(self.next_question(s), s.get("tone", "friendly"))
         if name == "set_caller_contact":
             s["caller_contact"] = {"phone": PatientCreate.phone_number(a["phone"])}
             return result()
@@ -352,7 +352,7 @@ class ToolEngine:
                     fields["time_from"] = window[0] if window else resolved.get("time_from")
                     fields["time_to"] = window[1] if window else resolved.get("time_to")
                 fields.pop("temporal_pending", None)
-            return result(self.next_question(s))
+            return toned_question(self.next_question(s), s.get("tone", "friendly"))
         if name == "find_patient":
             self.release(s)
             s.update(verified=False, stage="identify", offers=[])
@@ -954,7 +954,7 @@ class ToolEngine:
                 s.pop("subject", None)
             s.pop("appointment", None)
             s.pop("appointments", None)
-            return result(self.next_question(s))
+            return toned_question(self.next_question(s), s.get("tone", "friendly"))
         if name == "request_handoff":
             self.release(s)
             self._callback(s, a.get("reason", "requested"))

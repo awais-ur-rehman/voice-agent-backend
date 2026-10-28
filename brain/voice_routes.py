@@ -55,9 +55,24 @@ def _ready(request, language_mode=None):
             not isinstance(capabilities, dict)
             or type(capabilities.get("en")) is not bool
             or type(capabilities.get("ur")) is not bool
-            or not any(capabilities.values())
+            or not (capabilities["en"] or capabilities["ur"])
         ):
             raise AppError("voice_unavailable", 503)
+        if isinstance(language_mode, dict):
+            from .agent_config import AgentConfig
+
+            config = AgentConfig.model_validate(language_mode)
+            required = (
+                ("en", "ur") if config.language_mode == "bilingual" else (config.language_mode,)
+            )
+            fingerprints = capabilities.get("profiles", [])
+            if not isinstance(fingerprints, list) or any(
+                not capabilities[language]
+                or config.voice_profiles[language]["config_fingerprint"] not in fingerprints
+                for language in required
+            ):
+                raise AppError("voice_unavailable", 503)
+            language_mode = config.language_mode
         if language_mode == "ur" and not capabilities["ur"]:
             raise AppError("voice_urdu_unavailable", 503)
         if language_mode in {"en", "bilingual"} and not capabilities["en"]:
@@ -71,7 +86,11 @@ def _language_mode(db, parent):
     version = db.get(AgentVersion, parent.version_id)
     if version is None:
         raise AppError("voice_unavailable", 503)
-    return version.config.get("language_mode", "bilingual")
+    return (
+        version.config
+        if version.config.get("schema_version") == 2
+        else version.config.get("language_mode", "bilingual")
+    )
 
 
 def _expired(parent, voice, now):
