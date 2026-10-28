@@ -87,3 +87,25 @@ def test_brain_setup_refuses_symlink(tmp_path: Path) -> None:
     with pytest.raises(ValueError):
         enable_brain(path)
     assert target.read_text() == "DEV_ADMIN_PASSWORD=synthetic-admin\n"
+
+
+def test_voice_setup_preserves_saved_secrets_and_stays_disabled(tmp_path):
+    from scripts.dev_setup import enable_voice
+
+    path = tmp_path / ".env.api"
+    create_env_file(path)
+    original = path.read_text()
+    assert enable_voice(path)
+    updated = path.read_text()
+    assert updated.startswith(original)
+    values = dict(line.split("=", 1) for line in updated.splitlines() if "=" in line)
+    names = [
+        "SCHEDULER_VOICE_BOOTSTRAP_SECRET",
+        "SCHEDULER_VOICE_WORKER_SECRET",
+        "SCHEDULER_LIVEKIT_API_SECRET",
+    ]
+    assert len({values[key] for key in names}) == 3
+    assert all(len(values[key]) >= 64 for key in names)
+    assert values["SCHEDULER_VOICE_ENABLED"] == "false"
+    assert not enable_voice(path)
+    assert path.read_text() == updated

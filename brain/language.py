@@ -84,3 +84,23 @@ def language_transition(
         return current, None, 0
     count = streak + 1 if pending == detected else 1
     return (detected, None, 0) if count >= 2 else (current, detected, count)
+
+
+def audio_language_transition(
+    current: str,
+    pending: str | None,
+    streak: int,
+    detected: str,
+    confidence: float | None,
+    uncertain: bool,
+    mode: str = "bilingual",
+) -> tuple[str, str | None, int]:
+    """Trusted ASR metadata supplies language ID; no text/script guess replaces it."""
+    if mode in ("en", "ur"):
+        return mode, None, 0
+    if mode != "bilingual" or current not in ("en", "ur") or detected not in ("en", "ur"):
+        raise ValueError("invalid_language_mode")
+    if uncertain or confidence is not None and confidence < 0.5 or detected == current:
+        return current, None, 0
+    count = streak + 1 if pending == detected else 1
+    return (detected, None, 0) if count >= 2 else (current, detected, count)

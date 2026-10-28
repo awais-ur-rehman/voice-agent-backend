@@ -1,0 +1,498 @@
+{
+  "$defs": {
+    "CallControl": {
+      "additionalProperties": false,
+      "properties": {
+        "generation": {
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "mute",
+            "unmute",
+            "end"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "sequence": {
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "session_id": {
+          "format": "uuid",
+          "title": "Session Id",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "session_id",
+        "generation",
+        "sequence",
+        "kind"
+      ],
+      "title": "CallControl",
+      "type": "object"
+    },
+    "CaptionMessage": {
+      "additionalProperties": false,
+      "properties": {
+        "generation": {
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "kind": {
+          "const": "caption",
+          "title": "Kind",
+          "type": "string"
+        },
+        "lang": {
+          "enum": [
+            "en",
+            "ur"
+          ],
+          "title": "Lang",
+          "type": "string"
+        },
+        "sequence": {
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "session_id": {
+          "format": "uuid",
+          "title": "Session Id",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 2000,
+          "title": "Text",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "session_id",
+        "generation",
+        "sequence",
+        "kind",
+        "text",
+        "lang"
+      ],
+      "title": "CaptionMessage",
+      "type": "object"
+    },
+    "InvalidateMessage": {
+      "additionalProperties": false,
+      "properties": {
+        "generation": {
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "kind": {
+          "const": "invalidate",
+          "title": "Kind",
+          "type": "string"
+        },
+        "sequence": {
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "session_id": {
+          "format": "uuid",
+          "title": "Session Id",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "session_id",
+        "generation",
+        "sequence",
+        "kind"
+      ],
+      "title": "InvalidateMessage",
+      "type": "object"
+    },
+    "MediaGrant": {
+      "additionalProperties": false,
+      "properties": {
+        "expires_at": {
+          "format": "date-time",
+          "title": "Expires At",
+          "type": "string"
+        },
+        "generation": {
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "participant": {
+          "title": "Participant",
+          "type": "string"
+        },
+        "room": {
+          "title": "Room",
+          "type": "string"
+        },
+        "session_id": {
+          "format": "uuid",
+          "title": "Session Id",
+          "type": "string"
+        },
+        "token": {
+          "title": "Token",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "url",
+        "room",
+        "participant",
+        "token",
+        "expires_at",
+        "session_id",
+        "generation"
+      ],
+      "title": "MediaGrant",
+      "type": "object"
+    },
+    "PlaybackAck": {
+      "additionalProperties": false,
+      "properties": {
+        "generation": {
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "played_samples": {
+          "maximum": 4800000,
+          "minimum": 0,
+          "title": "Played Samples",
+          "type": "integer"
+        },
+        "segment_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "title": "Segment Id",
+          "type": "string"
+        },
+        "sequence": {
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "session_id": {
+          "format": "uuid",
+          "title": "Session Id",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "session_id",
+        "generation",
+        "sequence",
+        "segment_id",
+        "played_samples"
+      ],
+      "title": "PlaybackAck",
+      "type": "object"
+    },
+    "SegmentEndMessage": {
+      "additionalProperties": false,
+      "properties": {
+        "generation": {
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "kind": {
+          "const": "segment_end",
+          "title": "Kind",
+          "type": "string"
+        },
+        "segment_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "title": "Segment Id",
+          "type": "string"
+        },
+        "sequence": {
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "session_id": {
+          "format": "uuid",
+          "title": "Session Id",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "session_id",
+        "generation",
+        "sequence",
+        "kind",
+        "segment_id"
+      ],
+      "title": "SegmentEndMessage",
+      "type": "object"
+    },
+    "SegmentMessage": {
+      "additionalProperties": false,
+      "properties": {
+        "critical": {
+          "title": "Critical",
+          "type": "boolean"
+        },
+        "generation": {
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "kind": {
+          "const": "segment",
+          "title": "Kind",
+          "type": "string"
+        },
+        "sample_rate": {
+          "maximum": 48000,
+          "minimum": 16000,
+          "title": "Sample Rate",
+          "type": "integer"
+        },
+        "segment_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "title": "Segment Id",
+          "type": "string"
+        },
+        "sequence": {
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "session_id": {
+          "format": "uuid",
+          "title": "Session Id",
+          "type": "string"
+        },
+        "total_samples": {
+          "maximum": 4800000,
+          "minimum": 1,
+          "title": "Total Samples",
+          "type": "integer"
+        },
+        "version": {
+          "const": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "session_id",
+        "generation",
+        "sequence",
+        "kind",
+        "segment_id",
+        "sample_rate",
+        "total_samples",
+        "critical"
+      ],
+      "title": "SegmentMessage",
+      "type": "object"
+    },
+    "VoiceCreate": {
+      "additionalProperties": false,
+      "properties": {
+        "agent_id": {
+          "format": "uuid",
+          "title": "Agent Id",
+          "type": "string"
+        },
+        "request_key": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Request Key",
+          "type": "string"
+        }
+      },
+      "required": [
+        "agent_id",
+        "request_key"
+      ],
+      "title": "VoiceCreate",
+      "type": "object"
+    },
+    "VoiceSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "call_deadline": {
+          "format": "date-time",
+          "title": "Call Deadline",
+          "type": "string"
+        },
+        "generation": {
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "media": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MediaGrant"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "revision": {
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "session_id": {
+          "format": "uuid",
+          "title": "Session Id",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "provisioning",
+            "active",
+            "disconnected",
+            "ended",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "status",
+        "generation",
+        "revision",
+        "call_deadline"
+      ],
+      "title": "VoiceSnapshot",
+      "type": "object"
+    },
+    "VoiceStateMessage": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code"
+        },
+        "generation": {
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "kind": {
+          "const": "state",
+          "title": "Kind",
+          "type": "string"
+        },
+        "sequence": {
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "session_id": {
+          "format": "uuid",
+          "title": "Session Id",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "listening",
+            "thinking",
+            "speaking",
+            "error"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "session_id",
+        "generation",
+        "sequence",
+        "kind",
+        "state"
+      ],
+      "title": "VoiceStateMessage",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Voice transport v1"
+}

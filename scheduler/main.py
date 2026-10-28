@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import time
@@ -16,6 +17,7 @@ from valkey import Valkey
 from valkey.exceptions import ValkeyError
 
 from brain import routes as brain_routes
+from brain import voice_routes, voice_worker_routes
 from brain.provider import Nemotron
 from brain.store import StateStore
 
@@ -61,11 +63,22 @@ def create_app(settings: Settings | None = None, clock=None) -> FastAPI:
         except Exception:
             engine.dispose()
             raise
-        yield
-        if getattr(app.state, "brain_store", None):
-            app.state.brain_store.client.close()
-        app.state.brain_planner.close()
-        engine.dispose()
+        cleanup_stop = asyncio.Event()
+        cleanup_task = None
+        if app.state.brain_store and settings.voice_bootstrap_secret:
+            from brain.voice_cleanup import cleanup_loop
+
+            cleanup_task = asyncio.create_task(cleanup_loop(app, cleanup_stop))
+        try:
+            yield
+        finally:
+            cleanup_stop.set()
+            if cleanup_task is not None:
+                await cleanup_task
+            if getattr(app.state, "brain_store", None):
+                app.state.brain_store.client.close()
+            app.state.brain_planner.close()
+            engine.dispose()
 
     app = FastAPI(title="Voice Agent Scheduling API", version="0.2.0", lifespan=lifespan)
     app.state.settings, app.state.engine = settings, engine
@@ -150,6 +163,8 @@ def create_app(settings: Settings | None = None, clock=None) -> FastAPI:
         return {"status": "ready"}
 
     app.include_router(brain_routes.router)
+    app.include_router(voice_worker_routes.router)
+    app.include_router(voice_routes.router)
     app.include_router(appointments.router)
     app.include_router(auth.router)
     app.include_router(catalog.router)

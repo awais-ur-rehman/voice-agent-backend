@@ -1,6 +1,6 @@
 # Voice Agent Backend
 
-Phase 2 adds a guarded text agent to the Phase 1 staff scheduling API: session-scoped authentication, patient verification, bilingual date/text handling, Valkey dialogue state and holds, and PostgreSQL-fenced scheduling commands. The [Phase 2 owner checkpoint](docs/phase-2-testing.md) contains local setup, the interactive console, synthetic scripts, agent publishing and recovery maintenance. Hosted NIM acceptance is still pending; deterministic checks and live provider results are separate. Voice integration and the React dashboard remain later phases.
+Phase 3 adds guarded voice-session/media code and a separate minimal browser console. The [safe-code owner checkpoint](docs/phase-3-testing.md) and [measured results](docs/phase-3-results.md) distinguish passing API/RTC checks from blocked speech acceptance. Both English and Urdu speech readiness remain disabled on the tested memory budget; the Phase 4 dashboard is not started. Phase 2's guarded text agent remains available, with its [owner guide](docs/phase-2-testing.md) and [provider evidence](docs/phase-2-results.md) preserved.
 
 The staff API retains authentication, tenant isolation, scheduling configuration, slot generation, and transactional booking/rescheduling/cancellation. The separate `evaluation/` package retains the synthetic CPU-only Phase 0 evidence.
 
@@ -16,7 +16,7 @@ uv run python -m scheduler.bootstrap --demo
 uv run python scripts/smoke_phase1.py
 ```
 
-Open [API docs](http://127.0.0.1:8000/docs). Synthetic demo accounts are generated into the private ignored `.local/phase1-demo-credentials.json`; passwords/tokens are never printed. Existing Phase 0 `.env` is preserved. See the [verification results](docs/phase-1-results.md) and [Phase 1 owner testing guide](docs/phase-1-owner-checkpoint.md) for login, booking/replay/races, tenant isolation, policies and the stop point. Staff APIs are not LLM tool endpoints. Phase 1 remains unmerged for owner acceptance.
+Open [API docs](http://127.0.0.1:8000/docs). Synthetic demo accounts are generated into the private ignored `.local/phase1-demo-credentials.json`; passwords/tokens are never printed. Existing Phase 0 `.env` is preserved. See the [verification results](docs/phase-1-results.md) and [Phase 1 owner testing guide](docs/phase-1-owner-checkpoint.md) for login, booking/replay/races, tenant isolation, policies and the stop point. Staff APIs are not LLM tool endpoints. Phase 1 was merged into `develop` after owner authorization.
 
 ## Phase 2 text runtime
 
@@ -35,7 +35,7 @@ The default Compose command above loads only `.env.api` and starts without the N
 docker compose --env-file .env.api --env-file .env up --build -d api
 ```
 
-Compose maps `LLM_API_KEY` into the API process only; it is not a build argument or an image file. Never print resolved Compose configuration or environment values into logs/reports. See the [full owner guide](docs/phase-2-testing.md) for actual endpoint contracts, caller contact versus patient identity, trusted events, resume, retention and the remaining acceptance evidence. Phase 2 stays unmerged pending owner acceptance.
+Compose maps `LLM_API_KEY` into the API process only; it is not a build argument or an image file. Never print resolved Compose configuration or environment values into logs/reports. See the [full owner guide](docs/phase-2-testing.md) for actual endpoint contracts, caller contact versus patient identity, trusted events, resume, retention and the remaining acceptance evidence. Phase 2 was merged into `develop` after owner authorization; Phase 3 remains on its feature branch.
 
 ## Retained Phase 0 evaluation
 

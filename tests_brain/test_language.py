@@ -56,3 +56,13 @@ def test_punctuated_acknowledgment_is_neutral_in_english_session(text):
 
     assert detect_language(text, "en") is None
     assert language_transition("en", "ur", 1, text) == ("en", None, 0)
+
+
+def test_audio_language_uses_trusted_asr_two_turns_and_rejects_uncertainty():
+    from brain.language import audio_language_transition
+
+    assert audio_language_transition("en", None, 0, "ur", 0.9, False) == ("en", "ur", 1)
+    assert audio_language_transition("en", "ur", 1, "ur", 0.9, False) == ("ur", None, 0)
+    assert audio_language_transition("en", "ur", 1, "ur", 0.9, True) == ("en", None, 0)
+    assert audio_language_transition("en", "ur", 1, "ur", 0.2, False) == ("en", None, 0)
+    assert audio_language_transition("en", None, 0, "ur", 0.9, False, "en") == ("en", None, 0)
