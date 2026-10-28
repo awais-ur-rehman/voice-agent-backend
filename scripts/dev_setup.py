@@ -31,7 +31,7 @@ def create_env_file(path: Path) -> bool:
     return True
 
 
-def enable_brain(path: Path) -> bool:
+def _append_configuration(path: Path, *, voice: bool = False) -> bool:
     """Append only missing brain keys to the API file under an exclusive lock."""
     import fcntl
 
@@ -55,6 +55,16 @@ def enable_brain(path: Path) -> bool:
             "SCHEDULER_RUNTIME_SECRET": secrets.token_hex(48),
             "SCHEDULER_VALKEY_URL": f"valkey://:{quote(password, safe='')}@127.0.0.1:56380/0",
         }
+        if voice:
+            candidates = {
+                "SCHEDULER_VOICE_ENABLED": "false",
+                "SCHEDULER_VOICE_BOOTSTRAP_SECRET": secrets.token_hex(48),
+                "SCHEDULER_VOICE_WORKER_SECRET": secrets.token_hex(48),
+                "SCHEDULER_LIVEKIT_API_KEY": "voice-local-" + secrets.token_hex(8),
+                "SCHEDULER_LIVEKIT_API_SECRET": secrets.token_hex(48),
+                "SCHEDULER_LIVEKIT_URL": "ws://127.0.0.1:7880",
+                "SCHEDULER_LIVEKIT_API_URL": "http://127.0.0.1:7880",
+            }
         missing = {key: value for key, value in candidates.items() if key not in values}
         if not missing:
             return False
@@ -67,9 +77,19 @@ def enable_brain(path: Path) -> bool:
     return True
 
 
+def enable_brain(path: Path) -> bool:
+    return _append_configuration(path)
+
+
+def enable_voice(path: Path) -> bool:
+    """Generate private isolated media secrets; keep readiness disabled until verified."""
+    return _append_configuration(path, voice=True)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--enable-brain", action="store_true")
+    parser.add_argument("--enable-voice", action="store_true")
     args = parser.parse_args()
     path = Path(__file__).resolve().parents[1] / ".env.api"
     created = create_env_file(path)
@@ -77,6 +97,10 @@ def main() -> None:
     if args.enable_brain:
         enable_brain(path)
         print("Brain configuration ready; existing credentials preserved.")
+    if args.enable_voice:
+        enable_brain(path)
+        enable_voice(path)
+        print("Voice credentials ready; actual voice remains disabled until its capability check.")
     print("Start development: docker compose --env-file .env.api up --build -d api")
 
 

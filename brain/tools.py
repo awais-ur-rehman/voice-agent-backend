@@ -31,12 +31,16 @@ from scheduler.slots import get, search
 from .contracts import parse_action
 from .dialogue import affirmative, allowed_next, remember
 from .templates import result
+from .voice_delivery import VoiceTurnContext
 
 
 class ToolEngine:
-    def __init__(self, db, actor, store, now, *, clock=None):
+    def __init__(
+        self, db, actor, store, now, *, clock=None, voice_context: VoiceTurnContext | None = None
+    ):
         self.db, self.actor, self.store, self.now = db, actor, store, now
         self.clock = clock or (lambda: self.now)
+        self.voice_context = voice_context
 
     def release(self, state):
         hold = state.pop("hold", None)
@@ -349,7 +353,11 @@ class ToolEngine:
             matches = [
                 p
                 for p in candidates
-                if factor == p.name_key or p.dob is not None and factor == p.dob.isoformat()
+                if factor == p.name_key
+                or p.name_ur is not None
+                and factor == " ".join(p.name_ur.casefold().split())
+                or p.dob is not None
+                and factor == p.dob.isoformat()
             ]
             if len(matches) != 1:
                 s["attempts"] = s.get("attempts", 0) + 1
@@ -989,6 +997,11 @@ class ToolEngine:
             and readback["kind"] == kind
             and readback["revision"] <= s["revision"]
             and affirmative(text)
+            and (
+                s.get("transport_mode") != "voice"
+                or isinstance(self.voice_context, VoiceTurnContext)
+                and self.voice_context.permits_confirmation(readback["revision"], self.clock())
+            )
         )
 
     def _callback(self, state, reason):

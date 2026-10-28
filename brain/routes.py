@@ -146,16 +146,34 @@ def renew(identity: UUID, request: Request, credentials=Depends(bearer)):
     return created
 
 
-def run_command(identity, body, request, credentials, *, live=False, event=False):
+def run_command(
+    identity,
+    body,
+    request,
+    credentials,
+    *,
+    live=False,
+    event=False,
+    voice_authority=None,
+    voice_input=None,
+):
     store = require_store(request)
     factory = request.app.state.session_factory
     settings = request.app.state.settings
     now = request.app.state.clock()
     payload = body.model_dump(mode="json")
+    if voice_input is not None:
+        payload["voice"] = voice_input.model_dump(mode="json")
     # Complete snapshot transaction before network inference. Never hold SQL locks across NIM.
     with factory() as db, db.begin():
         actor = auth_runtime(request, db, credentials, identity)
         row = db.get(AgentSession, identity)
+        if row.transport_mode == "voice":
+            if voice_authority is None:
+                raise AppError("voice_worker_required", 403)
+            from .voice_sessions import require_worker
+
+            require_worker(db, actor, voice_authority, request.app.state.clock())
         state = deepcopy(row.checkpoint)
         version = db.get(AgentVersion, actor.version_id)
         config = version.config
@@ -276,8 +294,35 @@ def run_command(identity, body, request, credentials, *, live=False, event=False
                 text,
                 config.get("language_mode", "bilingual"),
             )
+            if voice_input is not None:
+                from .language import audio_language_transition
+
+                s["lang"], s["lang_pending"], s["lang_streak"] = audio_language_transition(
+                    state.get("lang", "en"),
+                    state.get("lang_pending"),
+                    state.get("lang_streak", 0),
+                    voice_input.language,
+                    voice_input.confidence,
+                    voice_input.uncertain,
+                    config.get("language_mode", "bilingual"),
+                )
+            voice_context = None
+            if voice_authority is not None:
+                from .voice_playback import turn_context
+                from .voice_sessions import require_worker
+
+                voice = require_worker(db, actor, voice_authority, request.app.state.clock())
+                if voice_input is not None:
+                    voice_context = turn_context(
+                        voice.delivery, voice.generation, voice_input.utterance_started_at
+                    )
             engine = ToolEngine(
-                db, actor, store, request.app.state.clock(), clock=request.app.state.clock
+                db,
+                actor,
+                store,
+                request.app.state.clock(),
+                clock=request.app.state.clock,
+                voice_context=voice_context,
             )
             if event:
                 return engine.trusted_event(s, body.kind, delivered_text=body.delivered_text)
@@ -295,6 +340,7 @@ def run_command(identity, body, request, credentials, *, live=False, event=False
             runtime_secret(settings),
             execute,
             clock=request.app.state.clock,
+            voice_authority=voice_authority,
         )
     cache_ready = repair(store, identity, next_state)
     return {

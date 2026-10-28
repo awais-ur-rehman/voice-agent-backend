@@ -24,7 +24,9 @@ INACTIVITY = timedelta(minutes=30)
 RETENTION = timedelta(hours=24)
 
 
-def create_session(db: Session, staff: Principal, agent_id: UUID, now: datetime, settings) -> dict:
+def create_session(
+    db: Session, staff: Principal, agent_id: UUID, now: datetime, settings, *, transport_mode="text"
+) -> dict:
     tenant_context(db, staff.tenant_id)
     agent = db.scalar(select(Agent).where(Agent.id == agent_id, Agent.tenant_id == staff.tenant_id))
     if agent is None or not agent.enabled or agent.active_version_id is None:
@@ -38,6 +40,8 @@ def create_session(db: Session, staff: Principal, agent_id: UUID, now: datetime,
     )
     if version is None:
         raise AppError("not_found", 404)
+    if transport_mode not in {"text", "voice"}:
+        raise AppError("validation_error", 422)
     session_id = uuid4()
     state = initial_state(session_id, agent.id, version.id)
     if version.config.get("language_mode") == "ur":
@@ -49,6 +53,7 @@ def create_session(db: Session, staff: Principal, agent_id: UUID, now: datetime,
         agent_id=agent.id,
         version_id=version.id,
         revision=0,
+        transport_mode=transport_mode,
         checkpoint=recovery_checkpoint(state),
         expires_at=now + INACTIVITY,
         updated_at=now,
@@ -76,6 +81,7 @@ def command(
     execute,
     *,
     clock=None,
+    voice_authority=None,
 ) -> tuple[dict, dict]:
     if not isinstance(command_id, str) or not 1 <= len(command_id) <= 128:
         raise AppError("validation_error", 422)
@@ -90,6 +96,12 @@ def command(
     )
     now = clock() if clock else now
     row = active_guard(row, actor, now)
+    if row.transport_mode == "voice":
+        if voice_authority is None:
+            raise AppError("voice_worker_required", 403)
+        from .voice_sessions import require_worker
+
+        require_worker(db, actor, voice_authority, now)
     agent = db.get(Agent, actor.agent_id)
     if agent is None or not agent.enabled:
         raise AppError("unauthorized", 401)
@@ -122,6 +134,8 @@ def command(
     if row.checkpoint is None:
         raise AppError("unauthorized", 401)
     state = deepcopy(row.checkpoint)
+    state["transport_mode"] = row.transport_mode
+    previous_readback = deepcopy(state.get("readback"))
     result = execute(db, state)
     if isinstance(result, tuple):
         response, state = result
@@ -129,6 +143,10 @@ def command(
         response = result
     now = clock() if clock else now
     active_guard(row, actor, now)
+    if row.transport_mode == "voice":
+        voice = require_worker(db, actor, voice_authority, now)
+        if previous_readback != state.get("readback"):
+            voice.delivery = None
     state["revision"] = row.revision + 1
     checkpoint = recovery_checkpoint(state)
     # Code-generated envelopes must not echo identifying verification factors.
@@ -140,6 +158,8 @@ def command(
     if state.get("stage") == "ended" or state.get("ended"):
         row.status = "ended"
         row.revoked_at = now
+        if row.transport_mode == "voice":
+            voice.delivery = {"terminal_started_at": now.isoformat()}
     db.add(
         CommandReceipt(
             tenant_id=actor.tenant_id,
@@ -200,6 +220,8 @@ def renew_session(db: Session, actor: RuntimeActor, now: datetime, settings, *, 
     )
     now = clock() if clock else now
     row = active_guard(row, actor, now)
+    if row.transport_mode == "voice":
+        raise AppError("voice_worker_required", 403)
     agent = db.get(Agent, actor.agent_id)
     if agent is None or not agent.enabled:
         raise AppError("unauthorized", 401)

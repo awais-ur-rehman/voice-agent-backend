@@ -158,6 +158,7 @@ class AgentSession(Row, Base):
     agent_id: Mapped[UUID]
     version_id: Mapped[UUID]
     revision: Mapped[int] = mapped_column(default=0)
+    transport_mode: Mapped[str] = mapped_column(default="text")
     checkpoint: Mapped[dict | None] = mapped_column(JSONB)
     status: Mapped[str] = mapped_column(default="active")
     token_jti_hash: Mapped[str]
@@ -187,4 +188,22 @@ class Callback(Row, Base):
     phone: Mapped[str | None]
     reason: Mapped[str] = mapped_column(default="caller_requested")
     status: Mapped[str] = mapped_column(default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class VoiceSession(Row, Base):
+    __tablename__ = "voice_sessions"
+    session_id: Mapped[UUID]
+    creator_id: Mapped[UUID]
+    request_key: Mapped[str]
+    room: Mapped[str]
+    participant: Mapped[str]
+    status: Mapped[str] = mapped_column(default="provisioning")
+    generation: Mapped[int] = mapped_column(default=1)
+    worker_id: Mapped[UUID | None]
+    worker_nonce_hash: Mapped[str | None]
+    worker_lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    disconnected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    call_deadline: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    delivery: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

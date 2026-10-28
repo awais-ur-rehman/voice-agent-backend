@@ -7,7 +7,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="SCHEDULER_", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="SCHEDULER_", extra="ignore", env_ignore_empty=True
+    )
     database_url: SecretStr
     jwt_secret: SecretStr = Field(min_length=32)
     runtime_secret: SecretStr | None = Field(default=None, min_length=32)
@@ -16,6 +18,13 @@ class Settings(BaseSettings):
     llm_model: str = "nvidia/nemotron-3.5-bolt-e4b"
     llm_timeout_seconds: float = Field(default=30, ge=1, le=60)
     llm_request_budget: int = Field(default=100, ge=1, le=1000)
+    voice_enabled: bool = False
+    livekit_url: str = "ws://127.0.0.1:7880"
+    livekit_api_url: str = "http://127.0.0.1:7880"
+    livekit_api_key: str | None = None
+    livekit_api_secret: SecretStr | None = Field(default=None, min_length=32)
+    voice_bootstrap_secret: SecretStr | None = Field(default=None, min_length=32)
+    voice_worker_secret: SecretStr | None = Field(default=None, min_length=32)
     jwt_issuer: str = "voice-agent-api"
     jwt_audience: str = "voice-agent-staff"
     access_minutes: int = Field(default=15, ge=1, le=60)
