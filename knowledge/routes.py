@@ -21,6 +21,7 @@ from .contracts import (
     Preview,
     Revision,
     SourceCreate,
+    SourceDetailOut,
     SourceOut,
     SourceUpdate,
     Upload,
@@ -191,7 +192,7 @@ async def replace(
     )
 
 
-@router.get("/sources/{source_id}", response_model=SourceOut, operation_id="knowledge_source")
+@router.get("/sources/{source_id}", response_model=SourceDetailOut, operation_id="knowledge_source")
 def detail(
     agent_id: UUID,
     source_id: UUID,
@@ -199,7 +200,7 @@ def detail(
     db: Session = Depends(session),
 ):
     sources.agent_row(db, agent_id)
-    return sources.out(db, sources.source_row(db, agent_id, source_id))
+    return sources.detail_out(db, sources.source_row(db, agent_id, source_id))
 
 
 @router.put(

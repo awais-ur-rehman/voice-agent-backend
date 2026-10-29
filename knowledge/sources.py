@@ -10,7 +10,14 @@ from scheduler.errors import AppError
 from scheduler.models import Agent, Idempotency, Tenant, User
 from scheduler.slots import get
 
-from .contracts import SourceOut
+from .contracts import (
+    FAQSourceInput,
+    FileSourceInput,
+    SourceDetailOut,
+    SourceOut,
+    TextSourceInput,
+    URLSourceInput,
+)
 from .models import Generation, Job, Source
 
 
@@ -49,6 +56,22 @@ def out(db, row):
         error_at=row.error_at,
         updated_at=row.updated_at,
     )
+
+
+def detail_out(db, row):
+    """Project persisted current input explicitly; storage and future internal keys stay private."""
+    current: TextSourceInput | FAQSourceInput | URLSourceInput | FileSourceInput
+    if row.kind == "text":
+        current = TextSourceInput(text=row.content["text"], format=row.content["format"])
+    elif row.kind == "faq":
+        current = FAQSourceInput(question=row.content["question"], answer=row.content["answer"])
+    elif row.kind == "url":
+        current = URLSourceInput(url=row.content["url"])
+    elif row.kind == "file":
+        current = FileSourceInput(format=row.content["format"])
+    else:
+        raise AppError("source_unavailable", 503)
+    return SourceDetailOut(**out(db, row).model_dump(), input=current)
 
 
 fingerprint = request_digest

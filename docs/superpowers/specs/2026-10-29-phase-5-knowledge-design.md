@@ -47,7 +47,7 @@ Private blobs live outside the web root in a shared API/worker volume. Server-ge
 
 ## Source API and ingestion
 
-Manager-only per-agent routes: list/get; create pasted text or FAQ or URL; raw authenticated file upload; re-index; delete; extraction preview and retrieval test. All writes capture identity/revision and use receipt-bearing idempotency. Fresh revisions/conflicts must be explicit; no newer operation may replace an unknown intent.
+Manager-only per-agent routes: list/get; create pasted text or FAQ or URL; raw authenticated file upload; re-index; delete; extraction preview and retrieval test. List/mutation outputs remain metadata-only. Protected source detail adds an explicitly typed current-input view for text, FAQ and URL editing even while processing is unavailable; files expose only format metadata. No arbitrary internal JSON, raw file bytes, blob path/key or download capability is returned. All writes capture identity/revision and use receipt-bearing idempotency. Fresh revisions/conflicts must be explicit; no newer operation may replace an unknown intent.
 
 Use a raw binary upload route with format/name metadata and digest header so auth completes before Request.stream consumes file bytes; avoid unauthenticated multipart spooling. Enforce actual stream bytes and a30s upload deadline, not just Content-Length. JSON sources have bounded fields; raw file type is verified by parser/magic, not extension alone. The typed client must support Blob bodies and retained File/digest/key retries without JSON stringification/storage. Persist and enqueue only verified complete blobs; clean interrupted temporary files. Raw-file checksum is verified; retries cannot create duplicate sources/jobs.
 

@@ -102,6 +102,39 @@ class SourceOut(Contract):
     updated_at: datetime
 
 
+class TextSourceInput(Contract):
+    kind: Literal["text"] = "text"
+    text: Text
+    format: Literal["txt", "md"]
+
+
+class FAQSourceInput(Contract):
+    kind: Literal["faq"] = "faq"
+    question: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)
+    ]
+    answer: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100_000)
+    ]
+
+
+class URLSourceInput(Contract):
+    kind: Literal["url"] = "url"
+    url: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2048)]
+
+
+class FileSourceInput(Contract):
+    kind: Literal["file"] = "file"
+    format: FileFormat
+
+
+class SourceDetailOut(SourceOut):
+    input: Annotated[
+        TextSourceInput | FAQSourceInput | URLSourceInput | FileSourceInput,
+        Field(discriminator="kind"),
+    ]
+
+
 class Capabilities(Contract):
     enabled: bool
     processing_available: Literal[False] = False

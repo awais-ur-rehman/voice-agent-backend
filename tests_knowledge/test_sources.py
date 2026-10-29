@@ -958,3 +958,117 @@ def test_unavailable_blob_root_returns_safe_error(owner, tmp_path):
         assert blocked.read_text() == "Synthetic existing file"
 
     asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    "body, expected",
+    [
+        (
+            {"kind": "text", "name": "Text", "text": "موجودہ معلومات", "format": "md"},
+            {"kind": "text", "text": "موجودہ معلومات", "format": "md"},
+        ),
+        (
+            {"kind": "faq", "name": "FAQ", "question": "When?", "answer": "Weekdays"},
+            {"kind": "faq", "question": "When?", "answer": "Weekdays"},
+        ),
+        (
+            {"kind": "url", "name": "URL", "url": "https://example.com/clinic"},
+            {"kind": "url", "url": "https://example.com/clinic"},
+        ),
+        ({"kind": "file", "name": "File", "format": "pdf"}, {"kind": "file", "format": "pdf"}),
+    ],
+)
+def test_source_detail_projects_only_current_editable_input(
+    owner, tmp_path, database, body, expected
+):
+    import json
+
+    base = setup_api(owner, tmp_path)
+    if body["kind"] == "file":
+        data = b"Synthetic private document bytes, not a parsing qualification"
+        created = owner.post(
+            base + "/sources/upload?name=File&format=pdf",
+            content=data,
+            headers={
+                "Idempotency-Key": "detail-file-key",
+                "X-Content-SHA256": hashlib.sha256(data).hexdigest(),
+            },
+        )
+    else:
+        created = write(owner, base + "/sources", body)
+    assert created.status_code == 201, created.text
+    metadata = created.json()
+    assert "input" not in metadata
+    assert "input" not in owner.get(base + "/sources").json()[0]
+    internal = {
+        "internal_secret": "synthetic-private-internal-sentinel",
+        "blob_key": "/private/synthetic-document-key",
+        "download_url": "https://private.invalid/synthetic-capability",
+        "name": "Internal name must not override the source name",
+        "revision": 900,
+    }
+    if body["kind"] == "file":
+        internal["text"] = "synthetic-raw-file-content-sentinel"
+    with database.begin() as db:
+        db.execute(
+            text(
+                "UPDATE knowledge_sources SET content=content || CAST(:extra AS jsonb) WHERE id=:id"
+            ),
+            {"extra": json.dumps(internal), "id": metadata["id"]},
+        )
+    # Editing saved inputs does not depend on embedding or processing readiness.
+    owner.app.state.settings.knowledge_enabled = False
+    detail = owner.get(base + "/sources/" + metadata["id"])
+    assert detail.status_code == 200, detail.text
+    assert detail.json().get("input") == expected
+    assert detail.json()["name"] == body["name"]
+    assert detail.json()["revision"] == 1
+    assert detail.json()["available"] is False
+    for key, value in internal.items():
+        if key not in {"name", "revision", "text"}:
+            assert key not in detail.text and value not in detail.text
+    assert "synthetic-raw-file-content-sentinel" not in detail.text
+    assert set(detail.json()["input"]) == set(expected)
+    assert "name" not in detail.json()["input"] and "revision" not in detail.json()["input"]
+
+
+def test_source_detail_authority_current_revision_and_named_schema(owner, tmp_path):
+    base = setup_api(owner, tmp_path)
+    created = write(
+        owner,
+        base + "/sources",
+        {"kind": "text", "name": "Original", "text": "Old text", "format": "txt"},
+    ).json()
+    url = base + "/sources/" + created["id"]
+    updated = write(
+        owner,
+        url,
+        {"kind": "text", "name": "Updated", "text": "Current text", "format": "md", "revision": 1},
+        method="put",
+    )
+    assert updated.status_code == 200, updated.text
+    assert "input" not in updated.json()
+    detail = owner.get(url).json()
+    assert detail.get("input") == {"kind": "text", "text": "Current text", "format": "md"}
+    assert detail["revision"] == 2 and detail["name"] == "Updated"
+    other = setup_api(owner, tmp_path)
+    assert owner.get(other + "/sources/" + created["id"]).status_code == 404
+    schema = owner.get("/openapi.json").json()
+    result_schema = schema["paths"]["/dashboard/agents/{agent_id}/knowledge/sources/{source_id}"][
+        "get"
+    ]["responses"]["200"]["content"]["application/json"]["schema"]
+    assert result_schema == {"$ref": "#/components/schemas/SourceDetailOut"}
+    input_schema = schema["components"]["schemas"]["SourceDetailOut"]["properties"]["input"]
+    assert input_schema["discriminator"]["propertyName"] == "kind"
+    assert set(input_schema["discriminator"]["mapping"]) == {"text", "faq", "url", "file"}
+    assert "input" not in schema["components"]["schemas"]["SourceOut"]["properties"]
+    owner_header = owner.headers["Authorization"]
+    for email, status in [("staff-a@example.com", 403), ("owner-b@example.com", 404)]:
+        login = owner.post("/auth/login", json={"email": email, "password": PASSWORD}).json()
+        owner.headers["Authorization"] = "Bearer " + login["access_token"]
+        assert owner.get(url).status_code == status
+    del owner.headers["Authorization"]
+    assert owner.get(url).status_code == 401
+    owner.headers["Authorization"] = owner_header
+    assert write(owner, url + "?revision=2", method="delete").status_code == 200
+    assert owner.get(url).status_code == 404

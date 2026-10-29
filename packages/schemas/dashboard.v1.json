@@ -1269,6 +1269,35 @@
         "title": "FAQSource",
         "type": "object"
       },
+      "FAQSourceInput": {
+        "additionalProperties": false,
+        "properties": {
+          "answer": {
+            "maxLength": 100000,
+            "minLength": 1,
+            "title": "Answer",
+            "type": "string"
+          },
+          "kind": {
+            "const": "faq",
+            "default": "faq",
+            "title": "Kind",
+            "type": "string"
+          },
+          "question": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question",
+          "answer"
+        ],
+        "title": "FAQSourceInput",
+        "type": "object"
+      },
       "FAQUpdate": {
         "additionalProperties": false,
         "properties": {
@@ -1309,6 +1338,32 @@
           "revision"
         ],
         "title": "FAQUpdate",
+        "type": "object"
+      },
+      "FileSourceInput": {
+        "additionalProperties": false,
+        "properties": {
+          "format": {
+            "enum": [
+              "pdf",
+              "docx",
+              "txt",
+              "md"
+            ],
+            "title": "Format",
+            "type": "string"
+          },
+          "kind": {
+            "const": "file",
+            "default": "file",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "format"
+        ],
+        "title": "FileSourceInput",
         "type": "object"
       },
       "FixtureAppointment": {
@@ -2792,6 +2847,141 @@
         "title": "Slot",
         "type": "object"
       },
+      "SourceDetailOut": {
+        "additionalProperties": false,
+        "properties": {
+          "active_generation_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Generation Id"
+          },
+          "agent_id": {
+            "format": "uuid",
+            "title": "Agent Id",
+            "type": "string"
+          },
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "chunk_count": {
+            "title": "Chunk Count",
+            "type": "integer"
+          },
+          "error_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error At"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "input": {
+            "discriminator": {
+              "mapping": {
+                "faq": "#/components/schemas/FAQSourceInput",
+                "file": "#/components/schemas/FileSourceInput",
+                "text": "#/components/schemas/TextSourceInput",
+                "url": "#/components/schemas/URLSourceInput"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TextSourceInput"
+              },
+              {
+                "$ref": "#/components/schemas/FAQSourceInput"
+              },
+              {
+                "$ref": "#/components/schemas/URLSourceInput"
+              },
+              {
+                "$ref": "#/components/schemas/FileSourceInput"
+              }
+            ],
+            "title": "Input"
+          },
+          "kind": {
+            "enum": [
+              "text",
+              "faq",
+              "url",
+              "file"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "processing",
+              "ready",
+              "failed",
+              "deleted"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "agent_id",
+          "kind",
+          "name",
+          "revision",
+          "status",
+          "available",
+          "active_generation_id",
+          "chunk_count",
+          "error_code",
+          "error_at",
+          "updated_at",
+          "input"
+        ],
+        "title": "SourceDetailOut",
+        "type": "object"
+      },
       "SourceOut": {
         "additionalProperties": false,
         "properties": {
@@ -3051,6 +3241,37 @@
         "title": "TextSource",
         "type": "object"
       },
+      "TextSourceInput": {
+        "additionalProperties": false,
+        "properties": {
+          "format": {
+            "enum": [
+              "txt",
+              "md"
+            ],
+            "title": "Format",
+            "type": "string"
+          },
+          "kind": {
+            "const": "text",
+            "default": "text",
+            "title": "Kind",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 1000000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "format"
+        ],
+        "title": "TextSourceInput",
+        "type": "object"
+      },
       "TextUpdate": {
         "additionalProperties": false,
         "properties": {
@@ -3234,6 +3455,28 @@
           "url"
         ],
         "title": "URLSource",
+        "type": "object"
+      },
+      "URLSourceInput": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "url",
+            "default": "url",
+            "title": "Kind",
+            "type": "string"
+          },
+          "url": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "URLSourceInput",
         "type": "object"
       },
       "URLUpdate": {
@@ -4995,7 +5238,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SourceOut"
+                  "$ref": "#/components/schemas/SourceDetailOut"
                 }
               }
             },
