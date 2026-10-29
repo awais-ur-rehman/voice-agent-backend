@@ -69,3 +69,20 @@ assert len(chunks) == 223
 assert chunks[-1].text.endswith('.')
 """
     subprocess.run([sys.executable, "-c", code], check=True, timeout=5, capture_output=True)
+
+
+@pytest.mark.parametrize("format", ["md", "html", "docx"])
+@pytest.mark.parametrize("only", [False, True])
+def test_heading_facts_reach_ordered_chunks(format, only):
+    from knowledge.chunking import chunk_document
+    from knowledge.parsing import parse_bytes
+    from tests_knowledge.test_parsing import heading_document
+
+    chunks = chunk_document(parse_bytes(heading_document(format, only=only), format), tokenizer())
+    assert [c.text for c in chunks] == [
+        "Parent hours",
+        "Weekdays" + ("" if only else "\nOpen 9 to 5"),
+        "Emergency closed Sunday",
+    ]
+    assert [c.heading for c in chunks] == ["Parent hours", "Weekdays", "Emergency closed Sunday"]
+    assert [c.ordinal for c in chunks] == [0, 1, 2]

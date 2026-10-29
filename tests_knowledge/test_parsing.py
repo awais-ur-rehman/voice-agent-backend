@@ -57,8 +57,8 @@ def test_utf8_markdown_headings_and_urdu():
     assert "کلینک کھلا ہے۔" in result.text
     assert result.lang == "ur"
     assert [(s.heading, s.text) for s in result.sections] == [
-        ("اوقات", "کلینک کھلا ہے۔"),
-        ("رابطہ", "فون کریں۔"),
+        ("اوقات", "اوقات\nکلینک کھلا ہے۔"),
+        ("رابطہ", "رابطہ\nفون کریں۔"),
     ]
 
 
@@ -131,7 +131,7 @@ def test_html_never_fetches_assets_or_indexes_scripts():
         b'<h1>Hours</h1><p>Open today</p><script>secret()</script><img src="https://example.com/pixel">',
         "html",
     )
-    assert doc.text == "Open today"
+    assert doc.text == "Hours\nOpen today"
     assert doc.sections[0].heading == "Hours"
 
 
@@ -179,6 +179,7 @@ def test_docx_tables_header_footer_and_notes_in_defined_order():
     assert result.text.splitlines() == [
         "Header",
         "",
+        "Clinic",
         "Body",
         "Table cell",
         "",
@@ -203,3 +204,58 @@ def test_docx_unsupported_text_parts_fail_instead_of_silent_omission():
         )
     with pytest.raises(IngestionError, match="unsupported_docx_part"):
         parse_bytes(output.getvalue(), "docx")
+
+
+def heading_document(format, *, only=False):
+    paragraphs = [(True, "Parent hours"), (True, "Weekdays")]
+    if not only:
+        paragraphs.append((False, "Open 9 to 5"))
+    paragraphs.append((True, "Emergency closed Sunday"))
+    if format == "md":
+        return "\n".join(
+            ("# " if heading else "") + value for heading, value in paragraphs
+        ).encode()
+    if format == "html":
+        return "".join(
+            f"<h1>{value}</h1>" if heading else f"<p>{value}</p>" for heading, value in paragraphs
+        ).encode()
+    output = io.BytesIO()
+    content = "".join(
+        "<w:p>"
+        + ('<w:pPr><w:pStyle w:val="Heading1"/></w:pPr>' if heading else "")
+        + f"<w:r><w:t>{value}</w:t></w:r></w:p>"
+        for heading, value in paragraphs
+    )
+    with zipfile.ZipFile(output, "w") as archive:
+        archive.writestr("[Content_Types].xml", "<Types/>")
+        archive.writestr(
+            "word/document.xml",
+            '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'
+            + content
+            + "</w:body></w:document>",
+        )
+    return output.getvalue()
+
+
+@pytest.mark.parametrize("format", ["md", "html", "docx"])
+@pytest.mark.parametrize("only", [False, True], ids=["consecutive-and-trailing", "heading-only"])
+def test_all_ordered_heading_facts_survive_parsing(format, only):
+    from knowledge.parsing import parse_bytes
+
+    result = parse_bytes(heading_document(format, only=only), format)
+    expected = (
+        "Parent hours\n\nWeekdays"
+        + ("" if only else "\nOpen 9 to 5")
+        + "\n\nEmergency closed Sunday"
+    )
+    assert result.text == expected
+    assert [s.heading for s in result.sections] == [
+        "Parent hours",
+        "Weekdays",
+        "Emergency closed Sunday",
+    ]
+    assert [s.text for s in result.sections] == [
+        "Parent hours",
+        "Weekdays" + ("" if only else "\nOpen 9 to 5"),
+        "Emergency closed Sunday",
+    ]

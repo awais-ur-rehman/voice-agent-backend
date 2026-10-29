@@ -53,7 +53,10 @@ def _paragraphs(paragraphs):
         if is_heading:
             if lines:
                 sections.append(Section(heading, "\n".join(lines)))
-            heading, lines = value.strip(), []
+            heading = value.strip()
+            # Heading facts belong in searchable content as well as bounded metadata.
+            # This also retains consecutive, trailing and heading-only sections in order.
+            lines = [heading] if heading else []
         else:
             lines.append(value)
     if lines:

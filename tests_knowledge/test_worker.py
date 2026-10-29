@@ -722,3 +722,194 @@ def test_transient_url_failure_backs_off_and_stops_after_three_claims(
             )
     with worker_factory() as db, db.begin():
         assert discover_jobs(db) == []
+
+
+def test_actual_upload_cancellation_waits_for_metadata_sql_and_releases_resources(
+    owner, tmp_path, seed, worker_factory, database, monkeypatch
+):
+    import asyncio
+    import fcntl
+
+    import httpx2
+    from sqlalchemy import event
+
+    import knowledge.routes as routes
+    from knowledge_worker.cleanup import cleanup_blobs
+
+    base = setup_api(owner, tmp_path)
+    engine = owner.app.state.engine
+    original_factory = owner.app.state.session_factory
+    sessions = []
+    outer_ended = threading.Event()
+    metadata_entered = threading.Event()
+    pid = []
+    mutation_done = threading.Event()
+    mutation_errors = []
+    actual_mutate = routes.sources.mutate
+
+    def observe_mutation(*args, **kwargs):
+        try:
+            return actual_mutate(*args, **kwargs)
+        except BaseException as exc:
+            mutation_errors.append(exc)
+            raise
+        finally:
+            mutation_done.set()
+
+    monkeypatch.setattr(routes.sources, "mutate", observe_mutation)
+
+    def track_session():
+        session = original_factory()
+        sessions.append(session)
+
+        def ended(db, transaction):
+            if transaction.parent is None:
+                outer_ended.set()
+
+        event.listen(session, "after_transaction_end", ended)
+        return session
+
+    monkeypatch.setattr(owner.app.state, "session_factory", track_session)
+
+    def before_execute(connection, cursor, statement, parameters, context, executemany):
+        if "FROM tenants" in statement and "FOR UPDATE" in statement:
+            pid.append(connection.connection.driver_connection.info.backend_pid)
+            metadata_entered.set()
+
+    event.listen(engine, "before_cursor_execute", before_execute)
+    barrier = database.connect()
+    transaction = barrier.begin()
+    barrier.execute(
+        text("SELECT id FROM tenants WHERE id=:id FOR UPDATE"), {"id": seed["tenant_a"]}
+    )
+    store = BlobStore(tmp_path, secret="isolated-blob-ownership-secret-for-tests-only")
+    data = b"Synthetic cancelled upload"
+    headers = {
+        "Authorization": owner.headers["Authorization"],
+        "Idempotency-Key": "actual-cancelled-upload",
+        "X-Content-SHA256": hashlib.sha256(data).hexdigest(),
+    }
+    url = base + "/sources/upload?name=Cancelled&format=txt"
+
+    async def wait_for(predicate, message, timeout=10):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if predicate():
+                return
+            await asyncio.sleep(0.01)
+        pytest.fail(message)
+
+    def blocked_metadata():
+        if not metadata_entered.is_set():
+            return False
+        with database.connect() as db:
+            return (
+                db.scalar(
+                    text("SELECT wait_event_type='Lock' FROM pg_stat_activity WHERE pid=:pid"),
+                    {"pid": pid[0]},
+                )
+                is True
+            )
+
+    async def run():
+        async with httpx2.AsyncClient(
+            transport=httpx2.ASGITransport(app=owner.app), base_url="http://test"
+        ) as api:
+            task = asyncio.create_task(api.post(url, content=data, headers=headers))
+            try:
+                await wait_for(
+                    blocked_metadata, "real metadata SQL did not reach the row-lock barrier"
+                )
+                with database.connect() as db:
+                    assert (
+                        db.scalar(
+                            text(
+                                "SELECT count(*) FROM pg_locks WHERE pid=:pid AND locktype='advisory' AND granted"
+                            ),
+                            {"pid": pid[0]},
+                        )
+                        == 1
+                    )
+                key = next(tmp_path.glob("*.blob")).name
+                task.cancel()
+                # Two future sweeps would start AND exhaust retirement if the real fences were absent.
+                # This cannot pass just because receipt creation/first-unreferenced grace is fresh.
+                for hours in (25, 50):
+                    assert (
+                        await asyncio.to_thread(
+                            cleanup_blobs,
+                            worker_factory,
+                            store,
+                            now=datetime.now(UTC) + timedelta(hours=hours),
+                        )
+                        == 0
+                    )
+                    assert (tmp_path / key).exists()
+                assert blocked_metadata(), (
+                    "metadata SQL must still be outstanding during cancellation proof"
+                )
+                assert not outer_ended.is_set(), (
+                    "outer SQL transaction ended before the blocked mutation settled"
+                )
+            finally:
+                transaction.rollback()
+            try:
+                await asyncio.wait_for(task, timeout=10)
+            except asyncio.CancelledError:
+                pass
+            await wait_for(
+                lambda: (
+                    mutation_done.is_set()
+                    and outer_ended.is_set()
+                    and engine.pool.checkedout() == 0
+                ),
+                "cancelled session or SQL connection did not settle",
+            )
+            assert not mutation_errors, [repr(exc) for exc in mutation_errors]
+            assert task.done() and task.cancelled()
+            assert all(not session.in_transaction() for session in sessions)
+            with database.connect() as db:
+                assert (
+                    db.scalar(
+                        text(
+                            "SELECT count(*) FROM pg_locks WHERE pid=:pid AND locktype='advisory' AND granted"
+                        ),
+                        {"pid": pid[0]},
+                    )
+                    == 0
+                )
+            for path in tmp_path.glob("*.blob"):
+                fd = os.open(path, os.O_RDONLY)
+                try:
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                finally:
+                    os.close(fd)
+            with database.connect() as db:
+                assert db.scalar(text("SELECT count(*) FROM knowledge_sources")) == 0
+                assert db.scalar(text("SELECT count(*) FROM knowledge_jobs")) == 0
+            # The actual cancelled dependency rolled back; retry settles to one durable source/job.
+            result = await api.post(url, content=data, headers=headers)
+            assert result.status_code == 201, result.text
+            replay = await api.post(url, content=data, headers=headers)
+            assert replay.status_code == 201 and replay.json() == result.json()
+            with database.connect() as db:
+                assert db.scalar(text("SELECT count(*) FROM knowledge_sources")) == 1
+                assert db.scalar(text("SELECT count(*) FROM knowledge_jobs")) == 1
+                current = db.scalar(text("SELECT blob_key FROM knowledge_sources"))
+            for hours in (75, 100):
+                await asyncio.to_thread(
+                    cleanup_blobs,
+                    worker_factory,
+                    store,
+                    now=datetime.now(UTC) + timedelta(hours=hours),
+                )
+            assert [p.name for p in tmp_path.glob("*.blob")] == [current]
+            assert engine.pool.checkedout() == 0
+
+    try:
+        asyncio.run(run())
+    finally:
+        if transaction.is_active:
+            transaction.rollback()
+        barrier.close()
+        event.remove(engine, "before_cursor_execute", before_execute)

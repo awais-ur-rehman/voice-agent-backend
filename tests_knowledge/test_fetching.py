@@ -262,3 +262,121 @@ def test_transport_host_header_uses_original_authority(monkeypatch):
         hostname="example.com", ip="93.184.216.34", path="/hours", deadline=10
     ).close()
     assert calls["headers"]["Host"] == "example.com" and calls["ip"] == "93.184.216.34"
+
+
+@pytest.mark.parametrize(
+    "framing,body,expected",
+    [
+        (b"Content-Length: 5\r\n", b"hello", b"hello"),
+        (b"Content-Length: 0\r\n", b"", b""),
+        (b"Transfer-Encoding: chunked\r\n", b"2\r\nhe\r\n3\r\nllo\r\n0\r\n\r\n", b"hello"),
+    ],
+    ids=["fixed-length", "zero-length", "chunked"],
+)
+def test_real_http_response_completion(framing, body, expected):
+    import http.client
+    import socket
+    import time
+
+    from knowledge.fetching import _Response, fetch_url
+
+    reader, writer = socket.socketpair()
+
+    class Connection:
+        sock = reader
+
+        def close(self):
+            reader.close()
+
+    try:
+        writer.sendall(
+            b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n" + framing + b"\r\n" + body
+        )
+        writer.shutdown(socket.SHUT_WR)
+        response = http.client.HTTPResponse(reader)
+        response.begin()
+        result = fetch_url(
+            "https://example.com/hours",
+            resolve=lambda _: ["93.184.216.34"],
+            transport=lambda **_: _Response(Connection(), response, time.monotonic() + 10),
+        )
+        assert result == (expected, "txt")
+        assert response.isclosed()
+    finally:
+        reader.close()
+        writer.close()
+
+
+@pytest.mark.parametrize(
+    "framing,body",
+    [
+        (b"Content-Length: 5\r\n", b"hel"),
+        (b"Content-Length: 5\r\n", b""),
+        (b"Transfer-Encoding: chunked\r\n", b"5\r\nhel"),
+        (b"Transfer-Encoding: chunked\r\n", b"5\r\nhello\r\n"),
+    ],
+    ids=["short-fixed", "empty-fixed", "short-chunk", "missing-final-chunk"],
+)
+def test_real_http_response_rejects_truncated_document(framing, body):
+    import http.client
+    import socket
+    import time
+
+    from knowledge.fetching import _Response, fetch_url
+    from knowledge.parsing import IngestionError
+
+    reader, writer = socket.socketpair()
+
+    class Connection:
+        sock = reader
+
+        def close(self):
+            reader.close()
+
+    try:
+        writer.sendall(
+            b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n" + framing + b"\r\n" + body
+        )
+        writer.shutdown(socket.SHUT_WR)
+        response = http.client.HTTPResponse(reader)
+        response.begin()
+        with pytest.raises(IngestionError):
+            fetch_url(
+                "https://example.com/hours",
+                resolve=lambda _: ["93.184.216.34"],
+                transport=lambda **_: _Response(Connection(), response, time.monotonic() + 10),
+            )
+    finally:
+        reader.close()
+        writer.close()
+
+
+def test_real_http_connection_close_detaches_socket_before_body_completion(monkeypatch):
+    import http.client
+    import socket
+
+    from knowledge import fetching
+
+    reader, writer = socket.socketpair()
+
+    class Connection(http.client.HTTPConnection):
+        def getresponse(self):
+            response = super().getresponse()
+            assert self.sock is None, "real getresponse must detach the Connection: close socket"
+            return response
+
+    connection = Connection("example.com")
+    connection.sock = reader
+    monkeypatch.setattr(fetching, "PinnedHTTPSConnection", lambda *a, **k: connection)
+    try:
+        writer.sendall(
+            b"HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Type: text/plain\r\nContent-Length: 5\r\n\r\nhello"
+        )
+        writer.shutdown(socket.SHUT_WR)
+        assert fetching.fetch_url("https://example.com", resolve=lambda _: ["93.184.216.34"]) == (
+            b"hello",
+            "txt",
+        )
+    finally:
+        reader.close()
+        writer.close()

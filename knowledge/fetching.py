@@ -59,8 +59,9 @@ class PinnedHTTPSConnection(http.client.HTTPSConnection):
 
 
 class _Response:
-    def __init__(self, connection, response, deadline):
+    def __init__(self, connection, response, deadline, *, sock=None):
         self.connection, self.response, self.deadline = connection, response, deadline
+        self.sock = sock if sock is not None else connection.sock
         self.status = response.status
         self.headers = dict((k.lower(), v) for k, v in response.getheaders())
 
@@ -68,9 +69,18 @@ class _Response:
         remaining = self.deadline - time.monotonic()
         if remaining <= 0:
             raise IngestionError("url_timeout")
-        # HTTPResponse can retain the socket after Connection: close clears conn.sock.
-        self.response.fp.raw._sock.settimeout(remaining)
-        return self.response.read1(size)
+        # Fixed-length read1 closes fp at exactly zero; a closed response is normal EOF.
+        # A nonzero remaining length is instead a truncated document, never usable input.
+        if self.response.isclosed():
+            if self.response.length not in (None, 0):
+                raise IngestionError("url_response")
+            return b""
+        if self.sock is not None:
+            self.sock.settimeout(remaining)
+        block = self.response.read1(size)
+        if not block and self.response.length not in (None, 0):
+            raise IngestionError("url_response")
+        return block
 
     def close(self):
         self.response.close()
@@ -91,7 +101,9 @@ def _transport(*, hostname, ip, path, deadline):
                 "User-Agent": "ClinicKnowledge/1",
             },
         )
-        return _Response(conn, conn.getresponse(), deadline)
+        # getresponse may detach conn.sock for Connection: close; retain the actual TLS socket.
+        sock = conn.sock
+        return _Response(conn, conn.getresponse(), deadline, sock=sock)
     except Exception:
         conn.close()
         raise
