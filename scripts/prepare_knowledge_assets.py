@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import math
+import multiprocessing
 import os
 import shutil
 import tempfile
@@ -13,6 +14,60 @@ from pathlib import Path
 
 from knowledge.embedding import EmbeddingUnavailable
 from knowledge.profile import PROFILE
+
+DOWNLOAD_SECONDS = 300.0
+
+
+def _download_asset(stage, artifact):
+    destination = stage / artifact.name
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    url = f"https://huggingface.co/{PROFILE.repository}/resolve/{PROFILE.revision}/{artifact.name}"
+    digest = hashlib.sha256()
+    size = 0
+    deadline = time.monotonic() + DOWNLOAD_SECONDS
+    with (
+        urllib.request.urlopen(url, timeout=30) as response,
+        destination.open("wb") as output,
+    ):
+        while chunk := response.read(1024 * 1024):
+            size += len(chunk)
+            if size > artifact.size or time.monotonic() > deadline:
+                raise EmbeddingUnavailable("download_bound")
+            if shutil.disk_usage(stage).free < 4 * 1024**3:
+                raise EmbeddingUnavailable("disk_reserve")
+            digest.update(chunk)
+            output.write(chunk)
+    if size != artifact.size or digest.hexdigest() != artifact.sha256:
+        raise EmbeddingUnavailable("asset_integrity")
+
+
+def _download_entry(download, stage, artifact):
+    try:
+        download(stage, artifact)
+    except BaseException:
+        # No provider exceptions/redirect URLs or response bodies reach stderr.
+        raise SystemExit(1) from None
+
+
+def _run_download(stage, artifact, *, deadline):
+    process = multiprocessing.get_context("spawn").Process(
+        target=_download_entry, args=(_download_asset, stage, artifact), daemon=True
+    )
+    try:
+        process.start()
+        process.join(timeout=max(0, deadline - time.monotonic()))
+        if process.is_alive() or time.monotonic() >= deadline:
+            raise EmbeddingUnavailable("download_deadline")
+        if process.exitcode != 0:
+            raise EmbeddingUnavailable("asset_download_failed")
+    finally:
+        if process.pid is not None:
+            if process.is_alive():
+                process.kill()
+            process.join(timeout=2)
+            if process.is_alive():
+                raise EmbeddingUnavailable("download_cleanup_failed")
+        process.close()
 
 
 def bootstrap(root: Path):
@@ -28,27 +83,11 @@ def bootstrap(root: Path):
     with tempfile.TemporaryDirectory(prefix="bge-stage-", dir=root.parent) as temporary:
         stage = Path(temporary) / "assets"
         stage.mkdir()
+        deadline = time.monotonic() + DOWNLOAD_SECONDS
         for artifact in PROFILE.artifacts:
-            destination = stage / artifact.name
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            url = f"https://huggingface.co/{PROFILE.repository}/resolve/{PROFILE.revision}/{artifact.name}"
-            digest = hashlib.sha256()
-            size = 0
-            deadline = time.monotonic() + 300
-            with (
-                urllib.request.urlopen(url, timeout=30) as response,
-                destination.open("wb") as output,
-            ):
-                while chunk := response.read(1024 * 1024):
-                    size += len(chunk)
-                    if size > artifact.size or time.monotonic() > deadline:
-                        raise EmbeddingUnavailable("download_bound")
-                    if shutil.disk_usage(stage).free < 4 * 1024**3:
-                        raise EmbeddingUnavailable("disk_reserve")
-                    digest.update(chunk)
-                    output.write(chunk)
-            if size != artifact.size or digest.hexdigest() != artifact.sha256:
-                raise EmbeddingUnavailable("asset_integrity")
+            if time.monotonic() >= deadline:
+                raise EmbeddingUnavailable("download_deadline")
+            _run_download(stage, artifact, deadline=deadline)
         verify_assets(stage)
         os.rename(stage, root)
 
