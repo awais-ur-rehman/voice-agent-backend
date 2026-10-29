@@ -2,6 +2,8 @@
 
 import asyncio
 
+import pytest
+
 from voice_runtime.delivery import DeliveryLedger
 from voice_runtime.pipeline import NativeCall
 
@@ -213,3 +215,72 @@ def test_interrupted_filler_is_never_resumed_as_a_task_answer():
         assert call.resume_output is None
 
     asyncio.run(scenario())
+
+
+def test_selected_profile_reaches_native_child_and_cache(monkeypatch, tmp_path):
+    import json
+    from types import SimpleNamespace
+
+    from voice_runtime.cache import PublicClipCache
+    from voice_runtime.config import BACKEND
+    from voice_runtime.speech.kokoro import KokoroAdapter
+    from voice_runtime.worker import gate_fingerprint
+
+    records = json.loads((BACKEND / "voice/catalog.json").read_text())
+    selected = next(row for row in records if row["id"] == "kokoro-am-adam-v1")
+    requests = []
+
+    class Supervisor:
+        def run(self, *args, **kwargs):
+            requests.append(json.loads(kwargs["input_bytes"]))
+            return SimpleNamespace(
+                stdout=json.dumps({"pcm": "AQACAA==", "sample_rate": 24000, "metrics": {}}),
+                elapsed_seconds=0,
+                peak_rss_bytes=0,
+            )
+
+    monkeypatch.setattr(
+        "voice_runtime.speech.adapter.require_headroom", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr("voice_runtime.speech.adapter.snapshot", lambda *args: tmp_path)
+    (tmp_path / "voices").mkdir()
+    (tmp_path / "voices" / "am_adam.pt").write_bytes(b"synthetic-test-placeholder")
+    # This wire/config unit test assumes adoption; real unapproved files are rejected in test_assets.
+    approved_file = tmp_path / "voices" / "am_adam.pt"
+    monkeypatch.setattr(
+        "voice_runtime.speech.adapter.require_manifest_file", lambda *args: approved_file
+    )
+    monkeypatch.setattr("voice_runtime.worker.require_manifest_file", lambda *args: approved_file)
+    KokoroAdapter(supervisor=Supervisor()).synthesize("hello", "en", selected)
+    assert requests[0]["voice_config"] == selected
+    cache = PublicClipCache(tmp_path)
+    phrase = "One moment, please."
+    assert cache.key(phrase, "en", selected) != cache.key(phrase, "en")
+    assert gate_fingerprint("en", selected) != gate_fingerprint("en")
+    tampered = selected | {"config": selected["config"] | {"name": "unknown"}}
+    with pytest.raises(ValueError):
+        KokoroAdapter(supervisor=Supervisor()).synthesize("hello", "en", tampered)
+
+
+def test_missing_selected_tensor_never_starts_inference(monkeypatch, tmp_path):
+    import json
+
+    from voice_runtime.config import BACKEND
+    from voice_runtime.speech.kokoro import KokoroAdapter
+
+    selected = next(
+        row
+        for row in json.loads((BACKEND / "voice/catalog.json").read_text())
+        if row["id"] == "kokoro-am-adam-v1"
+    )
+
+    class Supervisor:
+        def run(self, *args, **kwargs):
+            raise AssertionError("Missing profile must fail before inference")
+
+    monkeypatch.setattr(
+        "voice_runtime.speech.adapter.require_headroom", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr("voice_runtime.speech.adapter.snapshot", lambda *args: tmp_path)
+    with pytest.raises((FileNotFoundError, ValueError)):
+        KokoroAdapter(supervisor=Supervisor()).synthesize("hello", "en", selected)

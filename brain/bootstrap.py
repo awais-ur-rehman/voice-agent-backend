@@ -4,13 +4,12 @@ import argparse
 import json
 import os
 import stat
-from datetime import UTC, datetime, time
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal, cast
+from typing import cast
 from uuid import UUID, uuid4, uuid5
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
 from scheduler.bootstrap import ROOT, seed_demo, validate_local_database
@@ -18,37 +17,8 @@ from scheduler.config import load_settings
 from scheduler.db import tenant_context
 from scheduler.models import Agent, AgentVersion, Patient, Provider, Service
 
+from .agent_config import AgentConfig, LegacyAgentConfig, read_config
 from .sessions import purge_recovery
-
-
-class ClinicProfile(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True)
-    address_en: str | None = Field(default=None, min_length=1, max_length=300)
-    address_ur: str | None = Field(default=None, min_length=1, max_length=300)
-    preparation_en: str | None = Field(default=None, min_length=1, max_length=600)
-    preparation_ur: str | None = Field(default=None, min_length=1, max_length=600)
-
-
-class AgentConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True)
-    name: str = Field(default="Synthetic Receptionist", min_length=1, max_length=100)
-    language_mode: Literal["en", "ur", "bilingual"] = "bilingual"
-    instructions: str = Field(default="Ask one question at a time.", min_length=1, max_length=2000)
-    read_digits_in_english: bool = False
-    prayer_break: list[str] | None = Field(default=None, min_length=2, max_length=2)
-    clinic_profile: ClinicProfile = Field(default_factory=ClinicProfile)
-
-    @field_validator("prayer_break")
-    @classmethod
-    def valid_prayer_break(cls, value):
-        if value is not None:
-            try:
-                first, last = map(time.fromisoformat, value)
-                if first.tzinfo or last.tzinfo or first >= last:
-                    raise ValueError()
-            except ValueError:
-                raise ValueError("Prayer break requires ordered local wall times") from None
-        return value
 
 
 def read_demo_credentials(path: Path) -> dict:
@@ -95,7 +65,9 @@ def update_demo_identifiers(path: Path, summary: list[dict]) -> None:
             Path(temporary).unlink(missing_ok=True)
 
 
-def publish_agent(db: Session, tenant_id: UUID, agent_id: UUID, config: AgentConfig) -> UUID:
+def publish_agent(
+    db: Session, tenant_id: UUID, agent_id: UUID, config: AgentConfig | LegacyAgentConfig
+) -> UUID:
     """Publish a fresh immutable version; existing sessions keep their original version."""
     tenant_context(db, tenant_id)
     agent = db.scalar(
@@ -108,7 +80,16 @@ def publish_agent(db: Session, tenant_id: UUID, agent_id: UUID, config: AgentCon
     )
     if agent is None:
         raise ValueError("Agent does not belong to this tenant")
+    number = (
+        db.scalar(
+            select(func.max(AgentVersion.number)).where(
+                AgentVersion.agent_id == agent.id, AgentVersion.purpose == "production"
+            )
+        )
+        or 0
+    ) + 1
     version = AgentVersion(
+        number=number,
         id=uuid4(),
         tenant_id=tenant_id,
         agent_id=agent.id,
@@ -139,7 +120,7 @@ def seed_brain_demo(admin_url: str, credentials_path: Path) -> list[dict]:
                     agent = Agent(id=agent_id, tenant_id=tenant_id, name="Synthetic Receptionist")
                     db.add(agent)
                     db.flush()
-                    publish_agent(db, tenant_id, agent.id, AgentConfig())
+                    publish_agent(db, tenant_id, agent.id, LegacyAgentConfig())
                 for model, key, name_ur in (
                     (Provider, "provider_id", "ڈاکٹر مصنوعی"),
                     (Service, "service_id", "مشاورت"),
@@ -200,9 +181,7 @@ def main() -> None:
             with Session(engine) as db, db.begin():
                 tenant_context(db, args.tenant_id)
                 if args.publish:
-                    agent_config = AgentConfig.model_validate_json(
-                        args.config.read_text(encoding="utf-8")
-                    )
+                    agent_config = read_config(json.loads(args.config.read_text(encoding="utf-8")))
                     print(publish_agent(db, args.tenant_id, args.agent_id, agent_config))
                 else:
                     print(json.dumps(purge_recovery(db, datetime.now(UTC), args.limit)))

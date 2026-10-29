@@ -28,8 +28,18 @@ def create_session(
     db: Session, staff: Principal, agent_id: UUID, now: datetime, settings, *, transport_mode="text"
 ) -> dict:
     tenant_context(db, staff.tenant_id)
-    agent = db.scalar(select(Agent).where(Agent.id == agent_id, Agent.tenant_id == staff.tenant_id))
-    if agent is None or not agent.enabled or agent.active_version_id is None:
+    agent = db.scalar(
+        select(Agent)
+        .where(Agent.id == agent_id, Agent.tenant_id == staff.tenant_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if (
+        agent is None
+        or not agent.enabled
+        or agent.archived_at is not None
+        or agent.active_version_id is None
+    ):
         raise AppError("not_found", 404)
     version = db.scalar(
         select(AgentVersion).where(
@@ -46,6 +56,10 @@ def create_session(
     state = initial_state(session_id, agent.id, version.id)
     if version.config.get("language_mode") == "ur":
         state["lang"] = "ur"
+    from .agent_config import greeting
+
+    state["greeting"] = {language: greeting(version.config, language) for language in ("en", "ur")}
+    state["tone"] = version.config.get("tone", "friendly")
     state["read_digits_in_english"] = bool(version.config.get("read_digits_in_english", False))
     row = AgentSession(
         id=session_id,
@@ -103,7 +117,7 @@ def command(
 
         require_worker(db, actor, voice_authority, now)
     agent = db.get(Agent, actor.agent_id)
-    if agent is None or not agent.enabled:
+    if agent is None:
         raise AppError("unauthorized", 401)
     key = secret.get_secret_value() if hasattr(secret, "get_secret_value") else secret
     encoded = json.dumps(
@@ -223,7 +237,7 @@ def renew_session(db: Session, actor: RuntimeActor, now: datetime, settings, *, 
     if row.transport_mode == "voice":
         raise AppError("voice_worker_required", 403)
     agent = db.get(Agent, actor.agent_id)
-    if agent is None or not agent.enabled:
+    if agent is None:
         raise AppError("unauthorized", 401)
     token = issue_runtime(row, settings)
     row.expires_at = now + INACTIVITY

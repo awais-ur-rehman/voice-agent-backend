@@ -124,7 +124,10 @@ def idempotent(
 
 
 def locks(db: Session, patient_id: UUID, provider_ids: set[UUID]):
-    get(db, Patient, patient_id, True)
+    from .dashboard.patients import canonical_patient
+
+    patient = get(db, Patient, patient_id)
+    canonical_patient(db, patient.tenant_id, patient_id, lock=True)
     for provider_id in sorted(provider_ids):
         get(db, Provider, provider_id, True)
 
@@ -205,6 +208,8 @@ def book_transaction(db, user, body: Book, now):
         get(db, Provider, body.provider_id),
         get(db, Service, body.service_id),
     )
+    if get(db, Patient, body.patient_id, True).merged_into_id is not None:
+        raise AppError("patient_merged", 409)
     available(db, tenant, body.patient_id, provider, service, body.starts_at, now)
     row = new_appointment(db, user, body.patient_id, provider, service, body.starts_at)
     audit(db, user, "appointment.booked", row.id)

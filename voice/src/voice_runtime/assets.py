@@ -3,6 +3,7 @@
 import hashlib
 import json
 from dataclasses import dataclass
+from fnmatch import fnmatchcase
 from pathlib import Path
 
 from voice_runtime.config import BACKEND, LOCAL, Settings
@@ -78,6 +79,30 @@ def snapshot(name: str, settings: Settings | None = None) -> Path:
         ):
             raise ValueError("artifact manifest is incomplete")
     return path
+
+
+def require_manifest_file(name: str, relative: str, settings: Settings | None = None) -> Path:
+    """Selected files need explicit adoption, manifest membership and matching bytes."""
+    settings = settings or Settings()
+    pin = ARTIFACTS[name]
+    selected = Path(relative)
+    if (
+        selected.is_absolute()
+        or ".." in selected.parts
+        or not any(fnmatchcase(relative, pattern) for pattern in pin.patterns)
+    ):
+        raise ValueError("Selected tensor is not an approved artifact path")
+    root = snapshot(name, settings)
+    manifest = json.loads((LOCAL / f"{name}-manifest.json").read_text())
+    entries = [row for row in manifest["files"] if row["file"] == relative]
+    if len(entries) != 1:
+        raise ValueError("Selected tensor must be a unique manifest member")
+    file = root / selected
+    with file.open("rb") as source:
+        digest = hashlib.file_digest(source, "sha256").hexdigest()
+    if entries[0].get("sha256") != digest:
+        raise ValueError("Selected tensor bytes do not match the approved manifest")
+    return file
 
 
 def download(name: str):

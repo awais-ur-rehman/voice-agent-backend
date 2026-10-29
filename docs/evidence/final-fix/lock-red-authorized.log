@@ -1,0 +1,220 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.13, pytest-9.1.1, pluggy-1.7.0
+rootdir: /Users/awaisurrehman/Documents/experimental/voice-agent/backend
+configfile: pyproject.toml
+plugins: anyio-4.15.1
+collected 20 items / 18 deselected / 2 selected
+
+tests_brain/test_draft_tests.py FF                                       [100%]
+
+=================================== FAILURES ===================================
+________ test_publication_and_test_allocation_share_lock_order[publish] ________
+
+dashboard = <starlette.testclient.TestClient object at 0x1110b39e0>
+seed = {'owner_a': UUID('bc3638f1-b6b1-49d9-af2c-689f380681db'), 'staff_a': UUID('f337f6f0-3f87-4843-a631-c935ed77ef84'), 'tenant_a': UUID('c1c00746-0c23-4797-b37e-3da9991365f0'), 'provider_a': UUID('ad3deb72-773c-4604-bc9d-df33cfd8a49e'), ...}
+database = Engine(postgresql+psycopg://postgres:***@127.0.0.1:55433/voice_agent_test)
+operation = 'publish'
+
+    @pytest.mark.parametrize("operation", ["publish", "rollback"])
+    def test_publication_and_test_allocation_share_lock_order(dashboard, seed, database, operation):
+        """Pause publication at its first row lock; allocation must wait without a cycle."""
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Event
+        from time import monotonic, sleep
+    
+        from sqlalchemy import event
+        from brain.agent_config import AgentConfig
+    
+        path = f"/dashboard/agents/{seed['agent_a']}"
+        draft = dashboard.get(path + "/draft").json()
+        saved = dashboard.put(
+            path + "/draft", json={"revision": draft["revision"], "config": AgentConfig().model_dump()}
+        ).json()
+        held, release, allocation_started = Event(), Event(), Event()
+        pids = []
+        engine = dashboard.app.state.engine
+    
+        def after_lock(conn, cursor, statement, parameters, context, executemany):
+            if "FOR UPDATE" not in statement:
+                return
+            pid = cursor.connection.info.backend_pid
+            if not held.is_set():
+                pids.append(pid)
+                held.set()
+                assert release.wait(10), "publication barrier timed out"
+    
+        def before_lock(conn, cursor, statement, parameters, context, executemany):
+            if "FOR UPDATE" in statement and held.is_set():
+                pid = cursor.connection.info.backend_pid
+                if pid != pids[0]:
+                    if pid not in pids:
+                        pids.append(pid)
+                    allocation_started.set()
+    
+        body = {"revision": saved["revision"]}
+        if operation == "rollback":
+            body["version_id"] = str(seed["version_a"])
+        event.listen(engine, "after_cursor_execute", after_lock)
+        event.listen(engine, "before_cursor_execute", before_lock)
+        try:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                publishing = pool.submit(
+                    dashboard.post, path + "/" + operation, json=body,
+                    headers={"Idempotency-Key": "barrier-publication"},
+                )
+                try:
+                    assert held.wait(5)
+                    allocating = pool.submit(
+                        start, dashboard, seed["agent_a"], draft_revision=saved["revision"]
+                    )
+                    assert allocation_started.wait(5)
+                    deadline = monotonic() + 5
+                    while monotonic() < deadline:
+                        with database.connect() as observer:
+                            waiting = observer.scalar(text(
+                                "SELECT wait_event_type = 'Lock' FROM pg_stat_activity WHERE pid=:pid"
+                            ), {"pid": pids[1]})
+                        if waiting:
+                            break
+                        sleep(0.01)
+                    else:
+                        pytest.fail("allocation never reached a database lock wait")
+                finally:
+                    release.set()
+                published, allocated = publishing.result(timeout=10), allocating.result(timeout=10)
+        finally:
+            event.remove(engine, "after_cursor_execute", after_lock)
+            event.remove(engine, "before_cursor_execute", before_lock)
+        assert published.status_code == 200, published.text
+        assert allocated.status_code in (201, 409), allocated.text
+        if allocated.status_code == 409:
+>           assert allocated.json()["error"]["code"] == "revision_conflict", allocated.text
+E           AssertionError: {"error":{"code":"transaction_conflict","message":"transaction conflict"}}
+E           assert 'transaction_conflict' == 'revision_conflict'
+E             
+E             - revision_conflict
+E             ?  ^^^
+E             + transaction_conflict
+E             ? + ^^ +++
+
+tests_brain/test_draft_tests.py:760: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+{"request_id": "de091404-cb72-4bea-b8bb-991e301d2b69", "method": "POST", "route": "/auth/login", "status": 200, "duration_ms": 66.45}
+----------------------------- Captured stderr call -----------------------------
+{"request_id": "4f51f6e1-0691-443b-bdde-e14ac85e007e", "method": "GET", "route": "/dashboard/agents/{identity}/draft", "status": 200, "duration_ms": 25.22}
+{"request_id": "ef224d7a-e605-4e32-9fd8-df76f5b52e7b", "method": "PUT", "route": "/dashboard/agents/{identity}/draft", "status": 200, "duration_ms": 8.83}
+{"request_id": "df97d6c3-c13d-4417-b2f5-a71ba417cf41", "method": "POST", "route": "/dashboard/agents/{agent_id}/tests", "status": 409, "duration_ms": 1013.51}
+{"request_id": "504609e1-2615-46bd-b738-c1527a5c92c7", "method": "POST", "route": "/dashboard/agents/{identity}/publish", "status": 200, "duration_ms": 1033.46}
+------------------------------ Captured log call -------------------------------
+INFO     scheduler.requests:main.py:137 {"request_id": "4f51f6e1-0691-443b-bdde-e14ac85e007e", "method": "GET", "route": "/dashboard/agents/{identity}/draft", "status": 200, "duration_ms": 25.22}
+INFO     scheduler.requests:main.py:137 {"request_id": "ef224d7a-e605-4e32-9fd8-df76f5b52e7b", "method": "PUT", "route": "/dashboard/agents/{identity}/draft", "status": 200, "duration_ms": 8.83}
+INFO     scheduler.requests:main.py:137 {"request_id": "df97d6c3-c13d-4417-b2f5-a71ba417cf41", "method": "POST", "route": "/dashboard/agents/{agent_id}/tests", "status": 409, "duration_ms": 1013.51}
+INFO     scheduler.requests:main.py:137 {"request_id": "504609e1-2615-46bd-b738-c1527a5c92c7", "method": "POST", "route": "/dashboard/agents/{identity}/publish", "status": 200, "duration_ms": 1033.46}
+_______ test_publication_and_test_allocation_share_lock_order[rollback] ________
+
+dashboard = <starlette.testclient.TestClient object at 0x1112c4f50>
+seed = {'owner_a': UUID('87f982fb-5dc1-4c93-938b-8fd1b8a43029'), 'staff_a': UUID('aa1053a7-def5-47e3-afd8-b3d340043044'), 'tenant_a': UUID('92148c9c-db38-4c96-a921-76ff985a6336'), 'provider_a': UUID('263032da-bd81-407c-97c2-a4e3d1bd9d02'), ...}
+database = Engine(postgresql+psycopg://postgres:***@127.0.0.1:55433/voice_agent_test)
+operation = 'rollback'
+
+    @pytest.mark.parametrize("operation", ["publish", "rollback"])
+    def test_publication_and_test_allocation_share_lock_order(dashboard, seed, database, operation):
+        """Pause publication at its first row lock; allocation must wait without a cycle."""
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Event
+        from time import monotonic, sleep
+    
+        from sqlalchemy import event
+        from brain.agent_config import AgentConfig
+    
+        path = f"/dashboard/agents/{seed['agent_a']}"
+        draft = dashboard.get(path + "/draft").json()
+        saved = dashboard.put(
+            path + "/draft", json={"revision": draft["revision"], "config": AgentConfig().model_dump()}
+        ).json()
+        held, release, allocation_started = Event(), Event(), Event()
+        pids = []
+        engine = dashboard.app.state.engine
+    
+        def after_lock(conn, cursor, statement, parameters, context, executemany):
+            if "FOR UPDATE" not in statement:
+                return
+            pid = cursor.connection.info.backend_pid
+            if not held.is_set():
+                pids.append(pid)
+                held.set()
+                assert release.wait(10), "publication barrier timed out"
+    
+        def before_lock(conn, cursor, statement, parameters, context, executemany):
+            if "FOR UPDATE" in statement and held.is_set():
+                pid = cursor.connection.info.backend_pid
+                if pid != pids[0]:
+                    if pid not in pids:
+                        pids.append(pid)
+                    allocation_started.set()
+    
+        body = {"revision": saved["revision"]}
+        if operation == "rollback":
+            body["version_id"] = str(seed["version_a"])
+        event.listen(engine, "after_cursor_execute", after_lock)
+        event.listen(engine, "before_cursor_execute", before_lock)
+        try:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                publishing = pool.submit(
+                    dashboard.post, path + "/" + operation, json=body,
+                    headers={"Idempotency-Key": "barrier-publication"},
+                )
+                try:
+                    assert held.wait(5)
+                    allocating = pool.submit(
+                        start, dashboard, seed["agent_a"], draft_revision=saved["revision"]
+                    )
+                    assert allocation_started.wait(5)
+                    deadline = monotonic() + 5
+                    while monotonic() < deadline:
+                        with database.connect() as observer:
+                            waiting = observer.scalar(text(
+                                "SELECT wait_event_type = 'Lock' FROM pg_stat_activity WHERE pid=:pid"
+                            ), {"pid": pids[1]})
+                        if waiting:
+                            break
+                        sleep(0.01)
+                    else:
+                        pytest.fail("allocation never reached a database lock wait")
+                finally:
+                    release.set()
+                published, allocated = publishing.result(timeout=10), allocating.result(timeout=10)
+        finally:
+            event.remove(engine, "after_cursor_execute", after_lock)
+            event.remove(engine, "before_cursor_execute", before_lock)
+        assert published.status_code == 200, published.text
+        assert allocated.status_code in (201, 409), allocated.text
+        if allocated.status_code == 409:
+>           assert allocated.json()["error"]["code"] == "revision_conflict", allocated.text
+E           AssertionError: {"error":{"code":"transaction_conflict","message":"transaction conflict"}}
+E           assert 'transaction_conflict' == 'revision_conflict'
+E             
+E             - revision_conflict
+E             ?  ^^^
+E             + transaction_conflict
+E             ? + ^^ +++
+
+tests_brain/test_draft_tests.py:760: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+{"request_id": "926ef642-eaa1-4868-8238-82124f51c1aa", "method": "POST", "route": "/auth/login", "status": 200, "duration_ms": 81.45}
+------------------------------ Captured log setup ------------------------------
+INFO     scheduler.requests:main.py:137 {"request_id": "926ef642-eaa1-4868-8238-82124f51c1aa", "method": "POST", "route": "/auth/login", "status": 200, "duration_ms": 81.45}
+----------------------------- Captured stderr call -----------------------------
+{"request_id": "1eb41761-c6ac-4ae0-9a01-60dda65c6481", "method": "GET", "route": "/dashboard/agents/{identity}/draft", "status": 200, "duration_ms": 29.81}
+{"request_id": "ac8abbd0-35c8-48c5-962f-883c7acb41e9", "method": "PUT", "route": "/dashboard/agents/{identity}/draft", "status": 200, "duration_ms": 9.92}
+{"request_id": "4213942d-178b-4766-95c0-f4153203b401", "method": "POST", "route": "/dashboard/agents/{agent_id}/tests", "status": 409, "duration_ms": 1021.43}
+{"request_id": "e07f5c2c-beea-45e7-9501-d87f898d39d5", "method": "POST", "route": "/dashboard/agents/{identity}/rollback", "status": 200, "duration_ms": 1044.49}
+------------------------------ Captured log call -------------------------------
+INFO     scheduler.requests:main.py:137 {"request_id": "1eb41761-c6ac-4ae0-9a01-60dda65c6481", "method": "GET", "route": "/dashboard/agents/{identity}/draft", "status": 200, "duration_ms": 29.81}
+INFO     scheduler.requests:main.py:137 {"request_id": "ac8abbd0-35c8-48c5-962f-883c7acb41e9", "method": "PUT", "route": "/dashboard/agents/{identity}/draft", "status": 200, "duration_ms": 9.92}
+INFO     scheduler.requests:main.py:137 {"request_id": "4213942d-178b-4766-95c0-f4153203b401", "method": "POST", "route": "/dashboard/agents/{agent_id}/tests", "status": 409, "duration_ms": 1021.43}
+INFO     scheduler.requests:main.py:137 {"request_id": "e07f5c2c-beea-45e7-9501-d87f898d39d5", "method": "POST", "route": "/dashboard/agents/{identity}/rollback", "status": 200, "duration_ms": 1044.49}
+=========================== short test summary info ============================
+FAILED tests_brain/test_draft_tests.py::test_publication_and_test_allocation_share_lock_order[publish]
+FAILED tests_brain/test_draft_tests.py::test_publication_and_test_allocation_share_lock_order[rollback]
+======================= 2 failed, 18 deselected in 3.12s =======================

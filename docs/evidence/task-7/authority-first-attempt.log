@@ -1,0 +1,10 @@
+Actual immutable update rejected False
+Traceback (most recent call last):
+  File "<stdin>", line 14, in <module>
+AssertionError
+Traceback (most recent call last):
+  File "/Users/awaisurrehman/Documents/experimental/voice-agent/backend/.local/task7-authority.py", line 23, in <module>
+    subprocess.run(['docker','compose','--env-file','.env.api','exec','-T','api','uv','run','--no-sync','python','-'],input=code,text=True,check=True)
+  File "/Users/awaisurrehman/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['docker', 'compose', '--env-file', '.env.api', 'exec', '-T', 'api', 'uv', 'run', '--no-sync', 'python', '-']' returned non-zero exit status 1.

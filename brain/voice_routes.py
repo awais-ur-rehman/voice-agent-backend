@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from valkey.exceptions import ValkeyError
 
+from scheduler.contracts import Contract
 from scheduler.db import Principal, principal, session, tenant_context
 from scheduler.errors import AppError
 from scheduler.models import Agent, AgentSession, AgentVersion
@@ -55,9 +56,24 @@ def _ready(request, language_mode=None):
             not isinstance(capabilities, dict)
             or type(capabilities.get("en")) is not bool
             or type(capabilities.get("ur")) is not bool
-            or not any(capabilities.values())
+            or not (capabilities["en"] or capabilities["ur"])
         ):
             raise AppError("voice_unavailable", 503)
+        if isinstance(language_mode, dict):
+            from .agent_config import AgentConfig
+
+            config = AgentConfig.model_validate(language_mode)
+            required = (
+                ("en", "ur") if config.language_mode == "bilingual" else (config.language_mode,)
+            )
+            fingerprints = capabilities.get("profiles", [])
+            if not isinstance(fingerprints, list) or any(
+                not capabilities[language]
+                or config.voice_profiles[language]["config_fingerprint"] not in fingerprints
+                for language in required
+            ):
+                raise AppError("voice_unavailable", 503)
+            language_mode = config.language_mode
         if language_mode == "ur" and not capabilities["ur"]:
             raise AppError("voice_urdu_unavailable", 503)
         if language_mode in {"en", "bilingual"} and not capabilities["en"]:
@@ -71,7 +87,11 @@ def _language_mode(db, parent):
     version = db.get(AgentVersion, parent.version_id)
     if version is None:
         raise AppError("voice_unavailable", 503)
-    return version.config.get("language_mode", "bilingual")
+    return (
+        version.config
+        if version.config.get("schema_version") == 2
+        else version.config.get("language_mode", "bilingual")
+    )
 
 
 def _expired(parent, voice, now):
@@ -170,12 +190,12 @@ def _release_capacity(store, identity):
     store.client.eval(_RELEASE_CAPACITY, 1, "voice:capacity", str(identity))
 
 
-def _end_locked(parent, voice, store, now, status):
+def _end_locked(parent, voice, store, now, status, *, release_hold=True):
     cleanup_failed = False
     if voice.status not in {"ended", "failed"}:
         state = deepcopy(parent.checkpoint or {})
         hold = state.pop("hold", None)
-        if hold:
+        if hold and release_hold:
             try:
                 store.release_hold(
                     str(parent.tenant_id), hold["provider"], str(parent.id), hold["hold_id"]
@@ -234,10 +254,12 @@ def _terminate(request, user, identity, *, status="ended", expected_generation=N
     return snapshot
 
 
-def _provision(request, user, identity, room, generation):
+def _provision(request, user, identity, room, generation, *, internal_auth=None):
     try:
         LiveKitRooms(request.app.state.settings).create(room)
         with request.app.state.session_factory() as db, db.begin():
+            if internal_auth:
+                internal_auth(db)
             parent, voice = _owned_pair(db, user, identity)
             now = request.app.state.clock()
             if (
@@ -264,7 +286,17 @@ def _provision(request, user, identity, room, generation):
         raise AppError("voice_unavailable", 503) from None
 
 
-@router.get("/agents")
+class VoiceAgent(Contract):
+    id: UUID
+    name: str
+    language_mode: str
+
+
+class VoiceAgents(Contract):
+    agents: list[VoiceAgent]
+
+
+@router.get("/agents", response_model=VoiceAgents)
 def agents(request: Request, user: Principal = Depends(principal), auth_db=Depends(session)):
     auth_db.commit()
     with request.app.state.session_factory() as db, db.begin():

@@ -3,7 +3,7 @@
 import base64
 import json
 
-from voice_runtime.assets import snapshot
+from voice_runtime.assets import require_manifest_file, snapshot
 from voice_runtime.config import Settings, require_headroom
 from voice_runtime.speech.contracts import PCMChunk
 from voice_runtime.speech.process import Supervisor
@@ -28,12 +28,15 @@ class SpeechAdapter:
             raise ValueError("unsupported language")
         if not isinstance(text, str) or not text.strip() or len(text) > 300:
             raise ValueError("synthesis requires 1-300 characters")
-        if voice_config not in (None, {}):
-            raise ValueError("voice_config is frozen for this CPU checkpoint")
+        from voice_runtime.profiles import selected_config
+
+        config = selected_config(language, voice_config)
         import psutil
 
         require_headroom(self.engine, available_bytes=psutil.virtual_memory().available)
         snapshot(self.engine, self.settings)
+        if voice_config and self.engine == "kokoro":
+            require_manifest_file("kokoro", "voices/" + config["name"] + ".pt", self.settings)
         request = {"engine": self.engine, "text": text, "voice_config": voice_config or {}}
         result = self.supervisor.run(
             [str(self.settings.inference_python), "-m", "voice_runtime.speech.child"],

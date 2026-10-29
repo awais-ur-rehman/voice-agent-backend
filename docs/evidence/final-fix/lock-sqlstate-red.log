@@ -1,0 +1,216 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.13, pytest-9.1.1, pluggy-1.7.0
+rootdir: /Users/awaisurrehman/Documents/experimental/voice-agent/backend
+configfile: pyproject.toml
+plugins: anyio-4.15.1
+collected 20 items / 18 deselected / 2 selected
+
+tests_brain/test_draft_tests.py FF                                       [100%]
+
+=================================== FAILURES ===================================
+________ test_publication_and_test_allocation_share_lock_order[publish] ________
+
+dashboard = <starlette.testclient.TestClient object at 0x10dc33020>
+seed = {'owner_a': UUID('d95af5d2-c500-4493-9daf-60b62cde8d66'), 'staff_a': UUID('a2e65391-581d-4384-a701-2cc681993bae'), 'tenant_a': UUID('fd15e2f4-768f-435d-b375-fcdf4fdf24a6'), 'provider_a': UUID('47744d5d-3514-401d-bbe7-5d08de0a7707'), ...}
+database = Engine(postgresql+psycopg://postgres:***@127.0.0.1:55433/voice_agent_test)
+operation = 'publish'
+
+    @pytest.mark.parametrize("operation", ["publish", "rollback"])
+    def test_publication_and_test_allocation_share_lock_order(dashboard, seed, database, operation):
+        """Pause publication at its first row lock; allocation must wait without a cycle."""
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Event
+        from time import monotonic, sleep
+    
+        from sqlalchemy import event
+        from brain.agent_config import AgentConfig
+    
+        path = f"/dashboard/agents/{seed['agent_a']}"
+        draft = dashboard.get(path + "/draft").json()
+        saved = dashboard.put(
+            path + "/draft", json={"revision": draft["revision"], "config": AgentConfig().model_dump()}
+        ).json()
+        held, release, allocation_started = Event(), Event(), Event()
+        pids = []
+        engine = dashboard.app.state.engine
+        sqlstates = []
+    
+        def database_error(context):
+            sqlstates.append(getattr(context.original_exception, "sqlstate", None))
+    
+        def after_lock(conn, cursor, statement, parameters, context, executemany):
+            if "FOR UPDATE" not in statement:
+                return
+            pid = cursor.connection.info.backend_pid
+            if not held.is_set():
+                pids.append(pid)
+                held.set()
+                assert release.wait(10), "publication barrier timed out"
+    
+        def before_lock(conn, cursor, statement, parameters, context, executemany):
+            if "FOR UPDATE" in statement and held.is_set():
+                pid = cursor.connection.info.backend_pid
+                if pid != pids[0]:
+                    if pid not in pids:
+                        pids.append(pid)
+                    allocation_started.set()
+    
+        body = {"revision": saved["revision"]}
+        if operation == "rollback":
+            body["version_id"] = str(seed["version_a"])
+        event.listen(engine, "handle_error", database_error)
+        event.listen(engine, "after_cursor_execute", after_lock)
+        event.listen(engine, "before_cursor_execute", before_lock)
+        try:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                publishing = pool.submit(
+                    dashboard.post, path + "/" + operation, json=body,
+                    headers={"Idempotency-Key": "barrier-publication"},
+                )
+                try:
+                    assert held.wait(5)
+                    allocating = pool.submit(
+                        start, dashboard, seed["agent_a"], draft_revision=saved["revision"]
+                    )
+                    assert allocation_started.wait(5)
+                    deadline = monotonic() + 5
+                    while monotonic() < deadline:
+                        with database.connect() as observer:
+                            waiting = observer.scalar(text(
+                                "SELECT wait_event_type = 'Lock' FROM pg_stat_activity WHERE pid=:pid"
+                            ), {"pid": pids[1]})
+                        if waiting:
+                            break
+                        sleep(0.01)
+                    else:
+                        pytest.fail("allocation never reached a database lock wait")
+                finally:
+                    release.set()
+                published, allocated = publishing.result(timeout=10), allocating.result(timeout=10)
+        finally:
+            event.remove(engine, "handle_error", database_error)
+            event.remove(engine, "after_cursor_execute", after_lock)
+            event.remove(engine, "before_cursor_execute", before_lock)
+>       assert "40P01" not in sqlstates, sqlstates
+E       AssertionError: ['40P01']
+E       assert '40P01' not in ['40P01']
+
+tests_brain/test_draft_tests.py:763: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+{"request_id": "7cdb13ee-fb33-4cd4-ad0b-982a88d5a67f", "method": "POST", "route": "/auth/login", "status": 200, "duration_ms": 72.17}
+----------------------------- Captured stderr call -----------------------------
+{"request_id": "67067b7c-76fb-4e60-8664-3a0dd6676c84", "method": "GET", "route": "/dashboard/agents/{identity}/draft", "status": 200, "duration_ms": 30.3}
+{"request_id": "3f4ca558-3567-4f5e-aa74-f901d874db5e", "method": "PUT", "route": "/dashboard/agents/{identity}/draft", "status": 200, "duration_ms": 10.72}
+{"request_id": "7f5bd29a-09f0-46ff-914c-d734acaa0963", "method": "POST", "route": "/dashboard/agents/{identity}/publish", "status": 409, "duration_ms": 1034.39}
+{"request_id": "23e9bf3b-f0c0-49f1-a95a-dcd935c2dcc9", "method": "POST", "route": "/dashboard/agents/{agent_id}/tests", "status": 201, "duration_ms": 1145.47}
+------------------------------ Captured log call -------------------------------
+INFO     scheduler.requests:main.py:137 {"request_id": "67067b7c-76fb-4e60-8664-3a0dd6676c84", "method": "GET", "route": "/dashboard/agents/{identity}/draft", "status": 200, "duration_ms": 30.3}
+INFO     scheduler.requests:main.py:137 {"request_id": "3f4ca558-3567-4f5e-aa74-f901d874db5e", "method": "PUT", "route": "/dashboard/agents/{identity}/draft", "status": 200, "duration_ms": 10.72}
+INFO     scheduler.requests:main.py:137 {"request_id": "7f5bd29a-09f0-46ff-914c-d734acaa0963", "method": "POST", "route": "/dashboard/agents/{identity}/publish", "status": 409, "duration_ms": 1034.39}
+INFO     scheduler.requests:main.py:137 {"request_id": "23e9bf3b-f0c0-49f1-a95a-dcd935c2dcc9", "method": "POST", "route": "/dashboard/agents/{agent_id}/tests", "status": 201, "duration_ms": 1145.47}
+_______ test_publication_and_test_allocation_share_lock_order[rollback] ________
+
+dashboard = <starlette.testclient.TestClient object at 0x10db7b170>
+seed = {'owner_a': UUID('0b54963f-9999-45d2-adb7-6e0b97c25260'), 'staff_a': UUID('db9a2f8b-8a3b-469f-ac72-8a546e0bb55a'), 'tenant_a': UUID('7ab7871d-70a4-47dd-881a-0ad3596a1bda'), 'provider_a': UUID('ec45851f-90ef-45dd-b017-abba10ccd089'), ...}
+database = Engine(postgresql+psycopg://postgres:***@127.0.0.1:55433/voice_agent_test)
+operation = 'rollback'
+
+    @pytest.mark.parametrize("operation", ["publish", "rollback"])
+    def test_publication_and_test_allocation_share_lock_order(dashboard, seed, database, operation):
+        """Pause publication at its first row lock; allocation must wait without a cycle."""
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Event
+        from time import monotonic, sleep
+    
+        from sqlalchemy import event
+        from brain.agent_config import AgentConfig
+    
+        path = f"/dashboard/agents/{seed['agent_a']}"
+        draft = dashboard.get(path + "/draft").json()
+        saved = dashboard.put(
+            path + "/draft", json={"revision": draft["revision"], "config": AgentConfig().model_dump()}
+        ).json()
+        held, release, allocation_started = Event(), Event(), Event()
+        pids = []
+        engine = dashboard.app.state.engine
+        sqlstates = []
+    
+        def database_error(context):
+            sqlstates.append(getattr(context.original_exception, "sqlstate", None))
+    
+        def after_lock(conn, cursor, statement, parameters, context, executemany):
+            if "FOR UPDATE" not in statement:
+                return
+            pid = cursor.connection.info.backend_pid
+            if not held.is_set():
+                pids.append(pid)
+                held.set()
+                assert release.wait(10), "publication barrier timed out"
+    
+        def before_lock(conn, cursor, statement, parameters, context, executemany):
+            if "FOR UPDATE" in statement and held.is_set():
+                pid = cursor.connection.info.backend_pid
+                if pid != pids[0]:
+                    if pid not in pids:
+                        pids.append(pid)
+                    allocation_started.set()
+    
+        body = {"revision": saved["revision"]}
+        if operation == "rollback":
+            body["version_id"] = str(seed["version_a"])
+        event.listen(engine, "handle_error", database_error)
+        event.listen(engine, "after_cursor_execute", after_lock)
+        event.listen(engine, "before_cursor_execute", before_lock)
+        try:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                publishing = pool.submit(
+                    dashboard.post, path + "/" + operation, json=body,
+                    headers={"Idempotency-Key": "barrier-publication"},
+                )
+                try:
+                    assert held.wait(5)
+                    allocating = pool.submit(
+                        start, dashboard, seed["agent_a"], draft_revision=saved["revision"]
+                    )
+                    assert allocation_started.wait(5)
+                    deadline = monotonic() + 5
+                    while monotonic() < deadline:
+                        with database.connect() as observer:
+                            waiting = observer.scalar(text(
+                                "SELECT wait_event_type = 'Lock' FROM pg_stat_activity WHERE pid=:pid"
+                            ), {"pid": pids[1]})
+                        if waiting:
+                            break
+                        sleep(0.01)
+                    else:
+                        pytest.fail("allocation never reached a database lock wait")
+                finally:
+                    release.set()
+                published, allocated = publishing.result(timeout=10), allocating.result(timeout=10)
+        finally:
+            event.remove(engine, "handle_error", database_error)
+            event.remove(engine, "after_cursor_execute", after_lock)
+            event.remove(engine, "before_cursor_execute", before_lock)
+>       assert "40P01" not in sqlstates, sqlstates
+E       AssertionError: ['40P01']
+E       assert '40P01' not in ['40P01']
+
+tests_brain/test_draft_tests.py:763: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+{"request_id": "11fc5934-4b0c-412e-b053-77d8a1689370", "method": "POST", "route": "/auth/login", "status": 200, "duration_ms": 53.01}
+------------------------------ Captured log setup ------------------------------
+INFO     scheduler.requests:main.py:137 {"request_id": "11fc5934-4b0c-412e-b053-77d8a1689370", "method": "POST", "route": "/auth/login", "status": 200, "duration_ms": 53.01}
+----------------------------- Captured stderr call -----------------------------
+{"request_id": "b3ba7cee-681e-4ba5-95c5-666702087cfc", "method": "GET", "route": "/dashboard/agents/{identity}/draft", "status": 200, "duration_ms": 25.51}
+{"request_id": "5df8cbee-abbb-4a79-b257-e8e61fe6a53a", "method": "PUT", "route": "/dashboard/agents/{identity}/draft", "status": 200, "duration_ms": 10.24}
+{"request_id": "2b33270d-26c5-4ad4-9c55-8902fd5bcf04", "method": "POST", "route": "/dashboard/agents/{agent_id}/tests", "status": 409, "duration_ms": 1024.09}
+{"request_id": "7e0955fd-2ab7-4c85-a00d-e312f666a49f", "method": "POST", "route": "/dashboard/agents/{identity}/rollback", "status": 200, "duration_ms": 1061.76}
+------------------------------ Captured log call -------------------------------
+INFO     scheduler.requests:main.py:137 {"request_id": "b3ba7cee-681e-4ba5-95c5-666702087cfc", "method": "GET", "route": "/dashboard/agents/{identity}/draft", "status": 200, "duration_ms": 25.51}
+INFO     scheduler.requests:main.py:137 {"request_id": "5df8cbee-abbb-4a79-b257-e8e61fe6a53a", "method": "PUT", "route": "/dashboard/agents/{identity}/draft", "status": 200, "duration_ms": 10.24}
+INFO     scheduler.requests:main.py:137 {"request_id": "2b33270d-26c5-4ad4-9c55-8902fd5bcf04", "method": "POST", "route": "/dashboard/agents/{agent_id}/tests", "status": 409, "duration_ms": 1024.09}
+INFO     scheduler.requests:main.py:137 {"request_id": "7e0955fd-2ab7-4c85-a00d-e312f666a49f", "method": "POST", "route": "/dashboard/agents/{identity}/rollback", "status": 200, "duration_ms": 1061.76}
+=========================== short test summary info ============================
+FAILED tests_brain/test_draft_tests.py::test_publication_and_test_allocation_share_lock_order[publish]
+FAILED tests_brain/test_draft_tests.py::test_publication_and_test_allocation_share_lock_order[rollback]
+======================= 2 failed, 18 deselected in 3.26s =======================

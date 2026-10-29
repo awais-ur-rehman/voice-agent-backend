@@ -85,6 +85,8 @@ class CallerProcessor(FrameProcessor):
 class NativeCall:
     def __init__(self, base_url, grant):
         self.grant = grant
+        self.voice_profiles = grant.get("voice_profiles", {})
+        self.greetings = grant.get("greetings", {})
         self.caller = grant["caller_participant"]
         self.api = WorkerAPI(base_url, grant)
         self.session_id = str(grant["session_id"])
@@ -170,9 +172,7 @@ class NativeCall:
         greeting = {"en": "Hello. How can I help you today?", "ur": "السلام علیکم۔ آپ کیسے ہیں؟"}[
             language
         ]
-        if self.cache.get(greeting, language) is None:
-            await self.fail("public_cache_unavailable")
-            return
+        greeting = getattr(self, "greetings", {}).get(language, greeting)
         self.pending = asyncio.create_task(self.speak(greeting, language, None, self.epoch))
 
     async def status_filler(self, language, epoch, done, *, delay=0.8):
@@ -184,7 +184,11 @@ class NativeCall:
         except TimeoutError:
             pass
         text = {"en": "One moment, please.", "ur": "براہ کرم انتظار کریں۔"}[language]
-        if not done.is_set() and self.cache.get(text, language) is not None:
+        if (
+            not done.is_set()
+            and self.cache.get(text, language, getattr(self, "voice_profiles", {}).get(language))
+            is not None
+        ):
             self.filler_started = True
             await self.speak(text, language, None, epoch, status_only=True)
 
@@ -349,10 +353,20 @@ class NativeCall:
         for index, sentence in enumerate(segments):
             self.current_output["index"] = index
             is_public = sentence in PUBLIC.get(language, frozenset()) and readback_revision is None
-            pcm = self.cache.get(sentence, language) if is_public else None
+            pcm = (
+                self.cache.get(
+                    sentence, language, getattr(self, "voice_profiles", {}).get(language)
+                )
+                if is_public
+                else None
+            )
             if pcm is None:
                 pcm = await asyncio.to_thread(
-                    adapter.synthesize, sentence, language, None, adapter.supervisor.generation
+                    adapter.synthesize,
+                    sentence,
+                    language,
+                    getattr(self, "voice_profiles", {}).get(language),
+                    adapter.supervisor.generation,
                 )
             if epoch != self.epoch:
                 return
@@ -367,7 +381,12 @@ class NativeCall:
                 .tobytes()
             )
             if is_public:
-                self.cache.put(sentence, language, PCMChunk(output, 24000))
+                self.cache.put(
+                    sentence,
+                    language,
+                    PCMChunk(output, 24000),
+                    getattr(self, "voice_profiles", {}).get(language),
+                )
             identity = uuid.uuid4().hex
             count = len(output) // 2
             self.current_output["ids"][index] = identity

@@ -156,6 +156,8 @@ def run_command(
     event=False,
     voice_authority=None,
     voice_input=None,
+    internal_auth=None,
+    internal_complete=None,
 ):
     store = require_store(request)
     factory = request.app.state.session_factory
@@ -166,7 +168,9 @@ def run_command(
         payload["voice"] = voice_input.model_dump(mode="json")
     # Complete snapshot transaction before network inference. Never hold SQL locks across NIM.
     with factory() as db, db.begin():
-        actor = auth_runtime(request, db, credentials, identity)
+        actor = (
+            internal_auth(db) if internal_auth else auth_runtime(request, db, credentials, identity)
+        )
         row = db.get(AgentSession, identity)
         if row.transport_mode == "voice":
             if voice_authority is None:
@@ -276,7 +280,9 @@ def run_command(
     elif not live and not event:
         action = body.action.model_dump(mode="json")
     with factory() as db, db.begin():
-        actor = auth_runtime(request, db, credentials, identity)
+        actor = (
+            internal_auth(db) if internal_auth else auth_runtime(request, db, credentials, identity)
+        )
 
         def execute(db, s):
             try:
@@ -328,7 +334,10 @@ def run_command(
                 return engine.trusted_event(s, body.kind, delivered_text=body.delivered_text)
             if failed:
                 return engine.trusted_event(s, "upstream_timeout")
-            return engine.execute(s, action, text)
+            response = engine.execute(s, action, text)
+            if internal_auth:
+                response["test_action"] = action["name"] if action else None
+            return response
 
         response, next_state = command(
             db,
@@ -342,6 +351,8 @@ def run_command(
             clock=request.app.state.clock,
             voice_authority=voice_authority,
         )
+        if internal_complete:
+            internal_complete(db, next_state)  # Parent scope check permits terminal children.
     cache_ready = repair(store, identity, next_state)
     return {
         "result": response,
@@ -349,7 +360,9 @@ def run_command(
         "state": next_state,
         "cache_ready": cache_ready,
         "provider_requests": provider_requests,
-        "executed_action": action["name"] if action else None,
+        "executed_action": response.get("test_action")
+        if internal_auth
+        else (action["name"] if action else None),
     }
 
 

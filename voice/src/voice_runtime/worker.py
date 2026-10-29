@@ -8,22 +8,36 @@ import uuid
 
 import httpx
 
-from voice_runtime.assets import ARTIFACTS, snapshot
-from voice_runtime.config import BACKEND, FROZEN_VOICES, LOCAL
+from voice_runtime.assets import ARTIFACTS, require_manifest_file, snapshot
+from voice_runtime.config import BACKEND, LOCAL
 
 
-def gate_fingerprint(language):
+def gate_fingerprint(language, voice_profile=None):
     names = ["whisper", "kokoro" if language == "en" else "parler"]
     if language == "ur":
         names.append("description")
-    return {
+    from voice_runtime.profiles import selected_config
+
+    result = {
         "artifacts": {name: ARTIFACTS[name].revision for name in names},
-        "voice_config": FROZEN_VOICES[language],
+        "voice_config": selected_config(language, voice_profile),
         "locks": {
             str(path.relative_to(BACKEND)): hashlib.sha256(path.read_bytes()).hexdigest()
             for path in (BACKEND / "voice/uv.lock", BACKEND / "voice/inference/uv.lock")
         },
     }
+
+    if voice_profile:
+        result["profile_fingerprint"] = voice_profile["config_fingerprint"]
+        if language == "en":
+            relative = "voices/" + voice_profile["config"]["name"] + ".pt"
+            file = require_manifest_file("kokoro", relative)
+            with file.open("rb") as source:
+                result["selected_tensor"] = {
+                    "file": relative,
+                    "sha256": hashlib.file_digest(source, "sha256").hexdigest(),
+                }
+    return result
 
 
 def capabilities():
@@ -49,6 +63,30 @@ def capabilities():
     return result
 
 
+def qualified_profiles():
+    """New selections require separate exact-profile evidence; legacy gates cannot qualify them."""
+    qualified = []
+    for profile in json.loads((BACKEND / "voice/catalog.json").read_text()):
+        path = LOCAL / ("profile-" + profile["config_fingerprint"] + "-loopback.json")
+        try:
+            evidence = json.loads(path.read_text())
+            language = profile["language"]
+            if evidence.get("status") != "passed" or evidence.get(
+                "fingerprint"
+            ) != gate_fingerprint(language, profile):
+                continue
+            snapshot("whisper")
+            snapshot(profile["engine"])
+            if language == "en":
+                require_manifest_file("kokoro", "voices/" + profile["config"]["name"] + ".pt")
+            if language == "ur":
+                snapshot("description")
+            qualified.append(profile["config_fingerprint"])
+        except (OSError, ValueError, TypeError):
+            continue
+    return qualified
+
+
 async def serve(base_url, bootstrap):
     from loguru import logger
 
@@ -69,7 +107,9 @@ async def serve(base_url, bootstrap):
 
         async def ready():
             while True:
-                response = await client.post("/voice/worker/ready", json=caps)
+                response = await client.post(
+                    "/voice/worker/ready", json=caps | {"profiles": qualified_profiles()}
+                )
                 response.raise_for_status()
                 await asyncio.sleep(5)
 

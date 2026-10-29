@@ -21,6 +21,11 @@ class Tenant(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     name: Mapped[str]
     timezone: Mapped[str] = mapped_column(default="Asia/Karachi")
+    revision: Mapped[int] = mapped_column(default=1)
+    address_en: Mapped[str] = mapped_column(default="")
+    address_ur: Mapped[str] = mapped_column(default="")
+    preparation_en: Mapped[str] = mapped_column(default="")
+    preparation_ur: Mapped[str] = mapped_column(default="")
     currency: Mapped[str] = mapped_column(default="PKR")
     min_notice_min: Mapped[int] = mapped_column(default=120)
     horizon_days: Mapped[int] = mapped_column(default=90)
@@ -30,6 +35,7 @@ class Tenant(Base):
 
 class User(Row, Base):
     __tablename__ = "users"
+    display_name: Mapped[str | None]
     email: Mapped[str]
     password_hash: Mapped[str] = mapped_column(Text)
     role: Mapped[str] = mapped_column(default="staff")
@@ -94,6 +100,8 @@ class Patient(Row, Base):
     __tablename__ = "patients"
     name: Mapped[str]
     name_ur: Mapped[str | None]
+    revision: Mapped[int] = mapped_column(default=1)
+    merged_into_id: Mapped[UUID | None]
     name_key: Mapped[str]
     phone: Mapped[str]
     dob: Mapped[date | None]
@@ -144,10 +152,26 @@ class Agent(Row, Base):
     name: Mapped[str]
     enabled: Mapped[bool] = mapped_column(default=True)
     active_version_id: Mapped[UUID | None]
+    revision: Mapped[int] = mapped_column(default=1)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    archived_by: Mapped[UUID | None]
+
+
+class AgentDraft(Row, Base):
+    __tablename__ = "agent_drafts"
+    agent_id: Mapped[UUID]
+    revision: Mapped[int] = mapped_column(default=1)
+    config: Mapped[dict] = mapped_column(JSONB)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_by: Mapped[UUID | None]
 
 
 class AgentVersion(Row, Base):
     __tablename__ = "agent_versions"
+    purpose: Mapped[str] = mapped_column(default="production")
+    number: Mapped[int | None]
+    publisher_id: Mapped[UUID | None]
+    rollback_source_id: Mapped[UUID | None]
     agent_id: Mapped[UUID]
     config: Mapped[dict] = mapped_column(JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -207,3 +231,20 @@ class VoiceSession(Row, Base):
     call_deadline: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     delivery: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DraftTest(Row, Base):
+    __tablename__ = "draft_tests"
+    creator_id: Mapped[UUID]
+    agent_id: Mapped[UUID]
+    draft_revision: Mapped[int]
+    child_tenant_id: Mapped[UUID]
+    child_actor_id: Mapped[UUID]
+    child_agent_id: Mapped[UUID | None]
+    session_id: Mapped[UUID | None]
+    voice_session_id: Mapped[UUID | None]
+    request_key: Mapped[str]
+    status: Mapped[str]
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    fixtures: Mapped[dict] = mapped_column(JSONB)
+    cleanup_done: Mapped[bool] = mapped_column(default=False)

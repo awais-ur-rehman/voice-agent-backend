@@ -1,12 +1,14 @@
+import hashlib
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from sqlalchemy import select, text, update
 from sqlalchemy.orm import Session
 
+from .contracts import ClinicPatch, Name
 from .db import Principal, principal, session, tenant_context
 from .errors import AppError
 from .models import RefreshToken, User
@@ -137,3 +139,40 @@ def logout(body: Refresh, db: Session = Depends(session)):
 @router.get("/me", response_model=Me)
 def me(user: Principal = Depends(principal)):
     return user
+
+
+class Register(Login):
+    clinic_name: Name
+    timezone: str
+    password: str = Field(min_length=12, max_length=128)
+    display_name: Name | None = None
+
+    @field_validator("timezone")
+    @classmethod
+    def timezone_valid(cls, value):
+        return ClinicPatch.valid_zone(value)
+
+
+@router.post("/register", response_model=Tokens, status_code=201)
+def register(body: Register, request: Request, db: Session = Depends(session)):
+    if not request.app.state.settings.registration_enabled:
+        raise AppError("registration_disabled", 403)
+    bucket = hashlib.sha256(
+        (request.client.host if request.client else "unknown").encode()
+    ).hexdigest()
+    with request.app.state.session_factory() as limiter, limiter.begin():
+        admitted = limiter.scalar(text("SELECT registration_admit(:bucket)"), {"bucket": bucket})
+    if not admitted:
+        raise AppError("rate_limited", 429)
+    row = db.execute(
+        text("SELECT * FROM provision_clinic(:name,:zone,:email,:hash,:display)"),
+        {
+            "name": body.clinic_name,
+            "zone": body.timezone,
+            "email": str(body.email).lower(),
+            "hash": passwords.hash(body.password),
+            "display": body.display_name,
+        },
+    ).one()
+    tenant_context(db, row.clinic_id)
+    return issue(db, db.get(User, row.user_id), request.app.state.settings)

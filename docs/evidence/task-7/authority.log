@@ -1,0 +1,4 @@
+Actual immutable update rejected True
+Definer fixed migration owner and search path True
+Hosted isolated child booking persisted True
+Actual immutable trigger rejects owner update True

@@ -105,11 +105,7 @@ def decode_runtime(db: Session, token: str, settings, now: datetime | None = Non
     )
     row = active_guard(row, actor, now or datetime.now(UTC))
     agent = db.get(Agent, actor.agent_id)
-    if (
-        not secrets.compare_digest(row.token_jti_hash, nonce_hash)
-        or agent is None
-        or not agent.enabled
-    ):
+    if not secrets.compare_digest(row.token_jti_hash, nonce_hash) or agent is None:
         raise AppError("unauthorized", 401)
     return actor
 

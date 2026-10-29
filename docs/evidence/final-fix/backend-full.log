@@ -1,0 +1,59 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.13, pytest-9.1.1, pluggy-1.7.0
+rootdir: /Users/awaisurrehman/Documents/experimental/voice-agent/backend
+configfile: pyproject.toml
+testpaths: tests_api, tests_environment, tests_brain
+plugins: anyio-4.15.1
+collected 670 items
+
+tests_api/test_appointments.py ...........                               [  1%]
+tests_api/test_auth.py ......                                            [  2%]
+tests_api/test_bootstrap.py .......                                      [  3%]
+tests_api/test_catalog.py ......                                         [  4%]
+tests_api/test_dashboard_core.py ......................                  [  7%]
+tests_api/test_dashboard_scheduling.py ............................      [ 11%]
+tests_api/test_database.py .......                                       [ 12%]
+tests_api/test_domain.py ........                                        [ 14%]
+tests_api/test_logging.py .                                              [ 14%]
+tests_environment/test_dev_setup.py .......                              [ 15%]
+tests_environment/test_livekit_setup.py ..                               [ 15%]
+tests_environment/test_voice_settings.py .                               [ 15%]
+tests_brain/test_agent_management.py .....................               [ 18%]
+tests_brain/test_console.py ........                                     [ 20%]
+tests_brain/test_draft_tests.py ....................                     [ 23%]
+tests_brain/test_events.py .                                             [ 23%]
+tests_brain/test_guards.py ..................                            [ 25%]
+tests_brain/test_language.py ..................                          [ 28%]
+tests_brain/test_live_nim.py ssss                                        [ 29%]
+tests_brain/test_locale.py ............................................. [ 35%]
+........................................................................ [ 46%]
+.................                                                        [ 49%]
+tests_brain/test_new_patient_text.py .                                   [ 49%]
+tests_brain/test_provider.py .............                               [ 51%]
+tests_brain/test_resolver.py ........................................... [ 57%]
+.                                                                        [ 57%]
+tests_brain/test_routes.py ..                                            [ 58%]
+tests_brain/test_scenarios.py .......................................... [ 64%]
+......................                                                   [ 67%]
+tests_brain/test_security_review.py .....                                [ 68%]
+tests_brain/test_sessions.py ...............                             [ 70%]
+tests_brain/test_store.py .................                              [ 73%]
+tests_brain/test_temporal_workflow.py ...............                    [ 75%]
+tests_brain/test_tool_workflows.py ................                      [ 77%]
+tests_brain/test_transport_safety.py .......                             [ 78%]
+tests_brain/test_voice_contracts.py ..                                   [ 79%]
+tests_brain/test_voice_delivery.py ..................................... [ 84%]
+.                                                                        [ 84%]
+tests_brain/test_voice_input.py ..............................           [ 89%]
+tests_brain/test_voice_playback.py ..                                    [ 89%]
+tests_brain/test_voice_rooms.py ...........................              [ 93%]
+tests_brain/test_voice_routes.py ...........................             [ 97%]
+tests_brain/test_voice_sessions.py ........                              [ 98%]
+tests_brain/test_voice_tokens.py ..                                      [ 99%]
+tests_brain/test_voice_worker_routes.py ..                               [ 99%]
+tests_brain/test_voice_worker_routes_sql.py ...                          [100%]
+
+=========================== short test summary info ============================
+SKIPPED [2] tests_brain/test_live_nim.py:24: Explicit hosted synthetic evaluation only
+SKIPPED [2] tests_brain/test_live_nim.py:163: Explicit hosted synthetic evaluation only
+================== 666 passed, 4 skipped in 140.57s (0:02:20) ==================

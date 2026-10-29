@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     llm_model: str = "nvidia/nemotron-3.5-bolt-e4b"
     llm_timeout_seconds: float = Field(default=30, ge=1, le=60)
     llm_request_budget: int = Field(default=100, ge=1, le=1000)
+    registration_enabled: bool = False
     voice_enabled: bool = False
     livekit_url: str = "ws://127.0.0.1:7880"
     livekit_api_url: str = "http://127.0.0.1:7880"

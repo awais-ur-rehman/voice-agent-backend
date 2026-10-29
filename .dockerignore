@@ -16,4 +16,5 @@ dist
 
 .local/
 
-voice/
+voice/*
+!voice/catalog.json

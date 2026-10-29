@@ -64,3 +64,18 @@ Indic Parler's description tokenizer is `google/flan-t5-large` at `0613663d0d48e
 LiveKit server `v1.13.11` is pinned to registry digest `sha256:25cd902de7cacbd5f1f779f6a6ac1eae20ba8f56b0935934ce6b0ab80d1e3d20`; the [upstream LICENSE](https://github.com/livekit/livekit/blob/v1.13.11/LICENSE) is Apache-2.0. Retain upstream license/NOTICE and identify modifications. The local container provides transport only, without recording/egress. Individual OS dependencies retain their own licenses. Pipecat's pinned distribution includes its Silero ONNX VAD asset; see the speech inventory for the engine and bundled-asset notices rather than downloading an unpinned Torch Hub model.
 
 The [Phase 3 engine inventory](phase-3-dependencies.md#engine-and-bundled-asset-license-inventory) records exact native versions and actual transitive GPL/LGPL components, including phonemizer/eSpeak-NG and soxr. Kokoro/Parler weight licenses do not make every engine dependency Apache/MIT. The bundled Silero VAD artifact is pinned by Pipecat wheel plus SHA256 and attributed to the upstream MIT-licensed model. Native environment/wheel/model redistribution is outside this source-only checkpoint; preserve all applicable upstream obligations.
+
+## Phase 4 frozen voice catalog (2026-10-28)
+
+`voice/catalog.json` lists metadata candidates only: Kokoro `af_heart`, `af_bella`,
+`af_nicole`, `am_adam`, `am_michael`, `am_puck`, plus six project-authored Urdu
+prompt profiles (three descriptions per gender, fixed seed 42) for the existing
+pinned Indic Parler model. The descriptors are configuration, not distinct
+upstream speaker identities or claims of measured gender/quality. English voice
+IDs were checked against the [exact pinned tensor directory](https://huggingface.co/hexgrad/Kokoro-82M/tree/f3ff3571791e39611d31c381e3a41a3af07b4987/voices).
+Both model revisions and their Apache-2.0 notices remain the entries above;
+[Indic Parler's pinned model card](https://huggingface.co/ai4bharat/indic-parler-tts/tree/660bc53c64ae83150613264111708a0465211237)
+remains its source. No new weights were downloaded. Most candidate tensors are
+absent from the existing local manifest; choosing a candidate does not install it.
+All 12 profiles are provisional, have no pre-rendered preview, and have no exact
+profile acceptance evidence. This is not commercial or native-quality approval.

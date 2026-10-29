@@ -1,0 +1,5 @@
+runtime_nonprivileged True
+runtime_nonowner True
+immutable_trigger_enabled True
+security_definer_owner_and_path True
+t

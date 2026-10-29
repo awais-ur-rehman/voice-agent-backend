@@ -56,7 +56,17 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run mypy scheduler brain
       - run: uv run --locked python -m scripts.export_voice_contracts --check
+      - run: uv run --locked python -m scripts.export_agent_contracts --check
+      - run: uv run --locked python -m scripts.export_dashboard_contracts --check
       - run: uv run python -m pytest
+
+  runtime-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: docker build --target runtime -t clinic-runtime:test .
+      - run: docker run --rm --network none clinic-runtime:test uv run --no-sync python -c 'from brain.voice_catalog import catalog; from brain.agent_config import AgentConfig; assert len(catalog()) == 12; assert AgentConfig().schema_version == 2'
 
   voice:
     runs-on: ubuntu-latest

@@ -108,3 +108,23 @@ def result(key="updated", data=None, *, error=None, field=None, say=None):
         "say": say or dict(zip(("en", "ur"), pair)),
         "error": failure,
     }
+
+
+def toned_question(key, tone):
+    # Only a general invitation varies by tone; critical bilingual templates stay fixed.
+    variants = {
+        "friendly": (
+            "How can I help with your appointment?",
+            "آپ کو اپوائنٹمنٹ کے بارے میں کیا مدد چاہیے؟",
+        ),
+        "formal": (
+            "How may I assist with your appointment?",
+            "میں آپ کی اپوائنٹمنٹ کے سلسلے میں کیا مدد کر سکتا ہوں؟",
+        ),
+        "concise": ("What appointment do you need?", "آپ کو کون سی اپوائنٹمنٹ چاہیے؟"),
+    }
+    return (
+        result(key, say=dict(zip(("en", "ur"), variants.get(tone, variants["friendly"]))))
+        if key == "ask"
+        else result(key)
+    )

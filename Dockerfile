@@ -14,6 +14,7 @@ FROM base AS runtime
 RUN uv sync --locked --no-dev --no-install-project
 COPY scheduler ./scheduler
 COPY brain ./brain
+COPY voice/catalog.json ./voice/catalog.json
 COPY scripts ./scripts
 COPY migrations ./migrations
 COPY alembic.ini LICENSE ./

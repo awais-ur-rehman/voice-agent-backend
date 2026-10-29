@@ -70,7 +70,7 @@ def test_migration_round_trip_and_forced_rls(database):
                 "SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace AND relrowsecurity AND relforcerowsecurity"
             )
         ).scalar_one()
-        assert count == 18
+        assert count == 20
 
 
 def test_postgres_itself_serializes_competing_slot_inserts(seed):
