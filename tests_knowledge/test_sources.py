@@ -1072,3 +1072,142 @@ def test_source_detail_authority_current_revision_and_named_schema(owner, tmp_pa
     owner.headers["Authorization"] = owner_header
     assert write(owner, url + "?revision=2", method="delete").status_code == 200
     assert owner.get(url).status_code == 404
+
+
+def _assert_activation_required_arguments(owner, tmp_path, database, seed):
+    from sqlalchemy.orm import Session
+
+    from knowledge.models import Chunk, Generation
+    from knowledge.profile import PROFILE
+    from knowledge.queue import claim_job, discover_jobs
+    from scheduler.db import tenant_context
+
+    base = setup_api(owner, tmp_path)
+    source = write(
+        owner,
+        base + "/sources",
+        {"kind": "text", "name": "Revision fence", "text": "Synthetic", "format": "txt"},
+    ).json()
+
+    def worker(action):
+        with database.connect() as connection, connection.begin():
+            connection.execute(text("SET LOCAL ROLE knowledge_worker"))
+            with Session(bind=connection) as db:
+                tenant_context(db, seed["tenant_a"])
+                assert db.scalar(text("SELECT current_user")) == "knowledge_worker"
+                result = action(db)
+                db.flush()
+                return result
+
+    def stage(db, revision):
+        generation = Generation(
+            tenant_id=seed["tenant_a"],
+            agent_id=source["agent_id"],
+            source_id=source["id"],
+            source_revision=revision,
+            profile=PROFILE.fingerprint,
+            chunk_count=1,
+        )
+        db.add(generation)
+        db.flush()
+        db.add(
+            Chunk(
+                tenant_id=seed["tenant_a"],
+                agent_id=source["agent_id"],
+                source_id=source["id"],
+                generation_id=generation.id,
+                ordinal=0,
+                language="en",
+                text="Synthetic complete evidence",
+                token_count=3,
+                embedding=[1.0] + [0.0] * 1023,
+            )
+        )
+        db.flush()
+        return generation.id
+
+    old_generation = worker(lambda db: stage(db, 1))
+    assert (
+        write(owner, base + "/sources/" + source["id"] + "/reindex", {"revision": 1}).status_code
+        == 200
+    )
+    route = worker(lambda db: discover_jobs(db)[0])
+    lease = worker(lambda db: claim_job(db, route["source_id"], route["job_id"]))
+    assert lease["source_revision"] == 2
+
+    def snapshot(db, generation):
+        return (
+            db.scalar(
+                text("SELECT to_jsonb(s) FROM knowledge_sources s WHERE id=:id"),
+                {"id": source["id"]},
+            ),
+            db.scalar(
+                text("SELECT to_jsonb(j) FROM knowledge_jobs j WHERE id=:id"),
+                {"id": route["job_id"]},
+            ),
+            db.scalar(
+                text("SELECT to_jsonb(g) FROM knowledge_generations g WHERE id=:id"),
+                {"id": generation},
+            ),
+        )
+
+    statement = text(
+        "SELECT knowledge_activate_generation(:source,:job,:revision,:token,:generation,:profile)"
+    )
+    values = {
+        "source": route["source_id"],
+        "job": route["job_id"],
+        "revision": 2,
+        "token": lease["lease_token"],
+        "generation": old_generation,
+        "profile": PROFILE.fingerprint,
+    }
+
+    def attempt(db, args):
+        before = snapshot(db, args["generation"] or old_generation)
+        result = db.scalar(statement, args)
+        after = snapshot(db, args["generation"] or old_generation)
+        return result, before, after
+
+    result, before, after = worker(lambda db: attempt(db, values | {"revision": None}))
+    assert before[0]["revision"] == 2 and before[1]["status"] == "processing"
+    assert before[2]["source_revision"] == 1 and before[2]["sealed_at"] is None
+    assert before[2]["chunk_count"] == 1
+    assert (result, after) == (False, before), (
+        "NULL revision activated stale unsealed content or changed durable state"
+    )
+
+    # Isolate each required argument against otherwise valid current-revision staging.
+    current_generation = worker(lambda db: stage(db, 2))
+    values["generation"] = current_generation
+    for required in ("source", "job", "revision", "token", "generation", "profile"):
+        args = values | {required: None}
+        result, before, after = worker(lambda db: attempt(db, args))
+        assert (result, after) == (False, before), f"NULL {required} was not safely rejected"
+    # Positive control: valid current authority still seals/activates normally.
+    assert worker(lambda db: db.scalar(statement, values)) is True
+
+
+def test_sql_activation_rejects_null_revision_with_unsealed_old_generation(
+    owner, tmp_path, database, seed
+):
+    _assert_activation_required_arguments(owner, tmp_path, database, seed)
+
+
+def test_activation_guard_survives_0008_downgrade(owner, tmp_path, database, seed):
+    from alembic import command
+    from alembic.config import Config
+
+    from tests_api.conftest import ADMIN_URL, ROOT
+
+    assert ADMIN_URL.endswith("/voice_agent_test")
+    cfg = Config(str(ROOT / "alembic.ini"))
+    cfg.set_main_option("script_location", str(ROOT / "migrations"))
+    cfg.set_main_option("sqlalchemy.url", ADMIN_URL.replace("%", "%%"))
+    command.downgrade(cfg, "0007")
+    try:
+        with database.connect() as db:
+            assert db.scalar(text("SELECT version_num FROM alembic_version")) == "0007"
+        _assert_activation_required_arguments(owner, tmp_path, database, seed)
+    finally:
+        command.upgrade(cfg, "head")
