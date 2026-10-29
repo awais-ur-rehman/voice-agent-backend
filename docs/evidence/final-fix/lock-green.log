@@ -1,0 +1,11 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.13, pytest-9.1.1, pluggy-1.7.0
+rootdir: /Users/awaisurrehman/Documents/experimental/voice-agent/backend
+configfile: pyproject.toml
+plugins: anyio-4.15.1
+collected 41 items
+
+tests_brain/test_draft_tests.py ....................                     [ 48%]
+tests_brain/test_agent_management.py .....................               [100%]
+
+============================= 41 passed in 16.00s ==============================

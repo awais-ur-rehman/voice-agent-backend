@@ -292,7 +292,9 @@ def publish_version(db, user, agent, draft, config, source=None):
 
 
 def publication(db, user, identity, body, key, rollback=False):
-    # Lock agent before draft, including retries. Disabling/admission use this same row.
+    # Match test allocation: Tenant -> Agent -> draft, including rollback/replays.
+    # Tenant serializes capacity and the clinic snapshot; Agent still gates admission.
+    tenant = get(db, Tenant, user.tenant_id, True)
     row = locked(db, identity)
     digest = hashlib.sha256(
         json.dumps(body.model_dump(mode="json"), sort_keys=True).encode()
@@ -329,7 +331,6 @@ def publication(db, user, identity, body, key, rollback=False):
             config = AgentConfig.model_validate(draft.config).model_dump()
         except ValueError:
             raise AppError("validation_error", 422) from None
-        tenant = get(db, Tenant, user.tenant_id, True)
         config["clinic_profile"] = {
             field: getattr(tenant, field)
             for field in ("address_en", "address_ur", "preparation_en", "preparation_ur")

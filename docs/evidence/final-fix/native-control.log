@@ -1,0 +1,24 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.13, pytest-9.0.2, pluggy-1.7.0
+rootdir: /Users/awaisurrehman/Documents/experimental/voice-agent/backend/voice
+configfile: pyproject.toml
+plugins: anyio-4.15.1
+collected 38 items
+
+voice/tests/test_api.py ..                                               [  5%]
+voice/tests/test_assets.py .........                                     [ 28%]
+voice/tests/test_cache.py ..                                             [ 34%]
+voice/tests/test_capabilities.py ..                                      [ 39%]
+voice/tests/test_native_control.py ..........                            [ 65%]
+voice/tests/test_process.py ......                                       [ 81%]
+voice/tests/test_session.py ...                                          [ 89%]
+voice/tests/test_speech_contracts.py ...                                 [ 97%]
+voice/tests/test_terminal.py .                                           [100%]
+
+=============================== warnings summary ===============================
+voice/.venv/lib/python3.12/site-packages/pipecat/audio/utils.py:14
+  /Users/awaisurrehman/Documents/experimental/voice-agent/backend/voice/.venv/lib/python3.12/site-packages/pipecat/audio/utils.py:14: DeprecationWarning: 'audioop' is deprecated and slated for removal in Python 3.13
+    import audioop
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 38 passed, 1 warning in 1.95s =========================

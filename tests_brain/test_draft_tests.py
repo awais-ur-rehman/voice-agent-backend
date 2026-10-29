@@ -682,3 +682,92 @@ def test_terminal_turn_still_rolls_back_if_scope_expires_after_tool_execution(
             )
             is None
         )
+
+
+@pytest.mark.parametrize("operation", ["publish", "rollback"])
+def test_publication_and_test_allocation_share_lock_order(dashboard, seed, database, operation):
+    """Pause publication at its first row lock; allocation must wait without a cycle."""
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+    from time import monotonic, sleep
+
+    from sqlalchemy import event
+
+    from brain.agent_config import AgentConfig
+
+    path = f"/dashboard/agents/{seed['agent_a']}"
+    draft = dashboard.get(path + "/draft").json()
+    saved = dashboard.put(
+        path + "/draft", json={"revision": draft["revision"], "config": AgentConfig().model_dump()}
+    ).json()
+    held, release, allocation_started = Event(), Event(), Event()
+    pids = []
+    engine = dashboard.app.state.engine
+    sqlstates = []
+
+    def database_error(context):
+        sqlstates.append(getattr(context.original_exception, "sqlstate", None))
+
+    def after_lock(conn, cursor, statement, parameters, context, executemany):
+        if "FOR UPDATE" not in statement:
+            return
+        pid = cursor.connection.info.backend_pid
+        if not held.is_set():
+            pids.append(pid)
+            held.set()
+            assert release.wait(10), "publication barrier timed out"
+
+    def before_lock(conn, cursor, statement, parameters, context, executemany):
+        if "FOR UPDATE" in statement and held.is_set():
+            pid = cursor.connection.info.backend_pid
+            if pid != pids[0]:
+                if pid not in pids:
+                    pids.append(pid)
+                allocation_started.set()
+
+    body = {"revision": saved["revision"]}
+    if operation == "rollback":
+        body["version_id"] = str(seed["version_a"])
+    event.listen(engine, "handle_error", database_error)
+    event.listen(engine, "after_cursor_execute", after_lock)
+    event.listen(engine, "before_cursor_execute", before_lock)
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            publishing = pool.submit(
+                dashboard.post,
+                path + "/" + operation,
+                json=body,
+                headers={"Idempotency-Key": "barrier-publication"},
+            )
+            try:
+                assert held.wait(5)
+                allocating = pool.submit(
+                    start, dashboard, seed["agent_a"], draft_revision=saved["revision"]
+                )
+                assert allocation_started.wait(5)
+                deadline = monotonic() + 5
+                while monotonic() < deadline:
+                    with database.connect() as observer:
+                        waiting = observer.scalar(
+                            text(
+                                "SELECT wait_event_type = 'Lock' FROM pg_stat_activity WHERE pid=:pid"
+                            ),
+                            {"pid": pids[1]},
+                        )
+                    if waiting:
+                        break
+                    sleep(0.01)
+                else:
+                    pytest.fail("allocation never reached a database lock wait")
+            finally:
+                release.set()
+            published, allocated = publishing.result(timeout=10), allocating.result(timeout=10)
+    finally:
+        event.remove(engine, "handle_error", database_error)
+        event.remove(engine, "after_cursor_execute", after_lock)
+        event.remove(engine, "before_cursor_execute", before_lock)
+    assert "40P01" not in sqlstates, sqlstates
+    assert published.status_code == 200, published.text
+    assert allocated.status_code in (201, 409), allocated.text
+    if allocated.status_code == 409:
+        assert allocated.json()["error"]["code"] == "revision_conflict", allocated.text

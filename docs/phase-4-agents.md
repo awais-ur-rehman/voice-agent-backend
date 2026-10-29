@@ -68,3 +68,6 @@ Disabling/archiving and new admission lock the same agent row. Committed
 changes block new sessions. Already admitted sessions retain their original
 version and may finish subject to normal session/deadline/revocation guards.
 There is no immediate-stop action in this checkpoint.
+
+
+Publication and rollback acquire the parent Tenant lock before Agent and draft. Isolated test allocation uses the same order; the tenant lock continues to serialize test capacity and clinic-profile snapshot writes. Disable/archive and admission still serialize on Agent without acquiring Tenant afterward.

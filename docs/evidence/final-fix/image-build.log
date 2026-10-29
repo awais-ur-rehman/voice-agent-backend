@@ -1,0 +1,77 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 1.10kB 0.1s done
+#1 DONE 0.2s
+
+#2 [internal] load metadata for ghcr.io/astral-sh/uv:0.10.10@sha256:cbe0a44ba994e327b8fe7ed72beef1aaa7d2c4c795fd406d1dbf328bacb2f1c5
+#2 ...
+
+#3 [internal] load metadata for docker.io/library/python:3.12-slim-bookworm@sha256:6dd8b6dab6b3adc7812bab69eca5dbdc1a5cc690ad28306d234ffb4ef8ac9753
+#3 DONE 8.6s
+
+#2 [internal] load metadata for ghcr.io/astral-sh/uv:0.10.10@sha256:cbe0a44ba994e327b8fe7ed72beef1aaa7d2c4c795fd406d1dbf328bacb2f1c5
+#2 DONE 8.9s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 211B done
+#4 DONE 0.0s
+
+#5 [base 1/4] FROM docker.io/library/python:3.12-slim-bookworm@sha256:6dd8b6dab6b3adc7812bab69eca5dbdc1a5cc690ad28306d234ffb4ef8ac9753
+#5 resolve docker.io/library/python:3.12-slim-bookworm@sha256:6dd8b6dab6b3adc7812bab69eca5dbdc1a5cc690ad28306d234ffb4ef8ac9753 0.0s done
+#5 DONE 0.0s
+
+#6 [uv 1/1] FROM ghcr.io/astral-sh/uv:0.10.10@sha256:cbe0a44ba994e327b8fe7ed72beef1aaa7d2c4c795fd406d1dbf328bacb2f1c5
+#6 resolve ghcr.io/astral-sh/uv:0.10.10@sha256:cbe0a44ba994e327b8fe7ed72beef1aaa7d2c4c795fd406d1dbf328bacb2f1c5 0.0s done
+#6 DONE 0.0s
+
+#7 [internal] load build context
+#7 transferring context: 40.41kB 0.0s done
+#7 DONE 0.0s
+
+#8 [base 3/4] WORKDIR /app
+#8 CACHED
+
+#9 [base 2/4] COPY --from=uv /uv /uvx /bin/
+#9 CACHED
+
+#10 [base 4/4] COPY pyproject.toml uv.lock ./
+#10 CACHED
+
+#11 [runtime 1/8] RUN uv sync --locked --no-dev --no-install-project
+#11 CACHED
+
+#12 [runtime 2/8] COPY scheduler ./scheduler
+#12 DONE 0.1s
+
+#13 [runtime 3/8] COPY brain ./brain
+#13 DONE 0.1s
+
+#14 [runtime 4/8] COPY voice/catalog.json ./voice/catalog.json
+#14 DONE 0.0s
+
+#15 [runtime 5/8] COPY scripts ./scripts
+#15 DONE 0.0s
+
+#16 [runtime 6/8] COPY migrations ./migrations
+#16 DONE 0.0s
+
+#17 [runtime 7/8] COPY alembic.ini LICENSE ./
+#17 DONE 0.0s
+
+#18 [runtime 8/8] RUN useradd --create-home --uid 10001 scheduler
+#18 DONE 0.4s
+
+#19 exporting to image
+#19 exporting layers
+#19 exporting layers 0.2s done
+#19 exporting manifest sha256:c497f163ea2b544bb7ac43f59bbd620aa9ae807eecdb23157171026ee9df325e
+#19 exporting manifest sha256:c497f163ea2b544bb7ac43f59bbd620aa9ae807eecdb23157171026ee9df325e 0.0s done
+#19 exporting config sha256:ea114e2e72c96f706c496bb13f273745ce60d13d1699e1b4447fd455ce23f73f done
+#19 exporting attestation manifest sha256:f5752537f861fce4c59bae3a657f217959115ba0ce8fd08cfe3ae492913becdf 0.0s done
+#19 exporting manifest list sha256:2442cd0d889f990998bb0e967d38e422db935913b9f894d05f180932ec12b96f done
+#19 naming to docker.io/library/voice-agent-phase1-api:local done
+#19 unpacking to docker.io/library/voice-agent-phase1-api:local 0.1s done
+#19 DONE 0.4s
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/wu2j57wkak04hgb92pggmd8nx
