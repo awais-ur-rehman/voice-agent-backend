@@ -32,7 +32,7 @@ jobs:
     timeout-minutes: 10
     services:
       postgres:
-        image: postgres:16-bookworm@sha256:d81f7b51697014367236d07ec58b54153fc28f828b72bf247fe5c7487520bcb0
+        image: pgvector/pgvector:0.8.7-pg16-bookworm@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a
         env:
           POSTGRES_DB: voice_agent_test
           POSTGRES_PASSWORD: phase1_test_only
@@ -54,7 +54,7 @@ jobs:
       - run: uv sync --locked --all-groups
       - run: uv run ruff check .
       - run: uv run ruff format --check .
-      - run: uv run mypy scheduler brain
+      - run: uv run mypy scheduler brain knowledge
       - run: uv run --locked python -m scripts.export_voice_contracts --check
       - run: uv run --locked python -m scripts.export_agent_contracts --check
       - run: uv run --locked python -m scripts.export_dashboard_contracts --check

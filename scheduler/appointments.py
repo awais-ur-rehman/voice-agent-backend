@@ -81,18 +81,17 @@ def audit(db: Session, user: AuditActor, action: str, identity: UUID):
     )
 
 
-def idempotent(
-    db: Session,
-    user: AuditActor,
-    key: str,
-    operation: str,
-    body: Contract,
-    execute,
-    alternatives=None,
-):
-    digest = hashlib.sha256(
+def request_digest(body: Contract) -> str:
+    return hashlib.sha256(
         json.dumps(body.model_dump(mode="json"), sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
+
+
+def request_receipt(
+    db: Session, user: AuditActor, key: str, operation: str, body: Contract
+) -> Idempotency:
+    """Claim/check a write receipt before any revision check or effect."""
+    digest = request_digest(body)
     db.execute(
         insert(Idempotency)
         .values(tenant_id=user.tenant_id, key=key, operation=operation, request_hash=digest)
@@ -103,6 +102,19 @@ def idempotent(
         raise AppError("idempotency_conflict", 409)
     if record.operation != operation or record.request_hash != digest:
         raise AppError("idempotency_conflict", 409)
+    return record
+
+
+def idempotent(
+    db: Session,
+    user: AuditActor,
+    key: str,
+    operation: str,
+    body: Contract,
+    execute,
+    alternatives=None,
+):
+    record = request_receipt(db, user, key, operation, body)
     if record.response is not None:
         return record.response
     try:

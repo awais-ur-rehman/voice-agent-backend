@@ -19,7 +19,7 @@ COPY voice/catalog.json ./voice/catalog.json
 COPY scripts ./scripts
 COPY migrations ./migrations
 COPY alembic.ini LICENSE ./
-RUN useradd --create-home --uid 10001 scheduler
+RUN useradd --create-home --uid 10001 scheduler && mkdir -p /var/lib/knowledge && chown scheduler:scheduler /var/lib/knowledge && chmod 700 /var/lib/knowledge
 USER scheduler
 CMD ["uv", "run", "--no-sync", "uvicorn", "scheduler.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
 

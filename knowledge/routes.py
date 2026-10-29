@@ -1,0 +1,284 @@
+"""Authenticated raw uploads and manager-controlled source lifecycle."""
+
+from typing import Annotated
+from uuid import UUID, uuid4
+
+from fastapi import APIRouter, Depends, Header, Query, Request
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
+
+from scheduler.appointments import IdempotencyKey
+from scheduler.db import Principal, manager, session
+from scheduler.errors import AppError
+
+from . import sources
+from .contracts import (
+    Capabilities,
+    Digest,
+    FileFormat,
+    Name,
+    Preview,
+    Revision,
+    SourceCreate,
+    SourceOut,
+    SourceUpdate,
+    Upload,
+)
+from .models import Chunk, Source
+from .storage import BlobStore
+
+router = APIRouter(prefix="/dashboard/agents/{agent_id}/knowledge", tags=["Knowledge"])
+
+
+def enabled(request: Request):
+    if not request.app.state.settings.knowledge_enabled:
+        raise AppError("knowledge_disabled", 503)
+
+
+@router.get("/capabilities", response_model=Capabilities, operation_id="knowledge_capabilities")
+def capabilities(
+    agent_id: UUID,
+    request: Request,
+    user: Principal = Depends(manager),
+    db: Session = Depends(session),
+):
+    sources.agent_row(db, agent_id)
+    active = request.app.state.settings.knowledge_enabled
+    return Capabilities(
+        enabled=active, unavailable_reason="processing_unavailable" if active else "disabled"
+    )
+
+
+@router.get("/sources", response_model=list[SourceOut], operation_id="knowledge_sources")
+def listing(agent_id: UUID, user: Principal = Depends(manager), db: Session = Depends(session)):
+    sources.agent_row(db, agent_id)
+    return [
+        sources.out(db, row)
+        for row in db.scalars(
+            select(Source)
+            .where(Source.agent_id == agent_id, Source.deleted_at.is_(None))
+            .order_by(Source.created_at, Source.id)
+        )
+    ]
+
+
+@router.post(
+    "/sources",
+    response_model=SourceOut,
+    status_code=201,
+    operation_id="knowledge_create_source",
+    dependencies=[Depends(enabled)],
+)
+def create(
+    agent_id: UUID,
+    body: SourceCreate,
+    key: IdempotencyKey,
+    user: Principal = Depends(manager),
+    db: Session = Depends(session),
+):
+    return sources.mutate(db, user, agent_id, None, "create", body, key)
+
+
+BINARY = {
+    "requestBody": {
+        "required": True,
+        "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}},
+    }
+}
+
+
+def preflight(db, agent_id, source_id, body, key):
+    sources.agent_row(db, agent_id)
+    action = "update" if source_id else "create"
+    operation = f"knowledge:{agent_id}:{source_id or 'new'}:{action}"
+    existing = sources.replay(db, key, operation, sources.fingerprint(body))
+    if existing is not None:
+        return existing
+    if source_id:
+        row = sources.source_row(db, agent_id, source_id)
+        if row.kind != "file":
+            raise AppError("source_kind_immutable", 409)
+        if row.revision != body.revision:
+            raise AppError("revision_conflict", 409)
+    return None
+
+
+async def receive(request, db, user, agent_id, source_id, body, key):
+    existing = await run_in_threadpool(preflight, db, agent_id, source_id, body, key)
+    if existing is not None:
+        return existing
+    # Authentication/ownership/replay preflight precedes stream. No row lock is held during IO.
+    identity = source_id or uuid4()
+    blob = await BlobStore(request.app.state.settings.knowledge_blob_root).receive(
+        request.stream(),
+        user.tenant_id,
+        identity,
+        (body.revision or 0) + 1,
+        body.checksum,
+    )
+    # A complete orphan is deliberately retained if commit outcome is unknown; cleanup uses grace.
+    return await run_in_threadpool(
+        sources.mutate,
+        db,
+        user,
+        agent_id,
+        source_id,
+        "update" if source_id else "create",
+        body,
+        key,
+        blob,
+        identity,
+    )
+
+
+@router.post(
+    "/sources/upload",
+    response_model=SourceOut,
+    status_code=201,
+    operation_id="knowledge_upload_source",
+    openapi_extra=BINARY,
+    dependencies=[Depends(enabled)],
+)
+async def upload(
+    agent_id: UUID,
+    request: Request,
+    key: IdempotencyKey,
+    name: Annotated[Name, Query()],
+    format: Annotated[FileFormat, Query()],
+    checksum: Annotated[Digest, Header(alias="X-Content-SHA256")],
+    user: Principal = Depends(manager),
+    db: Session = Depends(session),
+):
+    return await receive(
+        request,
+        db,
+        user,
+        agent_id,
+        None,
+        Upload(name=name, format=format, checksum=checksum.lower()),
+        key,
+    )
+
+
+@router.put(
+    "/sources/{source_id}/content",
+    response_model=SourceOut,
+    operation_id="knowledge_replace_file",
+    openapi_extra=BINARY,
+    dependencies=[Depends(enabled)],
+)
+async def replace(
+    agent_id: UUID,
+    source_id: UUID,
+    request: Request,
+    key: IdempotencyKey,
+    name: Annotated[Name, Query()],
+    format: Annotated[FileFormat, Query()],
+    revision: Annotated[int, Query(ge=1)],
+    checksum: Annotated[Digest, Header(alias="X-Content-SHA256")],
+    user: Principal = Depends(manager),
+    db: Session = Depends(session),
+):
+    return await receive(
+        request,
+        db,
+        user,
+        agent_id,
+        source_id,
+        Upload(name=name, format=format, checksum=checksum.lower(), revision=revision),
+        key,
+    )
+
+
+@router.get("/sources/{source_id}", response_model=SourceOut, operation_id="knowledge_source")
+def detail(
+    agent_id: UUID,
+    source_id: UUID,
+    user: Principal = Depends(manager),
+    db: Session = Depends(session),
+):
+    sources.agent_row(db, agent_id)
+    return sources.out(db, sources.source_row(db, agent_id, source_id))
+
+
+@router.put(
+    "/sources/{source_id}",
+    response_model=SourceOut,
+    operation_id="knowledge_update_source",
+    dependencies=[Depends(enabled)],
+)
+def update(
+    agent_id: UUID,
+    source_id: UUID,
+    body: SourceUpdate,
+    key: IdempotencyKey,
+    user: Principal = Depends(manager),
+    db: Session = Depends(session),
+):
+    return sources.mutate(db, user, agent_id, source_id, "update", body, key)
+
+
+@router.delete(
+    "/sources/{source_id}",
+    response_model=SourceOut,
+    operation_id="knowledge_delete_source",
+    dependencies=[Depends(enabled)],
+)
+def delete(
+    agent_id: UUID,
+    source_id: UUID,
+    key: IdempotencyKey,
+    revision: Annotated[int, Query(ge=1)],
+    user: Principal = Depends(manager),
+    db: Session = Depends(session),
+):
+    return sources.mutate(db, user, agent_id, source_id, "delete", Revision(revision=revision), key)
+
+
+@router.post(
+    "/sources/{source_id}/reindex",
+    response_model=SourceOut,
+    operation_id="knowledge_reindex_source",
+    dependencies=[Depends(enabled)],
+)
+def reindex(
+    agent_id: UUID,
+    source_id: UUID,
+    body: Revision,
+    key: IdempotencyKey,
+    user: Principal = Depends(manager),
+    db: Session = Depends(session),
+):
+    return sources.mutate(db, user, agent_id, source_id, "reindex", body, key)
+
+
+@router.get(
+    "/sources/{source_id}/preview", response_model=Preview, operation_id="knowledge_preview_source"
+)
+def preview(
+    agent_id: UUID,
+    source_id: UUID,
+    user: Principal = Depends(manager),
+    db: Session = Depends(session),
+):
+    sources.agent_row(db, agent_id)
+    row = sources.source_row(db, agent_id, source_id)
+    excerpts = (
+        list(
+            db.scalars(
+                select(Chunk.text)
+                .where(Chunk.generation_id == row.active_generation_id, Chunk.source_id == row.id)
+                .order_by(Chunk.ordinal)
+                .limit(4)
+            )
+        )
+        if row.active_generation_id
+        else []
+    )
+    return Preview(
+        source_id=row.id,
+        available=bool(row.active_generation_id),
+        reason="ready" if row.active_generation_id else "processing_unavailable",
+        excerpts=[value[:2000] for value in excerpts],
+    )

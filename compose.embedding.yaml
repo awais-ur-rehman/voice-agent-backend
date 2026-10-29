@@ -1,13 +1,14 @@
 # Run explicitly with --env-file .local/embedding.env; never use the owner API env.
-name: voice-agent-knowledge
+name: voice-agent-phase1
 services:
   embedding:
+    profiles: ["knowledge"]
     build:
       context: .
       target: embedding
     image: voice-agent-embedding:local
     environment:
-      EMBEDDING_SECRET: ${EMBEDDING_SECRET:?A distinct embedding secret is required}
+      EMBEDDING_SECRET: ${EMBEDDING_SECRET:-}
       EMBEDDING_ASSETS: /models/bge-m3
       EMBEDDING_ENABLED: ${EMBEDDING_ENABLED:-false}
     volumes:

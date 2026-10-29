@@ -47,11 +47,11 @@
 
 **Interfaces:** `EmbeddingProfile` is immutable metadata/fingerprint from the spec artifact manifest. `EmbeddingClient.embed(texts: list[str], *, deadline: float) -> list[list[float]]` validates finite normalized1024 vectors/profile and raises bounded `EmbeddingUnavailable`. Private `POST /internal/embed` accepts `{texts,profile}` with distinct server bearer; public liveness/readiness contains no secret/path. No database connection in this service. API consumers import the lightweight client/profile only.
 
-- [ ] Write tests for missing/wrong secret,profile mismatch,wrong shape/nonfinite/zero norm,token512 bound,batch/queue/RSS/deadlines,child crash/restart and altered/unmanifested assets. Prove imports never read owner dotenv/download/load models.
-- [ ] Run `UV_CACHE_DIR=.local/uv-cache uv run --locked pytest tests_knowledge/test_embedding.py -q`; capture behavioral RED (missing-module scaffolding is not sufficient alone).
-- [ ] Verify registry versions/licenses/wheels; add exact locked optional embedding group and settings/client/service. Pin the two given model/tokenizer SHA/bytes plus verified required small metadata/license files. Use explicit CPUExecutionProvider and CLS/L2; no remote Python. Guard CPU/RSS in an isolated child with independent cleanup.
-- [ ] Add explicit bounded artifact bootstrap/preflight command. Inspect resources first; download only allowlisted pinned files within disk reserve. Provide an explicit opt-in CPU smoke that reports shape/norm/fingerprint/RSS/timing, not text/vectors/keys. The owner has now deferred executing real model inference; keep it disabled by default, verify the control/artifact boundaries, and report the measured resource block. Never mark model-backed acceptance passed.
-- [ ] Focused/static/image import checks pass; commit. Later tasks consume the client/profile, not ORT imports in API.
+- [x] Write tests for missing/wrong secret,profile mismatch,wrong shape/nonfinite/zero norm,token512 bound,batch/queue/RSS/deadlines,child crash/restart and altered/unmanifested assets. Prove imports never read owner dotenv/download/load models.
+- [x] Run `UV_CACHE_DIR=.local/uv-cache uv run --locked pytest tests_knowledge/test_embedding.py -q`; capture behavioral RED (missing-module scaffolding is not sufficient alone).
+- [x] Verify registry versions/licenses/wheels; add exact locked optional embedding group and settings/client/service. Pin the two given model/tokenizer SHA/bytes plus verified required small metadata/license files. Use explicit CPUExecutionProvider and CLS/L2; no remote Python. Guard CPU/RSS in an isolated child with independent cleanup.
+- [x] Add explicit bounded artifact bootstrap/preflight command. Inspect resources first; download only allowlisted pinned files within disk reserve. Provide an explicit opt-in CPU smoke that reports shape/norm/fingerprint/RSS/timing, not text/vectors/keys. The owner has now deferred executing real model inference; keep it disabled by default, verify the control/artifact boundaries, and report the measured resource block. Never mark model-backed acceptance passed.
+- [x] Focused/static/image import checks pass; commit. Later tasks consume the client/profile, not ORT imports in API.
 
 ### Task 2: Tenant-scoped sources, private uploads and durable job API
 
@@ -63,6 +63,7 @@
 - [ ] Include Source→Generation same-owner constraints and stale replacement/delete fencing. Test worker cannot SELECT patients/appointments/users/agent versions or execute broad discovery from API role.
 - [ ] Run focused tests and capture RED. Add pgvector role/schema/blob store/API and generated contracts. Use a private local backup before switching dev image to pinned0.8.7-pg16-bookworm digest from the spec; prove existing row counts/roles/volume and major16 survive. Do not reset data.
 - [ ] Implement raw authenticated streaming without multipart spooling; idempotency lookup/fingerprint precedes revision rejection on replay. No SQL row lock during upload IO; recheck revision before enqueue. Server-generated private blob keys only; enforce quotas/disk reserve without exposing paths.
+- [ ] Include the narrow worker-only activation authority and permanently sealed-generation foundation in0007 before its first development application: scope/source/revision/profile ownership, current processing lease/token, DB-clock expiry after locks, complete bounded nonempty chunks, Source→Job ordering and stale/deleted rejection. Late inserts cannot change sealed generations after replacement. Test actual worker-role activation/fencing/sealing; parsing stays Task3. Include nullable redacted_question VARCHAR(1000) for Task4 privacy logging; no raw-question logging behavior in this task.
 - [ ] Focused plus adjacent auth/RLS/schema/static checks pass; commit. Tests use dedicated disposable DB; one DB suite at a time.
 
 ### Task 3: Bounded ingestion, atomic generations and recovery

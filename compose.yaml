@@ -8,7 +8,7 @@ x-api-image: &api-image
 
 services:
   postgres:
-    image: postgres:16-bookworm@sha256:d81f7b51697014367236d07ec58b54153fc28f828b72bf247fe5c7487520bcb0
+    image: pgvector/pgvector:0.8.7-pg16-bookworm@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a
     environment:
       POSTGRES_DB: voice_agent
       POSTGRES_USER: postgres
@@ -44,11 +44,15 @@ services:
 
   api:
     <<: *api-image
+    volumes:
+      - knowledge-private-data:/var/lib/knowledge
     environment:
       SCHEDULER_DATABASE_URL: postgresql+psycopg://scheduler_app:${DEV_APP_PASSWORD:-}@postgres:5432/voice_agent
       SCHEDULER_JWT_SECRET: ${SCHEDULER_JWT_SECRET:-}
       SCHEDULER_RUNTIME_SECRET: ${SCHEDULER_RUNTIME_SECRET:-}
       SCHEDULER_REGISTRATION_ENABLED: ${SCHEDULER_REGISTRATION_ENABLED:-false}
+      SCHEDULER_KNOWLEDGE_ENABLED: ${SCHEDULER_KNOWLEDGE_ENABLED:-false}
+      SCHEDULER_KNOWLEDGE_BLOB_ROOT: /var/lib/knowledge
       SCHEDULER_VOICE_ENABLED: ${SCHEDULER_VOICE_ENABLED:-false}
       SCHEDULER_VOICE_BOOTSTRAP_SECRET: ${SCHEDULER_VOICE_BOOTSTRAP_SECRET:-}
       SCHEDULER_VOICE_WORKER_SECRET: ${SCHEDULER_VOICE_WORKER_SECRET:-}
@@ -111,7 +115,7 @@ services:
 
   postgres-test:
     profiles: ["test"]
-    image: postgres:16-bookworm@sha256:d81f7b51697014367236d07ec58b54153fc28f828b72bf247fe5c7487520bcb0
+    image: pgvector/pgvector:0.8.7-pg16-bookworm@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a
     environment:
       POSTGRES_DB: voice_agent_test
       POSTGRES_USER: postgres
@@ -127,4 +131,5 @@ services:
       retries: 30
 
 volumes:
+  knowledge-private-data:
   postgres-dev-data:
