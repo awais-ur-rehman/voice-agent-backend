@@ -1,0 +1,32 @@
+# Run explicitly with --env-file .local/embedding.env; never use the owner API env.
+name: voice-agent-knowledge
+services:
+  embedding:
+    build:
+      context: .
+      target: embedding
+    image: voice-agent-embedding:local
+    environment:
+      EMBEDDING_SECRET: ${EMBEDDING_SECRET:?A distinct embedding secret is required}
+      EMBEDDING_ASSETS: /models/bge-m3
+      EMBEDDING_ENABLED: ${EMBEDDING_ENABLED:-false}
+    volumes:
+      - type: bind
+        source: ./.local/knowledge-model
+        target: /models/bge-m3
+        read_only: true
+        bind:
+          create_host_path: false
+    ports:
+      - "127.0.0.1:8001:8001"
+    networks: [embedding-private]
+    cpus: 2.0
+    mem_limit: 2g
+    pids_limit: 64
+    read_only: true
+    tmpfs: [/tmp:size=16m]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+networks:
+  embedding-private:
+    internal: true
