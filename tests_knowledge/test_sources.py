@@ -11,6 +11,11 @@ from tests_api.conftest import PASSWORD
 
 def setup_api(owner, tmp_path):
     owner.app.state.settings.knowledge_enabled = True
+    from pydantic import SecretStr
+
+    owner.app.state.settings.knowledge_blob_secret = SecretStr(
+        "isolated-blob-ownership-secret-for-tests-only"
+    )
     owner.app.state.settings.knowledge_blob_root = tmp_path
     agent = owner.post("/dashboard/agents", json={"name": "Knowledge test"}).json()["id"]
     return f"/dashboard/agents/{agent}/knowledge"

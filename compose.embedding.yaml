@@ -28,6 +28,43 @@ services:
     tmpfs: [/tmp:size=16m]
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
+  knowledge-worker:
+    profiles: ["knowledge"]
+    build:
+      context: .
+      target: knowledge-worker
+    image: voice-agent-knowledge-worker:local
+    environment:
+      KNOWLEDGE_WORKER_ENABLED: ${KNOWLEDGE_WORKER_ENABLED:-false}
+      KNOWLEDGE_WORKER_DATABASE_URL: ${KNOWLEDGE_WORKER_DATABASE_URL:-}
+      KNOWLEDGE_WORKER_BLOB_SECRET: ${KNOWLEDGE_BLOB_SECRET:-}
+      KNOWLEDGE_WORKER_BLOB_ROOT: /var/lib/knowledge
+      KNOWLEDGE_WORKER_TOKENIZER: /tokenizer/tokenizer.json
+      KNOWLEDGE_WORKER_EMBEDDING_URL: http://embedding:8001
+      KNOWLEDGE_WORKER_EMBEDDING_SECRET: ${EMBEDDING_SECRET:-}
+    volumes:
+      - knowledge-private-data:/var/lib/knowledge
+      - type: bind
+        source: ./.local/knowledge-model/tokenizer.json
+        target: /tokenizer/tokenizer.json
+        read_only: true
+        bind:
+          create_host_path: false
+    networks: [default, embedding-private]
+    cpus: 1.0
+    mem_limit: 1g
+    pids_limit: 64
+    read_only: true
+    tmpfs: [/tmp:size=64m]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
 networks:
+  default:
+    external: true
+    name: voice-agent-phase1_default
   embedding-private:
     internal: true
+volumes:
+  knowledge-private-data:
+    external: true
+    name: voice-agent-phase1_knowledge-private-data

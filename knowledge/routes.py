@@ -4,7 +4,7 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, Query, Request
-from sqlalchemy import select
+from sqlalchemy import event, select, text
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
@@ -111,12 +111,31 @@ async def receive(request, db, user, agent_id, source_id, body, key):
         return existing
     # Authentication/ownership/replay preflight precedes stream. No row lock is held during IO.
     identity = source_id or uuid4()
-    blob = await BlobStore(request.app.state.settings.knowledge_blob_root).receive(
+    settings = request.app.state.settings
+    secret = settings.knowledge_blob_secret
+    if secret is None:
+        raise AppError("storage_unavailable", 503)
+    pending = await BlobStore(
+        settings.knowledge_blob_root, secret=secret.get_secret_value()
+    ).receive(
         request.stream(),
         user.tenant_id,
         identity,
         (body.revision or 0) + 1,
         body.checksum,
+    )
+
+    # Release only after the actual outer SQL transaction ends, including rollback/cancellation.
+    def release(session, transaction):
+        if transaction.parent is None:
+            pending.release()
+
+    event.listen(db, "after_transaction_end", release)
+    # Server-held fencing also covers a lost connection with unknown commit outcome.
+    await run_in_threadpool(
+        db.execute,
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 7241))"),
+        {"key": pending.key},
     )
     # A complete orphan is deliberately retained if commit outcome is unknown; cleanup uses grace.
     return await run_in_threadpool(
@@ -128,7 +147,7 @@ async def receive(request, db, user, agent_id, source_id, body, key):
         "update" if source_id else "create",
         body,
         key,
-        blob,
+        pending.key,
         identity,
     )
 

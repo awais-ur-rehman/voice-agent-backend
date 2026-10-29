@@ -88,3 +88,14 @@ mandatory dependencies. The pinned [pgvector PostgreSQL extension](https://githu
 is distributed under the PostgreSQL License. The PG16/Bookworm image digest is
 recorded in `compose.yaml`; retain upstream extension, PostgreSQL and OS notices
 when distributing the image. See [source operations](phase-5-sources.md).
+
+## Phase 5 ingestion parsers (2026-10-30)
+
+The optional worker-only ingestion group pins [pypdf 6.21.4](https://pypi.org/project/pypdf/6.21.4/)
+(BSD-3-Clause) and [defusedxml 0.7.1](https://pypi.org/project/defusedxml/0.7.1/)
+(PSF license). Both have universal Python wheels and no mandatory new compiled
+parser dependencies. Their exact distribution hashes are retained in `uv.lock`;
+retain wheel LICENSE notices in redistributed worker images. DOCX extraction
+uses stdlib ZIP handling plus defused XML parsing; python-docx/lxml are not
+installed. The existing reviewed tokenizers and psutil pins are reused. See
+[ingestion boundaries and operations](phase-5-ingestion.md).

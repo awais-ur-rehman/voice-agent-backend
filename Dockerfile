@@ -32,3 +32,12 @@ COPY scripts/prepare_knowledge_assets.py ./scripts/prepare_knowledge_assets.py
 RUN useradd --create-home --uid 10002 embedding
 USER embedding
 CMD ["uv", "run", "--no-sync", "uvicorn", "embedding_service.server:create_app", "--factory", "--host", "0.0.0.0", "--port", "8001", "--no-access-log"]
+
+FROM base AS knowledge-worker
+RUN uv sync --locked --no-dev --group ingestion --no-install-project
+COPY knowledge ./knowledge
+COPY knowledge_worker ./knowledge_worker
+COPY scheduler ./scheduler
+RUN useradd --create-home --uid 10001 knowledge-worker
+USER knowledge-worker
+CMD ["uv", "run", "--no-sync", "python", "-m", "knowledge_worker.main"]
