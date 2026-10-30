@@ -238,3 +238,57 @@ def test_runtime_envelope_knowledge_contract_matches_public_model():
     citations = schema.pop("$defs")
     assert envelope["$defs"]["KnowledgeTrace"] == schema
     assert envelope["$defs"]["KnowledgeCitation"] == citations["KnowledgeCitation"]
+
+
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "Your appointment has been successfully reserved.",
+        "Your callback request has been submitted.",
+        "آپ کی اپوائنٹمنٹ بک ہو چکی ہے۔",
+        "آپ کی شناخت تصدیق شدہ ہے۔",
+        "Your appointment reservation is complete.",
+        "The request for your callback is now accepted.",
+        "Your patient registration has gone through.",
+        "Your identity check is complete.",
+        "آپ کے لیے وقت مختص ہو چکا ہے۔",
+        "آپ کی واپسی کال کی درخواست قبول ہو چکی ہے۔",
+        "آپ کا مریض ریکارڈ مکمل ہے۔",
+        "آپ کی شناخت کی جانچ مکمل ہے۔",
+    ],
+)
+@pytest.mark.parametrize("location", ["answer", "quote", "both"])
+def test_caller_operation_assertions_are_rejected_even_with_literal_evidence(claim, location):
+    from knowledge.grounding import GroundingRejected, validate_answer
+
+    language = "ur" if any("\u0600" <= c <= "\u06ff" for c in claim) else "en"
+    neutral = "Bring your referral letter." if language == "en" else "اپنا حوالہ خط ساتھ لائیں۔"
+    answer = claim if location in {"answer", "both"} else neutral
+    quote = claim if location in {"quote", "both"} else neutral
+    with pytest.raises(GroundingRejected):
+        validate_answer(
+            json.dumps(payload(answer, language, quote)),
+            (replace(CHUNK, text=claim + " " + neutral),),
+            language,
+        )
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "Appointment requests may be made by phone.",
+        "Please bring your referral letter.",
+        "اپوائنٹمنٹ کی درخواست فون پر کی جا سکتی ہے۔",
+        "براہ کرم اپنا حوالہ خط ساتھ لائیں۔",
+    ],
+)
+def test_general_instructions_remain_informational(answer):
+    from knowledge.grounding import validate_answer
+
+    language = "ur" if any("\u0600" <= c <= "\u06ff" for c in answer) else "en"
+    assert (
+        validate_answer(
+            json.dumps(payload(answer, language, answer)), (replace(CHUNK, text=answer),), language
+        ).answer
+        == answer
+    )

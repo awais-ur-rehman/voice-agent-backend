@@ -25,8 +25,8 @@ from scheduler.models import (
 )
 
 from .contracts import Action
-from .dialogue import affirmative, subject_change
-from .knowledge import identity_literals, local_route, structured_topic
+from .dialogue import affirmative
+from .knowledge import identity_literals, local_input_action
 from .language import language_transition
 from .provider import ProviderError
 from .security import RuntimeActor, decode_runtime, runtime_secret
@@ -225,46 +225,9 @@ def run_command(
     clarify = False
     if not existing and live:
         text = body.text.strip()
-        # Identity factors are consumed directly and never sent to an external model.
-        if any(
-            word in text.casefold()
-            for word in (
-                "emergency",
-                "chest pain",
-                "cannot breathe",
-                "can't breathe",
-                "difficulty breathing",
-                "سانس نہیں",
-                "سینے میں درد",
-                "ہنگامی",
-            )
-        ):
-            action = {"name": "request_handoff", "arguments": {"reason": "emergency"}}
-        elif local_route(state, text, literals) == "clarify":
-            clarify = True
-            action = {"name": "ask_caller", "arguments": {}}
-        elif structured_topic(text, config):
-            action = {
-                "name": "get_clinic_info",
-                "arguments": {"topic": structured_topic(text, config)},
-            }
-        elif local_route(state, text, literals) == "faq":
-            action = {"name": "search_knowledge", "arguments": {}}
-        elif subject_change(text):
-            action = {
-                "name": "update_dialogue_state",
-                "arguments": {"subject": subject_change(text)},
-            }
-        elif (
-            state.get("candidates")
-            and not state.get("verified")
-            and not any(
-                word in text.casefold() for word in ("cancel", "reschedule", "منسوخ", "تبدیل")
-            )
-        ):
-            action = {"name": "verify_patient", "arguments": {"factor": text}}
-        elif re.fullmatch(r"[+\d ()-]{9,40}", text) and len(re.sub(r"\D", "", text)) >= 10:
-            action = {"name": "find_patient", "arguments": {"phone": text}}
+        action, clarify = local_input_action(state, text, config, literals)
+        if action:
+            pass
         elif not state.get("readback") and affirmative(text) and state.get("pending_patient"):
             action = {"name": "prepare_patient", "arguments": state["pending_patient"]}
         elif not state.get("readback") and affirmative(text) and state.get("hold"):
@@ -293,12 +256,9 @@ def run_command(
     elif not live and not event:
         action = body.action.model_dump(mode="json")
     if not existing and action and action["name"] == "search_knowledge":
-        topic = structured_topic(body.text, config)
-        if local_route(state, body.text, literals) == "clarify":
-            clarify = True
-            action = {"name": "ask_caller", "arguments": {}}
-        elif topic:
-            action = {"name": "get_clinic_info", "arguments": {"topic": topic}}
+        local_action, clarify = local_input_action(state, body.text, config, literals)
+        if local_action and local_action["name"] != "search_knowledge":
+            action = local_action
         elif settings.knowledge_enabled:
             from knowledge.scope import resolve_scope
             from knowledge.service import KnowledgeService

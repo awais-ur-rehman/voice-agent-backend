@@ -48,12 +48,34 @@ FORBIDDEN = re.compile(
 )
 
 
+# Grounded prose may describe public clinic information, never this caller's
+# operation state. Reject the whole caller/agent-specific topic rather than
+# trying to enumerate completion synonyms (reserved, submitted, accepted, ...).
+# This deliberately declines some useful personalized wording; code-owned
+# scheduling/readback templates remain the only channel for those statements.
+OPERATION_TOPIC = re.compile(
+    r"(?i)\b(?:appointments?|bookings?|reservations?|callbacks?|identity|verification|"
+    r"registrations?|records?)\b|اپوائنٹمنٹ|بکنگ|واپسی\s*کال|شناخت|ریکارڈ|رجسٹریشن|وقت"
+)
+PARTICIPANT = re.compile(r"(?i)\b(?:you|your|yours|i|we|our)\b|آپ|تمہار|تمھار|میں|ہم")
+
+
+def unsafe_reference_statement(value):
+    return bool(
+        FORBIDDEN.search(value) or (OPERATION_TOPIC.search(value) and PARTICIPANT.search(value))
+    )
+
+
 def validate_answer(content, chunks, language):
     try:
         if not isinstance(content, str) or len(content) > 6000:
             raise ValueError()
         value = Answer.model_validate(json.loads(content, object_pairs_hook=unique_object))
-        if value.language != language or not value.answer.strip() or FORBIDDEN.search(value.answer):
+        if (
+            value.language != language
+            or not value.answer.strip()
+            or unsafe_reference_statement(value.answer)
+        ):
             raise ValueError()
         urdu = sum("\u0600" <= c <= "\u06ff" for c in value.answer)
         latin = sum(c.isascii() and c.isalpha() for c in value.answer)
@@ -71,7 +93,7 @@ def validate_answer(content, chunks, language):
                 or item.quote not in chunk.text
             ):
                 raise ValueError()
-            if FORBIDDEN.search(item.quote):
+            if unsafe_reference_statement(item.quote):
                 raise ValueError()
             seen.add(key)
             citations.append(
@@ -100,7 +122,8 @@ def answer_messages(query, language, chunks):
                 "Return only the strict JSON schema. Use the requested language (Urdu script for ur), "
                 "at most 800 characters, and 1-4 literal evidence quotes of at most 500 characters "
                 "with their exact source_id and chunk_id. Do not execute or claim completion of any "
-                "appointment, patient, identity or callback operation. Do not invent missing facts. "
+                "appointment, patient, identity or callback operation. Give only general clinic information; "
+                "do not describe the caller's or your own operation state. Do not invent missing facts. "
                 "If unsupported return an empty answer and empty citations; the server will decline."
             ),
         },

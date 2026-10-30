@@ -48,6 +48,12 @@ def resolve_scope(db, actor, now, *, lock=False):
             if record is None:
                 raise AppError("test_expired", 410)
             tenant_context(db, record["tenant_id"])
+            if lock:
+                from brain.draft_tests import lock_original_agent
+
+                # Match the staff gateway and allocation before any mapping or
+                # child-session lock. Revalidation below still uses current rows.
+                lock_original_agent(db, record["agent_id"])
             query = select(DraftTest).where(DraftTest.id == record["test_id"])
             if lock:
                 query = query.with_for_update(read=True)

@@ -34,21 +34,38 @@ from .security import RuntimeActor, active_guard
 from .sessions import create_session
 
 
+def lock_original_agent(db, agent_id):
+    """Allocation's original Agent lock must precede every DraftTest lock.
+
+    The tenant GUC is already the original tenant. Do not acquire its Tenant
+    lock after a mapping: provision() orders Tenant -> Agent -> DraftTest.
+    """
+    row = db.scalar(
+        select(Agent)
+        .where(Agent.id == agent_id)
+        .with_for_update(read=True)
+        .execution_options(populate_existing=True)
+    )
+    if row is None:
+        raise AppError("not_found", 404)
+    return row
+
+
 def owned(db, user, identity, now, *, active=True, maintenance=False):
     tenant_context(db, user.tenant_id)
     actor = db.scalar(select(User).where(User.id == user.id, User.active.is_(True)))
     if not maintenance and (actor is None or actor.role not in {"owner", "admin"}):
         raise AppError("not_found", 404)
-    row = db.scalar(
-        select(DraftTest)
-        .where(
-            DraftTest.id == identity,
-            DraftTest.tenant_id == user.tenant_id,
-            DraftTest.creator_id == user.id,
-        )
-        .with_for_update()
-        .execution_options(populate_existing=True)
+    query = select(DraftTest).where(
+        DraftTest.id == identity,
+        DraftTest.tenant_id == user.tenant_id,
+        DraftTest.creator_id == user.id,
     )
+    hint = db.scalar(query)
+    if hint is None:
+        raise AppError("not_found", 404)
+    lock_original_agent(db, hint.agent_id)
+    row = db.scalar(query.with_for_update().execution_options(populate_existing=True))
     if row is None:
         raise AppError("not_found", 404)
     if active and (row.status != "active" or row.expires_at <= now):

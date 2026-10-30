@@ -770,3 +770,216 @@ def test_final_parent_scope_lock_is_bounded_before_child_command(dashboard, data
             release.set()
     with Session(database) as db:
         assert list(db.scalars(select(QueryEvent))) == []
+
+
+@pytest.mark.parametrize(
+    "utterance,expected",
+    [
+        ("1990-01-01", "verify_patient"),
+        ("I cannot breathe", "request_handoff"),
+        ("سانس نہیں آ رہی", "request_handoff"),
+    ],
+)
+def test_explicit_search_routes_bare_factor_and_emergency_without_inference(
+    dashboard, database, seed, utterance, expected
+):
+    from datetime import date
+
+    from scheduler.models import Patient
+
+    _, provider, *_ = setup_runtime(dashboard, database, seed)
+    with Session(database) as db, db.begin():
+        db.get(Patient, seed["patient_a"]).dob = date(1990, 1, 1)
+
+    class CountingEmbedding(Embeddings):
+        calls = 0
+
+        def embed(self, *args, **kwargs):
+            self.calls += 1
+            return super().embed(*args, **kwargs)
+
+    embeddings = CountingEmbedding()
+    dashboard.app.state.knowledge_embeddings = embeddings
+    created = dashboard.post("/agent-sessions", json={"agent_id": str(seed["agent_a"])}).json()
+    headers = {"Authorization": "Bearer " + created["token"]}
+    url = f"/runtime/sessions/{created['session_id']}/commands"
+    found = dashboard.post(
+        url,
+        headers=headers,
+        json={
+            "command_id": "lookup",
+            "expected_revision": 0,
+            "action": {"name": "find_patient", "arguments": {"phone": "+923001234567"}},
+        },
+    )
+    assert found.status_code == 200
+    response = dashboard.post(
+        url,
+        headers=headers,
+        json={
+            "command_id": "local",
+            "expected_revision": 1,
+            "action": {"name": "search_knowledge", "arguments": {}},
+            "text": utterance,
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert embeddings.calls == 0 and provider.calls == []
+    assert body["executed_action"] == expected
+    assert body["provider_requests"] == 0
+    assert body["state"]["attempts"] == 0
+    assert body["state"].get("verified") is (expected == "verify_patient")
+    assert bool(body["state"].get("handoff")) is (expected == "request_handoff")
+    with Session(database) as db:
+        assert list(db.scalars(select(QueryEvent))) == []
+
+
+@pytest.mark.parametrize("entry", ["staff", "capability"])
+def test_allocation_and_answer_acquire_original_agent_before_mapping(
+    dashboard, database, seed, entry
+):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+    from time import monotonic, sleep
+
+    from sqlalchemy import event
+
+    from brain.security import issue_runtime
+    from scheduler.db import tenant_context
+    from scheduler.models import AgentSession, DraftTest, User
+    from scheduler.security import passwords
+    from tests_api.conftest import PASSWORD
+
+    test, provider, *_ = setup_runtime(dashboard, database, seed)
+    with Session(database) as db, db.begin():
+        db.add(
+            User(
+                tenant_id=seed["tenant_a"],
+                email="allocation-admin@example.com",
+                password_hash=passwords.hash(PASSWORD),
+                role="admin",
+                active=True,
+            )
+        )
+        mapping = db.get(DraftTest, UUID(test["id"]))
+        child, sid = mapping.child_tenant_id, mapping.session_id
+    token = dashboard.post(
+        "/auth/login", json={"email": "allocation-admin@example.com", "password": PASSWORD}
+    ).json()["access_token"]
+    if entry == "capability":
+        with dashboard.app.state.session_factory() as db, db.begin():
+            tenant_context(db, child)
+            runtime_token = issue_runtime(db.get(AgentSession, sid), dashboard.app.state.settings)
+    inferred, held, release, allocation_wait = Event(), Event(), Event(), Event()
+    provider.mutate = inferred.set
+    pids, sqlstates = [], []
+    engine = dashboard.app.state.engine
+
+    def after_lock(conn, cursor, statement, parameters, context, executemany):
+        if (
+            inferred.is_set()
+            and "draft_tests" in statement
+            and ("FOR UPDATE" in statement or "FOR SHARE" in statement)
+            and not held.is_set()
+        ):
+            pids.append(cursor.connection.info.backend_pid)
+            held.set()
+            assert release.wait(10)
+
+    def before_lock(conn, cursor, statement, parameters, context, executemany):
+        if held.is_set() and "FOR UPDATE" in statement:
+            pid = cursor.connection.info.backend_pid
+            if pid != pids[0]:
+                if pid not in pids:
+                    pids.append(pid)
+                allocation_wait.set()
+
+    def db_error(context):
+        sqlstates.append(getattr(context.original_exception, "sqlstate", None))
+
+    def answer():
+        if entry == "staff":
+            return send(dashboard, test["id"], 0, "What documents should I bring?")
+        return dashboard.post(
+            f"/runtime/sessions/{sid}/turn",
+            headers={"Authorization": "Bearer " + runtime_token},
+            json={
+                "command_id": str(uuid4()),
+                "expected_revision": 0,
+                "text": "What documents should I bring?",
+            },
+        )
+
+    event.listen(engine, "after_cursor_execute", after_lock)
+    event.listen(engine, "before_cursor_execute", before_lock)
+    event.listen(engine, "handle_error", db_error)
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            answering = pool.submit(answer)
+            try:
+                assert held.wait(5)
+                allocating = pool.submit(
+                    dashboard.post,
+                    f"/dashboard/agents/{seed['agent_a']}/tests",
+                    headers={"Authorization": "Bearer " + token, "Idempotency-Key": str(uuid4())},
+                    json={"draft_revision": 1},
+                )
+                assert allocation_wait.wait(5)
+                deadline = monotonic() + 2
+                while monotonic() < deadline:
+                    with database.connect() as observer:
+                        observer.execute(text("SET TRANSACTION READ ONLY"))
+                        blocked = observer.scalar(
+                            text("SELECT :holder=ANY(pg_blocking_pids(:waiter))"),
+                            {"holder": pids[0], "waiter": pids[1]},
+                        )
+                        observed = list(
+                            observer.execute(
+                                text(
+                                    "SELECT pid, usename, query FROM pg_stat_activity WHERE pid=ANY(:pids)"
+                                ),
+                                {"pids": pids},
+                            ).mappings()
+                        )
+                    if blocked:
+                        assert {row["usename"] for row in observed} == {"scheduler_app"}
+                        waiting_sql = next(
+                            row["query"] for row in observed if row["pid"] == pids[1]
+                        )
+                        break
+                    sleep(0.01)
+                else:
+                    pytest.fail("allocation did not reach observed SQL lock wait")
+            finally:
+                release.set()
+            response, allocated = answering.result(timeout=10), allocating.result(timeout=10)
+    finally:
+        event.remove(engine, "after_cursor_execute", after_lock)
+        event.remove(engine, "before_cursor_execute", before_lock)
+        event.remove(engine, "handle_error", db_error)
+    print(
+        "allocation_barrier "
+        + json.dumps(
+            {
+                "entry": entry,
+                "answer_pid": pids[0],
+                "allocation_pid": pids[1],
+                "role": "scheduler_app",
+                "blocked": blocked,
+                "allocation_waiting_on": "Agent" if "FROM agents" in waiting_sql else "DraftTest",
+                "sqlstates": sqlstates,
+                "answer_http": response.status_code,
+                "allocation_http": allocated.status_code,
+            }
+        )
+    )
+    assert sqlstates == [], sqlstates
+    assert "FROM agents" in waiting_sql
+    assert response.status_code == 200, response.text
+    assert allocated.status_code == 201, allocated.text
+    envelope = response.json() if entry == "staff" else response.json()["result"]
+    assert envelope["knowledge"]["status"] == "ready"
+    with Session(database) as db:
+        events = list(db.scalars(select(QueryEvent)))
+        assert len(events) == 1 and events[0].tenant_id == child

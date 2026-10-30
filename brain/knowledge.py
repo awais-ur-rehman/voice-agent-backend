@@ -64,6 +64,45 @@ def local_route(state, text, literals=()):
     return None
 
 
+def local_input_action(state, text, config, literals=()):
+    """The same privacy/emergency gate applies to live and explicit KB actions."""
+    text = text.strip()
+    if any(
+        word in text.casefold()
+        for word in (
+            "emergency",
+            "chest pain",
+            "cannot breathe",
+            "can't breathe",
+            "difficulty breathing",
+            "سانس نہیں",
+            "سینے میں درد",
+            "ہنگامی",
+        )
+    ):
+        return {"name": "request_handoff", "arguments": {"reason": "emergency"}}, False
+    route = local_route(state, text, literals)
+    if route == "clarify":
+        return {"name": "ask_caller", "arguments": {}}, True
+    topic = structured_topic(text, config)
+    if topic:
+        return {"name": "get_clinic_info", "arguments": {"topic": topic}}, False
+    if route == "faq":
+        return {"name": "search_knowledge", "arguments": {}}, False
+    subject = subject_change(text)
+    if subject:
+        return {"name": "update_dialogue_state", "arguments": {"subject": subject}}, False
+    if (
+        state.get("candidates")
+        and not state.get("verified")
+        and not any(word in text.casefold() for word in ("cancel", "reschedule", "منسوخ", "تبدیل"))
+    ):
+        return {"name": "verify_patient", "arguments": {"factor": text}}, False
+    if re.fullmatch(r"[+\d ()-]{9,40}", text) and len(re.sub(r"\D", "", text)) >= 10:
+        return {"name": "find_patient", "arguments": {"phone": text}}, False
+    return None, False
+
+
 def structured_topic(text, config):
     lower = text.casefold()
     if re.search(r"\bfees?\b|\bprice\b|\bcost\b|فیس|قیمت", lower):
