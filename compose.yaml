@@ -44,6 +44,7 @@ services:
 
   api:
     <<: *api-image
+    networks: [default, embedding-private]
     volumes:
       - knowledge-private-data:/var/lib/knowledge
     environment:
@@ -51,6 +52,8 @@ services:
       SCHEDULER_JWT_SECRET: ${SCHEDULER_JWT_SECRET:-}
       SCHEDULER_RUNTIME_SECRET: ${SCHEDULER_RUNTIME_SECRET:-}
       SCHEDULER_REGISTRATION_ENABLED: ${SCHEDULER_REGISTRATION_ENABLED:-false}
+      SCHEDULER_KNOWLEDGE_EMBEDDING_URL: ${SCHEDULER_KNOWLEDGE_EMBEDDING_URL:-http://embedding:8001}
+      SCHEDULER_KNOWLEDGE_EMBEDDING_SECRET: ${EMBEDDING_SECRET:-}
       SCHEDULER_KNOWLEDGE_ENABLED: ${SCHEDULER_KNOWLEDGE_ENABLED:-false}
       SCHEDULER_KNOWLEDGE_BLOB_SECRET: ${KNOWLEDGE_BLOB_SECRET:-}
       SCHEDULER_KNOWLEDGE_BLOB_ROOT: /var/lib/knowledge
@@ -134,3 +137,8 @@ services:
 volumes:
   knowledge-private-data:
   postgres-dev-data:
+
+networks:
+  default: {}
+  embedding-private:
+    internal: true

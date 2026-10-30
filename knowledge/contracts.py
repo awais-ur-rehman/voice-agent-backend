@@ -137,8 +137,21 @@ class SourceDetailOut(SourceOut):
 
 class Capabilities(Contract):
     enabled: bool
-    processing_available: Literal[False] = False
-    unavailable_reason: Literal["disabled", "processing_unavailable"]
+    processing_available: bool = False
+    unavailable_reason: (
+        Literal[
+            "disabled",
+            "processing_unavailable",
+            "worker_stale",
+            "embedding_unavailable",
+            "artifacts_unavailable",
+        ]
+        | None
+    )
+    query_available: bool = False
+    query_unavailable_reason: (
+        Literal["disabled", "no_sources", "processing_pending", "service_unavailable"] | None
+    ) = "disabled"
     upload_max_bytes: int = 10 * 1024 * 1024
     source_limit: int = 64
 
@@ -148,3 +161,29 @@ class Preview(Contract):
     available: bool
     reason: Literal["ready", "processing_unavailable"]
     excerpts: list[str]
+
+
+class SearchQuery(Contract):
+    query: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
+    language: Literal["en", "ur"]
+    query_id: UUID
+
+
+class SearchChunk(Contract):
+    chunk_id: UUID
+    source_id: UUID
+    generation_id: UUID
+    profile: str
+    name: str
+    heading: str
+    language: str
+    text: str
+    cosine: float
+    score: float
+
+
+class SearchResult(Contract):
+    reason: Literal[
+        "ready", "no_sources", "processing_pending", "below_threshold", "service_unavailable"
+    ]
+    chunks: list[SearchChunk]

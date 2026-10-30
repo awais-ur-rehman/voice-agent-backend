@@ -50,6 +50,47 @@ class EmbeddingClient:
         self.secret = secret
         self.transport = transport
         self._slots = threading.BoundedSemaphore(5)
+        self._status_slot = threading.BoundedSemaphore(1)
+
+    def available(self) -> bool:
+        """Authenticated observation only; bounded response, never model initialization."""
+        if not self._status_slot.acquire(blocking=False):
+            return False
+        deadline = time.monotonic() + 2
+        result: Future[bool] = Future()
+
+        def request():
+            try:
+                result.set_result(self._status(deadline))
+            except Exception:
+                result.set_result(False)
+            finally:
+                self._status_slot.release()
+
+        threading.Thread(target=request, daemon=True).start()
+        try:
+            return result.result(timeout=max(0, deadline - time.monotonic()))
+        except FutureTimeout:
+            return False
+
+    def _status(self, deadline: float) -> bool:
+        try:
+            with httpx2.Client(transport=self.transport, trust_env=False, timeout=2) as client:
+                with client.stream(
+                    "GET",
+                    self.url.removesuffix("/internal/embed") + "/internal/status",
+                    headers={"Authorization": f"Bearer {self.secret}"},
+                ) as response:
+                    if response.status_code != 200:
+                        return False
+                    body = bytearray()
+                    for block in response.iter_bytes(chunk_size=128):
+                        if time.monotonic() >= deadline or len(body) + len(block) > 256:
+                            return False
+                        body.extend(block)
+                    return json.loads(body) == {"ready": True, "profile": PROFILE.fingerprint}
+        except (httpx2.HTTPError, ValueError, TypeError, RecursionError):
+            return False
 
     def embed(self, texts: list[str], *, deadline: float) -> list[list[float]]:
         validate_texts(texts)

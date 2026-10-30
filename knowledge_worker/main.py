@@ -58,6 +58,15 @@ def main():
             tokenizer = load_tokenizer(settings.tokenizer)
         return tokenizer
 
+    from .readiness import heartbeat
+
+    control = threading.Thread(
+        target=heartbeat,
+        args=(stop, factory, settings, embeddings),
+        daemon=True,
+        name="knowledge-readiness",
+    )
+    control.start()
     try:
         while not stop.is_set():
             try:
@@ -70,6 +79,8 @@ def main():
                 break
             stop.wait(10)
     finally:
+        stop.set()
+        control.join(timeout=3)
         engine.dispose()
 
 

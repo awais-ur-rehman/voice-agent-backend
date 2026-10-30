@@ -2553,6 +2553,128 @@
         "title": "RuleOut",
         "type": "object"
       },
+      "SearchChunk": {
+        "additionalProperties": false,
+        "properties": {
+          "chunk_id": {
+            "format": "uuid",
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "cosine": {
+            "title": "Cosine",
+            "type": "number"
+          },
+          "generation_id": {
+            "format": "uuid",
+            "title": "Generation Id",
+            "type": "string"
+          },
+          "heading": {
+            "title": "Heading",
+            "type": "string"
+          },
+          "language": {
+            "title": "Language",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "source_id": {
+            "format": "uuid",
+            "title": "Source Id",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chunk_id",
+          "source_id",
+          "generation_id",
+          "profile",
+          "name",
+          "heading",
+          "language",
+          "text",
+          "cosine",
+          "score"
+        ],
+        "title": "SearchChunk",
+        "type": "object"
+      },
+      "SearchQuery": {
+        "additionalProperties": false,
+        "properties": {
+          "language": {
+            "enum": [
+              "en",
+              "ur"
+            ],
+            "title": "Language",
+            "type": "string"
+          },
+          "query": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          },
+          "query_id": {
+            "format": "uuid",
+            "title": "Query Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query",
+          "language",
+          "query_id"
+        ],
+        "title": "SearchQuery",
+        "type": "object"
+      },
+      "SearchResult": {
+        "additionalProperties": false,
+        "properties": {
+          "chunks": {
+            "items": {
+              "$ref": "#/components/schemas/SearchChunk"
+            },
+            "title": "Chunks",
+            "type": "array"
+          },
+          "reason": {
+            "enum": [
+              "ready",
+              "no_sources",
+              "processing_pending",
+              "below_threshold",
+              "service_unavailable"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "chunks"
+        ],
+        "title": "SearchResult",
+        "type": "object"
+      },
       "ServiceCreate": {
         "additionalProperties": false,
         "properties": {
@@ -3896,10 +4018,32 @@
             "type": "boolean"
           },
           "processing_available": {
-            "const": false,
             "default": false,
             "title": "Processing Available",
             "type": "boolean"
+          },
+          "query_available": {
+            "default": false,
+            "title": "Query Available",
+            "type": "boolean"
+          },
+          "query_unavailable_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "disabled",
+                  "no_sources",
+                  "processing_pending",
+                  "service_unavailable"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "disabled",
+            "title": "Query Unavailable Reason"
           },
           "source_limit": {
             "default": 64,
@@ -3907,12 +4051,22 @@
             "type": "integer"
           },
           "unavailable_reason": {
-            "enum": [
-              "disabled",
-              "processing_unavailable"
+            "anyOf": [
+              {
+                "enum": [
+                  "disabled",
+                  "processing_unavailable",
+                  "worker_stale",
+                  "embedding_unavailable",
+                  "artifacts_unavailable"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Unavailable Reason",
-            "type": "string"
+            "title": "Unavailable Reason"
           },
           "upload_max_bytes": {
             "default": 10485760,
@@ -4879,6 +5033,64 @@
           }
         ],
         "summary": "Capabilities",
+        "tags": [
+          "Knowledge"
+        ]
+      }
+    },
+    "/dashboard/agents/{agent_id}/knowledge/search": {
+      "post": {
+        "operationId": "knowledge_search",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Agent Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Search",
         "tags": [
           "Knowledge"
         ]

@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     llm_request_budget: int = Field(default=100, ge=1, le=1000)
     registration_enabled: bool = False
     knowledge_enabled: bool = False
+    knowledge_embedding_url: str = "http://127.0.0.1:8001"
+    knowledge_embedding_secret: SecretStr | None = Field(default=None, min_length=32)
     knowledge_blob_secret: SecretStr | None = Field(default=None, min_length=32)
     knowledge_blob_root: Path = ROOT / ".local/knowledge-blobs"
     voice_enabled: bool = False
@@ -41,6 +43,7 @@ class Settings(BaseSettings):
             value = self.knowledge_blob_secret.get_secret_value()
             others = (
                 self.jwt_secret,
+                self.knowledge_embedding_secret,
                 self.runtime_secret,
                 self.llm_api_key,
                 self.voice_bootstrap_secret,

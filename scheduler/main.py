@@ -96,6 +96,15 @@ def create_app(settings: Settings | None = None, clock=None) -> FastAPI:
         else None
     )
     app.state.session_factory = sessionmaker(engine, expire_on_commit=False)
+    from knowledge.embedding import EmbeddingClient
+
+    app.state.knowledge_embeddings = (
+        EmbeddingClient(
+            settings.knowledge_embedding_url, settings.knowledge_embedding_secret.get_secret_value()
+        )
+        if settings.knowledge_embedding_secret
+        else None
+    )
     app.state.clock = clock or (lambda: datetime.now(UTC))
     app.add_middleware(
         CORSMiddleware,

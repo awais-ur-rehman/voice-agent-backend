@@ -1,5 +1,7 @@
 """Authenticated raw uploads and manager-controlled source lifecycle."""
 
+import time
+from dataclasses import asdict
 from typing import Annotated
 from uuid import UUID, uuid4
 
@@ -20,6 +22,8 @@ from .contracts import (
     Name,
     Preview,
     Revision,
+    SearchQuery,
+    SearchResult,
     SourceCreate,
     SourceDetailOut,
     SourceOut,
@@ -46,8 +50,32 @@ def capabilities(
 ):
     sources.agent_row(db, agent_id)
     active = request.app.state.settings.knowledge_enabled
+    from knowledge.readiness import processing_status
+
+    settings = request.app.state.settings
+    secret = settings.knowledge_blob_secret
+    reason = processing_status(
+        settings.knowledge_blob_root, secret.get_secret_value() if secret else "", enabled=active
+    )
+    from knowledge.retrieval import KnowledgeScope
+    from knowledge.service import KnowledgeService
+
+    db.commit()  # Health RPC observes existing state with no SQL transaction held.
+    query_reason = (
+        KnowledgeService(
+            request.app.state.session_factory,
+            request.app.state.knowledge_embeddings,
+            audit_secret=request.app.state.settings.jwt_secret.get_secret_value(),
+        ).availability(KnowledgeScope(user.tenant_id, agent_id, "preview"))
+        if active
+        else "disabled"
+    )
     return Capabilities(
-        enabled=active, unavailable_reason="processing_unavailable" if active else "disabled"
+        enabled=active,
+        processing_available=reason is None,
+        unavailable_reason=reason,
+        query_available=query_reason is None,
+        query_unavailable_reason=query_reason,
     )
 
 
@@ -302,3 +330,37 @@ def preview(
         reason="ready" if row.active_generation_id else "processing_unavailable",
         excerpts=[value[:2000] for value in excerpts],
     )
+
+
+@router.post(
+    "/search",
+    response_model=SearchResult,
+    operation_id="knowledge_search",
+    dependencies=[Depends(enabled)],
+)
+def search(
+    agent_id: UUID,
+    body: SearchQuery,
+    request: Request,
+    user: Principal = Depends(manager),
+    db: Session = Depends(session),
+):
+    from knowledge.retrieval import KnowledgeScope
+    from knowledge.service import KnowledgeService
+
+    sources.agent_row(db, agent_id)
+    db.commit()  # Release authentication/read transaction before embedding RPC.
+    scope = KnowledgeScope(user.tenant_id, agent_id, "preview")
+    result = KnowledgeService(
+        request.app.state.session_factory,
+        request.app.state.knowledge_embeddings,
+        audit_secret=request.app.state.settings.jwt_secret.get_secret_value(),
+    ).retrieve(
+        scope, body.query, body.language, query_id=body.query_id, deadline=time.monotonic() + 10
+    )
+    public = []
+    for chunk in result.chunks:
+        value = asdict(chunk)
+        del value["source_revision"], value["generation_source_revision"]
+        public.append(value)
+    return {"reason": result.reason, "chunks": public}

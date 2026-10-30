@@ -45,6 +45,15 @@ def create_app(settings=None, supervisor=None):
         available = settings.enabled and worker.ready
         return JSONResponse({"ready": available}, status_code=200 if available else 503)
 
+    @app.get("/internal/status")
+    async def status(request: Request):
+        if not hmac.compare_digest(
+            request.headers.get("authorization", "").encode(),
+            ("Bearer " + settings.secret).encode(),
+        ):
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        return {"profile": PROFILE.fingerprint, "ready": bool(settings.enabled and worker.ready)}
+
     @app.post("/internal/embed")
     async def embed(request: Request):
         if not hmac.compare_digest(

@@ -35,12 +35,14 @@ def test_unverified_tokenizer_fails_before_tokenizer_load(tmp_path, monkeypatch)
 def test_readiness_requires_actual_service_response():
     import httpx2
 
+    from knowledge.profile import PROFILE
     from knowledge_worker.settings import PrivateEmbeddings
 
     for response, expected in [
         (httpx2.Response(503, json={"ready": False}), False),
         (httpx2.Response(200, json={"ready": False}), False),
-        (httpx2.Response(200, json={"ready": True}), True),
+        (httpx2.Response(200, json={"ready": True, "profile": PROFILE.fingerprint}), True),
+        (httpx2.Response(200, json={"ready": True}), False),
         (httpx2.Response(200, content=b"x" * 1024), False),
     ]:
         client = PrivateEmbeddings(

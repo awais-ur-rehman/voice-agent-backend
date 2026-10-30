@@ -1,13 +1,9 @@
 """Private worker configuration. No dotenv, owner credentials or model initialization."""
 
 import hashlib
-import json
 import os
-import time
 from dataclasses import dataclass
 from pathlib import Path
-
-import httpx2
 
 from knowledge.embedding import EmbeddingClient, EmbeddingUnavailable
 from knowledge.profile import PROFILE
@@ -36,7 +32,8 @@ class Settings:
         )
 
 
-def load_tokenizer(path: Path):
+def verify_tokenizer(path: Path):
+    """Verify immutable artifact bytes without importing/loading the tokenizer."""
     artifact = next(a for a in PROFILE.artifacts if a.name == "tokenizer.json")
     try:
         if (
@@ -47,6 +44,13 @@ def load_tokenizer(path: Path):
         with path.open("rb") as stream:
             if hashlib.file_digest(stream, "sha256").hexdigest() != artifact.sha256:
                 raise EmbeddingUnavailable("tokenizer_artifact")
+    except OSError:
+        raise EmbeddingUnavailable("tokenizer_artifact") from None
+
+
+def load_tokenizer(path: Path):
+    verify_tokenizer(path)
+    try:
         from tokenizers import Tokenizer
 
         tokenizer = Tokenizer.from_file(str(path))
@@ -58,21 +62,4 @@ def load_tokenizer(path: Path):
 
 
 class PrivateEmbeddings(EmbeddingClient):
-    def available(self):
-        """Read readiness only. This route never starts the model or performs inference."""
-        deadline = time.monotonic() + 2
-        try:
-            with httpx2.Client(transport=self.transport, trust_env=False, timeout=2) as client:
-                with client.stream(
-                    "GET", self.url.removesuffix("/internal/embed") + "/health/ready"
-                ) as response:
-                    if response.status_code != 200:
-                        return False
-                    body = bytearray()
-                    for block in response.iter_bytes(chunk_size=128):
-                        if time.monotonic() >= deadline or len(body) + len(block) > 256:
-                            return False
-                        body.extend(block)
-                    return json.loads(body) == {"ready": True}
-        except (httpx2.HTTPError, ValueError, TypeError):
-            return False
+    """Worker uses the same authenticated observation protocol as the API client."""
