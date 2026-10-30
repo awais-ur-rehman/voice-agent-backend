@@ -1,0 +1,17 @@
+{
+  "description": "Synthetic held-out dense qualification. Questions are distinct from reference text; do not tune threshold on these cases. No patient content. Not hybrid retrieval or runtime acceptance.",
+  "documents": [
+    {"id":"parking-en","text":"Crescent QA Clinic has free bicycle parking beside the blue side gate. Cars use the public car park across the street."},
+    {"id":"access-ur","text":"مصنوعی کلینک میں وہیل چیئر کے لیے داخلی دروازے پر ڈھلوان موجود ہے۔ مدد کے لیے استقبالیہ سے رابطہ کریں۔"},
+    {"id":"water-en","text":"Drinking water is available at the dispenser beside the waiting room. Disposable cups are provided."},
+    {"id":"children-ur","text":"انتظار گاہ میں بچوں کے لیے تصویری کتابیں دستیاب ہیں۔ بچے کسی بالغ فرد کی نگرانی میں رہیں۔"}
+  ],
+  "queries": [
+    {"id":"en-en","text":"Where can I leave my bicycle?","expected":"parking-en","direction":"en-en"},
+    {"id":"ur-ur","text":"کیا وہیل چیئر اندر لانے کا راستہ ہے؟","expected":"access-ur","direction":"ur-ur"},
+    {"id":"en-ur","text":"Are there books for children while they wait?","expected":"children-ur","direction":"en-ur"},
+    {"id":"ur-en","text":"پینے کا پانی کہاں سے ملے گا؟","expected":"water-en","direction":"ur-en"},
+    {"id":"negative-en","text":"What is the orbital period of Neptune?","expected":null,"direction":"en-en"},
+    {"id":"negative-ur","text":"نیپچون سورج کے گرد کتنے سال میں چکر لگاتا ہے؟","expected":null,"direction":"ur-ur"}
+  ]
+}

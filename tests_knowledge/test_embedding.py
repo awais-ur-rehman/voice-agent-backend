@@ -422,3 +422,17 @@ def test_rpc_total_deadline_bounds_slow_response():
         assert completed.wait(0.12), "RPC exceeded absolute deadline"
     finally:
         thread.join(timeout=1)
+
+
+@pytest.mark.parametrize("ready", [1, 1.0, "true", None, [], {}])
+def test_numeric_or_nonboolean_readiness_never_enables_embedding(ready):
+    client = EmbeddingClient(
+        "http://private",
+        "s" * 32,
+        transport=httpx2.MockTransport(
+            lambda request: httpx2.Response(
+                200, json={"ready": ready, "profile": PROFILE.fingerprint}
+            )
+        ),
+    )
+    assert client.available() is False

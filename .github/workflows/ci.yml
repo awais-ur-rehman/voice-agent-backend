@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, develop, 'feat/**', 'fix/**', 'docs/**']
   pull_request:
-    branches: [main, develop]
+    branches: [main, develop, 'feat/phase-4-dashboard']
 
 permissions:
   contents: read
@@ -55,6 +55,7 @@ jobs:
       - run: uv run --no-sync ruff check .
       - run: uv run --no-sync ruff format --check .
       - run: uv run --no-sync mypy scheduler brain knowledge knowledge_worker
+      - run: uv run --no-sync mypy --follow-untyped-imports embedding_service scripts/qualify_knowledge.py
       - run: uv run --no-sync python -m scripts.export_voice_contracts --check
       - run: uv run --no-sync python -m scripts.export_agent_contracts --check
       - run: uv run --no-sync python -m scripts.export_dashboard_contracts --check
@@ -72,6 +73,9 @@ jobs:
       - run: docker build --target knowledge-worker -t clinic-knowledge-worker:test .
       - run: docker run --rm --network none clinic-knowledge-worker:test uv run --no-sync python -m knowledge_worker.main --once
       - run: docker run --rm --network none clinic-knowledge-worker:test uv run --no-sync python -c 'from knowledge.parsing import parse_bytes; from knowledge_worker.runner import process_job; assert parse_bytes(b"Open weekdays", "txt").text == "Open weekdays"'
+
+      - run: docker build --target embedding -t clinic-embedding:test .
+      - run: docker run --rm --network none --entrypoint /app/.venv/bin/python clinic-embedding:test -c 'import sys; from pathlib import Path; from embedding_service.server import create_app; from embedding_service.settings import Settings; settings=Settings(Path("/missing"),"synthetic-image-test-secret-over-32-characters"); app=create_app(settings); assert not settings.enabled; assert "onnxruntime" not in sys.modules and "tokenizers" not in sys.modules'
 
   voice:
     runs-on: ubuntu-latest

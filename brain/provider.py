@@ -128,7 +128,7 @@ class Nemotron:
         )
 
     def ground(self, query, language, chunks, *, deadline):
-        from knowledge.grounding import Answer, answer_messages
+        from knowledge.grounding import answer_messages, answer_schema
 
         if time.monotonic() >= deadline or not self.ground_slot.acquire(blocking=False):
             raise ProviderError("unavailable")
@@ -139,7 +139,7 @@ class Nemotron:
                 result.set_result(
                     self._structured(
                         answer_messages(query, language, chunks),
-                        Answer.model_json_schema(),
+                        answer_schema(language),
                         "grounded_answer",
                         lambda content: content,
                         deadline=deadline,

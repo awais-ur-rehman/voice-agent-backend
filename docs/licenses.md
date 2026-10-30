@@ -99,3 +99,5 @@ retain wheel LICENSE notices in redistributed worker images. DOCX extraction
 uses stdlib ZIP handling plus defused XML parsing; python-docx/lxml are not
 installed. The existing reviewed tokenizers and psutil pins are reused. See
 [ingestion boundaries and operations](phase-5-ingestion.md).
+
+Phase 5 checkpoint adds no new third-party packages, models, fonts, or assets. The qualification corpus and QA screenshots are project-authored synthetic material. Existing locked package/model notices and redistribution limits above continue to apply; real model acceptance is not a license claim.

@@ -88,7 +88,13 @@ class EmbeddingClient:
                         if time.monotonic() >= deadline or len(body) + len(block) > 256:
                             return False
                         body.extend(block)
-                    return json.loads(body) == {"ready": True, "profile": PROFILE.fingerprint}
+                    data = json.loads(body)
+                    return (
+                        isinstance(data, dict)
+                        and set(data) == {"ready", "profile"}
+                        and data["ready"] is True
+                        and data["profile"] == PROFILE.fingerprint
+                    )
         except (httpx2.HTTPError, ValueError, TypeError, RecursionError):
             return False
 
