@@ -1495,6 +1495,90 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "KnowledgeCitation": {
+        "additionalProperties": false,
+        "properties": {
+          "chunk_id": {
+            "format": "uuid",
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "cosine": {
+            "maximum": 1.000001,
+            "minimum": 0.55,
+            "title": "Cosine",
+            "type": "number"
+          },
+          "heading": {
+            "maxLength": 200,
+            "title": "Heading",
+            "type": "string"
+          },
+          "language": {
+            "maxLength": 16,
+            "title": "Language",
+            "type": "string"
+          },
+          "quote": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Quote",
+            "type": "string"
+          },
+          "source_id": {
+            "format": "uuid",
+            "title": "Source Id",
+            "type": "string"
+          },
+          "source_name": {
+            "maxLength": 200,
+            "title": "Source Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "source_name",
+          "chunk_id",
+          "heading",
+          "language",
+          "cosine",
+          "quote"
+        ],
+        "title": "KnowledgeCitation",
+        "type": "object"
+      },
+      "KnowledgeTrace": {
+        "additionalProperties": false,
+        "properties": {
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeCitation"
+            },
+            "maxItems": 4,
+            "title": "Citations",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "ready",
+              "no_sources",
+              "processing_pending",
+              "below_threshold",
+              "service_unavailable",
+              "rejected",
+              "stale"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "KnowledgeTrace",
+        "type": "object"
+      },
       "LegacyAgentConfig": {
         "additionalProperties": false,
         "properties": {
@@ -3511,6 +3595,16 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "knowledge": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KnowledgeTrace"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "messages": {
             "items": {

@@ -11,7 +11,13 @@ from knowledge.profile import PROFILE
 
 Purpose = Literal["preview", "runtime", "test"]
 Reason = Literal[
-    "ready", "no_sources", "processing_pending", "below_threshold", "service_unavailable"
+    "ready",
+    "no_sources",
+    "processing_pending",
+    "below_threshold",
+    "service_unavailable",
+    "rejected",
+    "stale",
 ]
 
 

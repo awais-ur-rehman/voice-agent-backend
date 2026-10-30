@@ -186,3 +186,26 @@ class SearchResult(Contract):
         "ready", "no_sources", "processing_pending", "below_threshold", "service_unavailable"
     ]
     chunks: list[SearchChunk]
+
+
+class KnowledgeCitation(Contract):
+    source_id: UUID
+    source_name: str = Field(max_length=200)
+    chunk_id: UUID
+    heading: str = Field(max_length=200)
+    language: str = Field(max_length=16)
+    cosine: float = Field(ge=0.55, le=1.000001, allow_inf_nan=False)
+    quote: str = Field(min_length=1, max_length=500)
+
+
+class KnowledgeTrace(Contract):
+    status: Literal[
+        "ready",
+        "no_sources",
+        "processing_pending",
+        "below_threshold",
+        "service_unavailable",
+        "rejected",
+        "stale",
+    ]
+    citations: list[KnowledgeCitation] = Field(default_factory=list, max_length=4)

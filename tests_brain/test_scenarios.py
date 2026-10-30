@@ -269,17 +269,21 @@ def test_original_family_as_executed_conversation(workflow, seed, language, fami
         assert c.appointments()[0].starts_at == datetime(2026, 11, 3, 5, tzinfo=UTC)
     elif family in ("fees-digression", "resume-after-fees"):
         c.prepared()
-        fields, readback = deepcopy(c.state["fields"]), deepcopy(c.state["readback"])
+        fields, hold = deepcopy(c.state["fields"]), deepcopy(c.state["hold"])
         fee = c.ok("get_clinic_info", {"topic": "fees"})
         assert fee["data"]["services"][0]["price"] == "0.00"
         assert "صفر روپے" in fee["say"]["ur"]
-        assert c.state["fields"] == fields and c.state["readback"] == readback
+        assert c.state["fields"] == fields and c.state["hold"] == hold
+        assert c.state["readback"] is None
         if family == "resume-after-fees":
             c.ok(
                 "ask_caller",
                 text=c.words("Thanks, let us continue booking", "شکریہ، اب اپوائنٹمنٹ مکمل کریں"),
             )
             assert c.state["fields"] == fields
+        assert not c.turn("book_appointment", text=c.words("yes", "جی"))["ok"]
+        assert c.appointments() == []
+        c.ok("read_back")
         c.confirm()
         assert len(c.appointments()) == 1
     elif family == "park-for-cancel":

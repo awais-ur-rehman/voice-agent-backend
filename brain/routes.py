@@ -1,12 +1,14 @@
 """Staff session issuance and capability-scoped text simulator transport."""
 
 import re
+import time
 from copy import deepcopy
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import Field
 from sqlalchemy import select
+from sqlalchemy import text as sql_text
 from valkey.exceptions import ValkeyError
 
 from scheduler.contracts import Contract
@@ -24,6 +26,7 @@ from scheduler.models import (
 
 from .contracts import Action
 from .dialogue import affirmative, subject_change
+from .knowledge import identity_literals, local_route, structured_topic
 from .language import language_transition
 from .provider import ProviderError
 from .security import RuntimeActor, decode_runtime, runtime_secret
@@ -188,6 +191,7 @@ def run_command(
         )
         if not existing and row.revision != body.expected_revision:
             raise AppError("idempotency_conflict", 409)
+        literals = identity_literals(db, state) if not existing else ()
         tenant = db.get(Tenant, actor.tenant_id)
         facts = {
             "clinic": {
@@ -217,6 +221,8 @@ def run_command(
     action = None
     failed = False
     provider_requests = 0
+    prepared = None
+    clarify = False
     if not existing and live:
         text = body.text.strip()
         # Identity factors are consumed directly and never sent to an external model.
@@ -234,18 +240,21 @@ def run_command(
             )
         ):
             action = {"name": "request_handoff", "arguments": {"reason": "emergency"}}
+        elif local_route(state, text, literals) == "clarify":
+            clarify = True
+            action = {"name": "ask_caller", "arguments": {}}
+        elif structured_topic(text, config):
+            action = {
+                "name": "get_clinic_info",
+                "arguments": {"topic": structured_topic(text, config)},
+            }
+        elif local_route(state, text, literals) == "faq":
+            action = {"name": "search_knowledge", "arguments": {}}
         elif subject_change(text):
             action = {
                 "name": "update_dialogue_state",
                 "arguments": {"subject": subject_change(text)},
             }
-        elif any(word in text.casefold() for word in ("fee", "fees", "فیس")):
-            action = {"name": "get_clinic_info", "arguments": {"topic": "fees"}}
-        elif any(
-            word in text.casefold()
-            for word in ("opening hours", "clinic hours", "کلینک کے اوقات", "کھلنے کے اوقات")
-        ):
-            action = {"name": "get_clinic_info", "arguments": {"topic": "hours"}}
         elif (
             state.get("candidates")
             and not state.get("verified")
@@ -256,6 +265,10 @@ def run_command(
             action = {"name": "verify_patient", "arguments": {"factor": text}}
         elif re.fullmatch(r"[+\d ()-]{9,40}", text) and len(re.sub(r"\D", "", text)) >= 10:
             action = {"name": "find_patient", "arguments": {"phone": text}}
+        elif not state.get("readback") and affirmative(text) and state.get("pending_patient"):
+            action = {"name": "prepare_patient", "arguments": state["pending_patient"]}
+        elif not state.get("readback") and affirmative(text) and state.get("hold"):
+            action = {"name": "read_back", "arguments": {}}
         elif state.get("lookup_empty") and state.get("lookup_phone") and not state.get("readback"):
             pending = state.get("pending_patient", {})
             args = {"name": pending.get("name", text), "phone": state["lookup_phone"]}
@@ -279,10 +292,75 @@ def run_command(
                 failed = True
     elif not live and not event:
         action = body.action.model_dump(mode="json")
+    if not existing and action and action["name"] == "search_knowledge":
+        topic = structured_topic(body.text, config)
+        if local_route(state, body.text, literals) == "clarify":
+            clarify = True
+            action = {"name": "ask_caller", "arguments": {}}
+        elif topic:
+            action = {"name": "get_clinic_info", "arguments": {"topic": topic}}
+        elif settings.knowledge_enabled:
+            from knowledge.scope import resolve_scope
+            from knowledge.service import KnowledgeService
+
+            with factory() as db, db.begin():
+                scoped_actor = (
+                    internal_auth(db)
+                    if internal_auth
+                    else auth_runtime(request, db, credentials, identity)
+                )
+                knowledge_scope = resolve_scope(db, scoped_actor, request.app.state.clock())
+            language = language_transition(
+                state.get("lang", "en"),
+                state.get("lang_pending"),
+                state.get("lang_streak", 0),
+                body.text,
+                config.get("language_mode", "bilingual"),
+            )[0]
+            if voice_input is not None:
+                from .language import audio_language_transition
+
+                language = audio_language_transition(
+                    state.get("lang", "en"),
+                    state.get("lang_pending"),
+                    state.get("lang_streak", 0),
+                    voice_input.language,
+                    voice_input.confidence,
+                    voice_input.uncertain,
+                    config.get("language_mode", "bilingual"),
+                )[0]
+            provider = request.app.state.brain_planner
+            before_requests = getattr(provider, "requests", 0)
+            prepared = KnowledgeService(
+                factory,
+                request.app.state.knowledge_embeddings,
+                audit_secret=settings.jwt_secret.get_secret_value(),
+                answers=provider,
+            ).prepare(
+                knowledge_scope,
+                body.text,
+                language,
+                command_id=body.command_id,
+                expected_revision=body.expected_revision,
+                deadline=time.monotonic() + 15,
+            )
+            provider_requests += max(0, getattr(provider, "requests", 0) - before_requests)
     with factory() as db, db.begin():
+        if prepared is not None:
+            # Bound the parent mapping/creator checks too, before command()
+            # installs its child-session transaction limits.
+            db.execute(sql_text("SET LOCAL lock_timeout='1000ms'"))
+            db.execute(sql_text("SET LOCAL statement_timeout='2000ms'"))
         actor = (
             internal_auth(db) if internal_auth else auth_runtime(request, db, credentials, identity)
         )
+
+        if prepared is not None:
+            # Native test turns need the same parent-before-child order as the
+            # staff gateway. Recheck before command() locks the child session.
+            from knowledge.scope import resolve_scope
+
+            resolve_scope(db, actor, request.app.state.clock(), lock=True)
 
         def execute(db, s):
             try:
@@ -329,6 +407,9 @@ def run_command(
                 request.app.state.clock(),
                 clock=request.app.state.clock,
                 voice_context=voice_context,
+                prepared_knowledge=prepared,
+                command_id=body.command_id,
+                knowledge_clarification=clarify,
             )
             if event:
                 return engine.trusted_event(s, body.kind, delivered_text=body.delivered_text)

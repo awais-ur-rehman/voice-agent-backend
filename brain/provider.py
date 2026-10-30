@@ -4,6 +4,7 @@ import json
 import re
 import threading
 import time
+from concurrent.futures import Future
 
 import httpx2
 from pydantic import ValidationError
@@ -109,6 +110,7 @@ class Nemotron:
         self.settings = settings
         self.client = httpx2.Client(timeout=settings.llm_timeout_seconds, transport=transport)
         self.lock = threading.Lock()
+        self.ground_slot = threading.BoundedSemaphore(1)
         self.requests = 0
         self.last_failure = None
         self.failures = 0
@@ -118,9 +120,50 @@ class Nemotron:
         self.client.close()
 
     def plan(self, state, text, config, facts):
+        return self._structured(
+            messages(state, text, config, facts),
+            action_schema(state, text),
+            "next_action",
+            lambda content: decode_plan(content, allowed_next(state)),
+        )
+
+    def ground(self, query, language, chunks, *, deadline):
+        from knowledge.grounding import Answer, answer_messages
+
+        if time.monotonic() >= deadline or not self.ground_slot.acquire(blocking=False):
+            raise ProviderError("unavailable")
+        result: Future[str] = Future()
+
+        def run():
+            try:
+                result.set_result(
+                    self._structured(
+                        answer_messages(query, language, chunks),
+                        Answer.model_json_schema(),
+                        "grounded_answer",
+                        lambda content: content,
+                        deadline=deadline,
+                    )
+                )
+            except Exception as exc:
+                result.set_exception(exc)
+            finally:
+                self.ground_slot.release()
+
+        threading.Thread(target=run, daemon=True, name="grounded-answer").start()
+        try:
+            return result.result(timeout=max(0, deadline - time.monotonic()))
+        except TimeoutError:
+            # The single occupied slot fences late work until the network call
+            # actually exits; a deadline never admits an unbounded queue.
+            raise ProviderError("deadline", requests=1) from None
+
+    def _structured(self, prompt, schema, name, decode, *, deadline=None):
         with self.lock:
             if (
-                not self.settings.llm_api_key
+                deadline is not None
+                and time.monotonic() >= deadline
+                or not self.settings.llm_api_key
                 or not self.settings.llm_api_key.get_secret_value()
                 or self.requests >= self.settings.llm_request_budget
                 or time.monotonic() < self.open_until
@@ -131,9 +174,14 @@ class Nemotron:
             response = self.client.post(
                 "https://integrate.api.nvidia.com/v1/chat/completions",
                 headers={"Authorization": "Bearer " + self.settings.llm_api_key.get_secret_value()},
+                timeout=min(
+                    self.settings.llm_timeout_seconds, max(0.001, deadline - time.monotonic())
+                )
+                if deadline is not None
+                else self.settings.llm_timeout_seconds,
                 json={
                     "model": self.settings.llm_model,
-                    "messages": messages(state, text, config, facts),
+                    "messages": prompt,
                     "temperature": 0,
                     "top_p": 1,
                     "max_tokens": 512,
@@ -142,16 +190,18 @@ class Nemotron:
                     "response_format": {
                         "type": "json_schema",
                         "json_schema": {
-                            "name": "next_action",
+                            "name": name,
                             "strict": True,
-                            "schema": action_schema(state, text),
+                            "schema": schema,
                         },
                     },
                 },
             )
             response.raise_for_status()
             data = response.json()
-            action = decode_plan(data["choices"][0]["message"]["content"], allowed_next(state))
+            action = decode(data["choices"][0]["message"]["content"])
+            if deadline is not None and time.monotonic() >= deadline:
+                raise ProviderError("deadline")
         except (
             httpx2.HTTPError,
             ValueError,
