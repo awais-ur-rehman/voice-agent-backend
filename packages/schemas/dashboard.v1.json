@@ -2627,7 +2627,7 @@
             "type": "string"
           },
           "query": {
-            "maxLength": 4000,
+            "maxLength": 1000,
             "minLength": 1,
             "title": "Query",
             "type": "string"

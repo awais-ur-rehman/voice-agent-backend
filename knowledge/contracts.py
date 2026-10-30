@@ -163,8 +163,7 @@ class Preview(Contract):
     excerpts: list[str]
 
 
-class SearchQuery(Contract):
-    query: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
+class SearchQuery(RetrievalQuery):
     language: Literal["en", "ur"]
     query_id: UUID
 

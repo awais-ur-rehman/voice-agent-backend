@@ -5,10 +5,12 @@ from collections.abc import Callable
 from typing import Protocol
 from uuid import UUID
 
+from pydantic import ValidationError
 from sqlalchemy import exists, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from knowledge.contracts import RetrievalQuery
 from knowledge.embedding import EmbeddingUnavailable, validate_vectors
 from knowledge.models import Generation, Source
 from knowledge.privacy import derive_query_key, prior_event, query_fingerprint, record_event
@@ -47,13 +49,13 @@ class KnowledgeService:
     def retrieve(
         self, scope: KnowledgeScope, query: str, language: str, *, query_id: UUID, deadline: float
     ) -> RetrievalResult:
-        if (
-            not isinstance(query, str)
-            or not query.strip()
-            or len(query) > 4000
-            or language not in {"en", "ur"}
-        ):
+        if not isinstance(query, str) or language not in {"en", "ur"}:
             raise AppError("invalid_knowledge_query", 422)
+        try:
+            # Share the established trimmed 1..1000 contract with public search.
+            query = RetrievalQuery(query=query).query
+        except ValidationError:
+            raise AppError("invalid_knowledge_query", 422) from None
         started = time.monotonic()
         fingerprint = query_fingerprint(scope, query, language, key=self.audit_key)
         with self.factory() as db, db.begin():

@@ -445,3 +445,89 @@ def test_audit_reference_keeps_bounded_scores_without_source_content():
     refs = chunk.reference()
     assert refs["cosine"] == 0.8 and refs["score"] == 0.03
     assert "Secret" not in str(refs)
+
+
+@pytest.mark.parametrize("entry", ["public", "service"])
+def test_query_1001_rejected_before_embedding_or_event(owner, tmp_path, database, seed, entry):
+    from knowledge.retrieval import KnowledgeScope
+    from knowledge.service import KnowledgeService
+    from scheduler.errors import AppError
+
+    base = setup_api(owner, tmp_path)
+    agent = UUID(base.split("/")[3])
+    corpus(database, seed["tenant_a"], agent, ["hours"])
+    calls = []
+
+    class Observed(Embeddings):
+        def embed(self, texts, *, deadline):
+            calls.extend(texts)
+            return super().embed(texts, deadline=deadline)
+
+    embeddings = Observed()
+    owner.app.state.knowledge_embeddings = embeddings
+    if entry == "public":
+        result = search(owner, base, "x" * 1001)
+        assert result.status_code == 422, result.text
+    else:
+        with pytest.raises(AppError) as error:
+            KnowledgeService(
+                owner.app.state.session_factory, embeddings, audit_secret=SECRET
+            ).retrieve(
+                KnowledgeScope(seed["tenant_a"], agent, "preview"),
+                "x" * 1001,
+                "en",
+                query_id=uuid4(),
+                deadline=time.monotonic() + 10,
+            )
+        assert error.value.status == 422
+    assert calls == []
+    with Session(database) as db:
+        assert list(db.scalars(select(QueryEvent))) == []
+
+
+@pytest.mark.parametrize("entry", ["public", "service"])
+def test_query_trimmed_1000_boundary_reaches_embedding(owner, tmp_path, database, seed, entry):
+    from knowledge.retrieval import KnowledgeScope
+    from knowledge.service import KnowledgeService
+
+    base = setup_api(owner, tmp_path)
+    agent = UUID(base.split("/")[3])
+    corpus(database, seed["tenant_a"], agent, ["hours"])
+    calls = []
+
+    class Observed(Embeddings):
+        def embed(self, texts, *, deadline):
+            calls.extend(texts)
+            return super().embed(texts, deadline=deadline)
+
+    embeddings = Observed()
+    owner.app.state.knowledge_embeddings = embeddings
+    query = " \n" + "x" * 1000 + "\t "
+    if entry == "public":
+        response = search(owner, base, query)
+        assert response.status_code == 200, response.text
+        assert response.json()["reason"] == "ready"
+    else:
+        result = KnowledgeService(
+            owner.app.state.session_factory, embeddings, audit_secret=SECRET
+        ).retrieve(
+            KnowledgeScope(seed["tenant_a"], agent, "preview"),
+            query,
+            "en",
+            query_id=uuid4(),
+            deadline=time.monotonic() + 10,
+        )
+        assert result.reason == "ready"
+    assert calls == ["x" * 1000]
+    with Session(database) as db:
+        assert len(list(db.scalars(select(QueryEvent)))) == 1
+
+
+def test_generated_search_contract_retains_established_query_limit():
+    import json
+
+    from scripts.export_dashboard_contracts import render
+
+    query = json.loads(render())["components"]["schemas"]["SearchQuery"]["properties"]["query"]
+    assert query["minLength"] == 1
+    assert query["maxLength"] == 1000
