@@ -531,9 +531,14 @@ class ToolEngine:
                     "clinic_profile", {}
                 )
                 prefix = "address" if topic == "location" else "preparation"
-                if not all(profile.get(prefix + "_" + lang) for lang in ("en", "ur")):
-                    return result(error="no_answer")
-                return result(say={lang: profile[prefix + "_" + lang] for lang in ("en", "ur")})
+                fallback = result(error="no_answer")
+                say = {
+                    lang: profile.get(prefix + "_" + lang) or fallback["say"][lang]
+                    for lang in ("en", "ur")
+                }
+                if not profile.get(prefix + "_" + s.get("lang", "en")):
+                    return result(error="no_answer", say=say)
+                return result(say=say)
             if topic == "hours":
                 from .normalization import say_time
 

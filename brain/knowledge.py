@@ -107,15 +107,39 @@ def structured_topic(text, config):
     lower = text.casefold()
     if re.search(r"\bfees?\b|\bprice\b|\bcost\b|فیس|قیمت", lower):
         return "fees"
-    if any(v in lower for v in ("opening hours", "clinic hours", "open", "اوقات", "کھلنے")):
+    # Match clinic fact domains, not arbitrary occurrences of "open" or "where".
+    # An address in either locale owns the domain even if the caller's locale
+    # needs a code-owned no-answer response. Documents cannot fill that gap.
+    if re.search(
+        r"\b(?:opening|closing|clinic|your) (?:hours|times?)\b"
+        r"|\b(?:you|clinic) (?:open|close|opens|closes)\b"
+        r"|\b(?:you|clinic) (?:is |are )?(?:open|closed)\b"
+        r"|اوقات|کھلنے|بند ہونے|(?:کلینک|آپ).*(?:بند|کھل)",
+        lower,
+    ):
         return "hours"
     profile = config.get("clinic_profile", {})
-    for topic, prefix, cues in (
-        ("location", "address", ("where", "address", "location", "پتہ", "کہاں")),
-        ("preparation", "preparation", ("bring", "prepar", "documents", "لاؤں", "لانا", "تیاری")),
+    for topic, prefix, pattern in (
+        (
+            "location",
+            "address",
+            r"\b(?:your|clinic|the) (?:address|location)\b"
+            r"|\bwhere (?:is|are) (?:the clinic|you)\b"
+            r"|\bclinic (?:is )?located\b"
+            r"|\b(?:address|location) of (?:the )?clinic\b"
+            r"|پتہ|کلینک.*کہاں|آپ.*کہاں",
+        ),
+        (
+            "preparation",
+            "preparation",
+            r"\b(?:how (?:should|do|can) I prepare|preparation)\b"
+            r"|\bwhat(?: documents| papers)? (?:should|do|must|can) I bring\b"
+            r"|\bwhat documents (?:are|do I) need\b"
+            r"|لاؤں|لانا|تیاری|دستاویزات",
+        ),
     ):
-        if all(profile.get(prefix + "_" + lang) for lang in ("en", "ur")) and any(
-            v in lower for v in cues
+        if any(profile.get(prefix + "_" + lang) for lang in ("en", "ur")) and re.search(
+            pattern, lower, re.IGNORECASE
         ):
             return topic
     return None
