@@ -70,7 +70,7 @@ def test_migration_round_trip_and_forced_rls(database):
                 "SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace AND relrowsecurity AND relforcerowsecurity"
             )
         ).scalar_one()
-        assert count == 25
+        assert count == 37
         protected = set(
             conn.execute(
                 text(
