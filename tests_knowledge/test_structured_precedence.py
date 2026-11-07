@@ -31,6 +31,7 @@ def dashboard(seed):
         ("When do you close?", "hours"),
         ("What time does the clinic close?", "hours"),
         ("What are your closing times?", "hours"),
+        ("Are you still open?", "hours"),
         ("کلینک کب بند ہوتا ہے؟", "hours"),
         ("آپ کتنے بجے بند کرتے ہیں؟", "hours"),
         ("Where is the clinic?", "location"),
@@ -38,11 +39,13 @@ def dashboard(seed):
         ("Where are you located?", "location"),
         ("کلینک کہاں واقع ہے؟", "location"),
         ("How should I prepare?", "preparation"),
+        ("Do I need to bring documents?", "preparation"),
         ("کیا دستاویزات لاؤں؟", "preparation"),
         ("Where is bicycle parking?", None),
         ("Is bicycle parking open?", None),
         ("How do I open the patient portal?", None),
         ("Where can I bring my bicycle?", None),
+        ("Do I need to bring my bicycle?", None),
     ],
 )
 @pytest.mark.parametrize("locale", ["en", "ur"])
@@ -64,6 +67,7 @@ def test_owned_domains_do_not_swallow_unrelated_faq(question, topic, locale):
     "question,lang,profile,expected",
     [
         ("When do you close?", "en", {}, "five in the evening"),
+        ("Are you still open?", "en", {}, "five in the evening"),
         ("کلینک کب بند ہوتا ہے؟", "ur", {}, "شام پانچ"),
         ("Where is the clinic?", "en", {"address_en": "10 Correct Road"}, "10 Correct Road"),
         (
@@ -89,6 +93,15 @@ def test_owned_domains_do_not_swallow_unrelated_faq(question, topic, locale):
             "How should I prepare?",
             "en",
             {"preparation_en": "Bring the reviewed checklist."},
+            "Bring the reviewed checklist.",
+        ),
+        (
+            "Do I need to bring documents?",
+            "en",
+            {
+                "preparation_en": "Bring the reviewed checklist.",
+                "preparation_ur": "تصدیق شدہ فہرست لائیں۔",
+            },
             "Bring the reviewed checklist.",
         ),
         (

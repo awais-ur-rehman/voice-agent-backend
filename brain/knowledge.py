@@ -114,6 +114,7 @@ def structured_topic(text, config):
         r"\b(?:opening|closing|clinic|your) (?:hours|times?)\b"
         r"|\b(?:you|clinic) (?:open|close|opens|closes)\b"
         r"|\b(?:you|clinic) (?:is |are )?(?:open|closed)\b"
+        r"|\b(?:are you|is (?:the )?clinic) still (?:open|closed)\b"
         r"|اوقات|کھلنے|بند ہونے|(?:کلینک|آپ).*(?:بند|کھل)",
         lower,
     ):
@@ -135,6 +136,7 @@ def structured_topic(text, config):
             r"\b(?:how (?:should|do|can) I prepare|preparation)\b"
             r"|\bwhat(?: documents| papers)? (?:should|do|must|can) I bring\b"
             r"|\bwhat documents (?:are|do I) need\b"
+            r"|\bdo I need to bring (?:any |my |the )?(?:documents|papers)\b"
             r"|لاؤں|لانا|تیاری|دستاویزات",
         ),
     ):
