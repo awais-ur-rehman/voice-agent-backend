@@ -88,3 +88,8 @@ Serialize transcript insertion against settings disable/retention changes using 
 ### Shared measurement vocabulary
 
 Canonical stage keys: command_total,tool,llm_completion,llm_first_token,stt_completion,tts_first_byte,end_of_speech_to_audio. Distinct diagnostic keys: tts_buffered_generation,audio_queue,end_of_speech_to_audio_queue. All are finite0..600000ms observations; diagnostics never populate a missing canonical stage. Safe event metadata may include observed stt_confidence(finite0..1), uncertain/cache_hit booleans and output_state(generated/queued/delivered/interrupted), not raw transcripts or arbitrary nested payloads. Task1 report records its complete final allowlist for downstream workers.
+
+
+### Outcome clarification before Task2 freeze
+
+A successful code-owned clinic-info or validated knowledge answer is an information completion: with no unfinished scheduling attempt, even timeout/disconnect ends info_only. Empty/pending-consent/no-completed-goal sessions end abandoned, including explicit end; do not invent completed information. Handoff/terminalerror override and real completed appointment operation retains that success, with actual end_reason independent. Unfinished scheduling attempts remain incomplete even if a side FAQ was answered. Preserve tested explicit operation counters separately.
