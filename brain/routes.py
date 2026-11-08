@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy import text as sql_text
 from valkey.exceptions import ValkeyError
 
+from analytics.telemetry import current_sink, database_writer, measured_request
 from scheduler.contracts import Contract
 from scheduler.db import Principal, bearer, principal, session
 from scheduler.errors import AppError
@@ -149,6 +150,7 @@ def renew(identity: UUID, request: Request, credentials=Depends(bearer)):
     return created
 
 
+@measured_request
 def run_command(
     identity,
     body,
@@ -188,6 +190,14 @@ def run_command(
             require_worker(db, actor, voice_authority, request.app.state.clock())
         state = deepcopy(row.checkpoint)
         call = db.get(CallRecord, identity)
+        sink = current_sink.get()
+        if sink is not None and call is not None:
+            sink.writer = database_writer(factory, actor.tenant_id, identity)
+            sink.trace_id = call.trace_id
+            from analytics.tracing import safe_span
+
+            sink.command_span = safe_span("runtime.command", call.trace_id)
+            sink.command_span.__enter__()
         consent_pending = call is not None and call.consent == "pending"
         version = db.get(AgentVersion, actor.version_id)
         config = version.config
@@ -227,7 +237,6 @@ def run_command(
         }
     action = None
     failed = False
-    provider_requests = 0
     prepared = None
     clarify = False
     explicit_action = body.action.model_dump(mode="json") if not live and not event else None
@@ -253,7 +262,6 @@ def run_command(
             action = {"name": "confirm", "arguments": {}}
         else:
             try:
-                provider_requests = 1
                 action = request.app.state.brain_planner.plan(
                     state, text, config, facts
                 ).model_dump(mode="json")
@@ -261,8 +269,7 @@ def run_command(
                 phrase = action["arguments"].get("date_phrase")
                 if phrase and phrase not in text:
                     raise ProviderError("nonliteral_date", requests=1)
-            except ProviderError as exc:
-                provider_requests = getattr(exc, "requests", provider_requests)
+            except ProviderError:
                 failed = True
     elif not live and not event:
         action = body.action.model_dump(mode="json")
@@ -301,7 +308,6 @@ def run_command(
                     config.get("language_mode", "bilingual"),
                 )[0]
             provider = request.app.state.brain_planner
-            before_requests = getattr(provider, "requests", 0)
             prepared = KnowledgeService(
                 factory,
                 request.app.state.knowledge_embeddings,
@@ -315,10 +321,10 @@ def run_command(
                 expected_revision=body.expected_revision,
                 deadline=time.monotonic() + 15,
             )
-            provider_requests += max(0, getattr(provider, "requests", 0) - before_requests)
     if failed:
         action = None  # No tool ran on a provider-failure response.
     observation = TurnObservation(
+        stages=list(sink.stages) if sink is not None else [],
         started_monotonic=started_monotonic,
         input_text=getattr(body, "text", ""),
         identity_literals=literals,
@@ -433,7 +439,7 @@ def run_command(
         "revision": next_state["revision"],
         "state": next_state,
         "cache_ready": cache_ready,
-        "provider_requests": provider_requests,
+        "provider_requests": sink.requests if sink is not None else 0,
         "executed_action": response.get("test_action")
         if internal_auth
         else (action["name"] if action else None),

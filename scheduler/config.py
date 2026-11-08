@@ -1,3 +1,4 @@
+from decimal import Decimal
 from pathlib import Path
 
 from pydantic import Field, SecretStr, model_validator
@@ -18,6 +19,12 @@ class Settings(BaseSettings):
     llm_model: str = "nvidia/nemotron-3.5-bolt-e4b"
     llm_timeout_seconds: float = Field(default=30, ge=1, le=60)
     llm_request_budget: int = Field(default=100, ge=1, le=1000)
+    llm_input_rate_usd_per_million: Decimal | None = Field(
+        default=None, ge=0, le=1000000, allow_inf_nan=False
+    )
+    llm_output_rate_usd_per_million: Decimal | None = Field(
+        default=None, ge=0, le=1000000, allow_inf_nan=False
+    )
     registration_enabled: bool = False
     knowledge_enabled: bool = False
     knowledge_embedding_url: str = "http://127.0.0.1:8001"

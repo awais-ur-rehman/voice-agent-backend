@@ -156,7 +156,7 @@ class TurnObservation(InternalContract):
 class UsageObservation(InternalContract):
     """One actual HTTP invocation, independently persisted after provider completion.
 
-    Rates are configured currency units per million reported tokens; no estimates.
+    Rates are configured USD per million reported tokens; cost is an estimate.
     A missing input is unknown, never an implicit zero.
     """
 

@@ -1,0 +1,188 @@
+"""Lightweight timing/control tests, no weights/RTC/provider requests."""
+
+import asyncio
+from datetime import UTC, datetime
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
+
+def test_queue_bounds_nonblocking_epoch_revision_fences_and_failures():
+    from voice_runtime.telemetry import MetricQueue
+
+    async def scenario():
+        block = asyncio.Event()
+        submitted = []
+
+        async def send(body):
+            submitted.append(body)
+            await block.wait()
+
+        call = SimpleNamespace(epoch=3, generation=1, api=SimpleNamespace(revision=2, metrics=send))
+        queue = MetricQueue(call)
+        for i in range(100):
+            queue.offer("stt_completion", i, "en", 3, metadata={"uncertain": True})
+        assert len(queue.pending) <= 32
+        await asyncio.sleep(0)
+        call.epoch = 4
+        call.api.revision = 3
+        queue.offer("stt_completion", 4, "en", 3)
+        block.set()
+        await queue.flush()
+        assert len(submitted) == 1 and submitted[0]["revision"] == 2
+        assert len(submitted[0]["observations"]) <= 32
+        assert all(v["output_kind"] == "input" for v in submitted[0]["observations"])
+
+    asyncio.run(scenario())
+
+
+def test_uncertain_and_low_confidence_asr_are_safe_observations_before_api():
+    from voice_runtime.pipeline import NativeCall
+    from voice_runtime.speech.contracts import ASRResult, PCMChunk
+    from voice_runtime.telemetry import MetricQueue
+
+    async def scenario():
+        for result in [
+            ASRResult("private", "en", 0.9, True),
+            ASRResult("private", "en", 0.3, False),
+        ]:
+            call = NativeCall.__new__(NativeCall)
+            call.epoch = 1
+            call.generation = 1
+            call.language_mode = "en"
+            call.api = SimpleNamespace(revision=0, metrics=AsyncMock(), turn=AsyncMock())
+            call.metrics = MetricQueue(call)
+            call.message = AsyncMock()
+            call.fail = AsyncMock()
+            call.asr = SimpleNamespace(
+                transcribe=lambda *args: result, supervisor=SimpleNamespace(generation=1)
+            )
+            await call.turn(PCMChunk(b"\0\0" * 160, 16000), datetime.now(UTC), 1)
+            await call.metrics.flush()
+            call.api.turn.assert_not_awaited()
+            observation = call.api.metrics.call_args.args[0]["observations"][0]
+            assert (
+                observation["stage"] == "stt_completion"
+                and observation["metadata"]["stt_confidence"] == result.confidence
+            )
+            assert "private" not in repr(observation) and observation["command_id"] is None
+
+    asyncio.run(scenario())
+
+
+def test_vad_anchor_is_last_voiced_boundary_not_start_or_silence(monkeypatch):
+    from pipecat.audio.vad.vad_analyzer import VADState
+    from pipecat.frames.frames import UserAudioRawFrame
+
+    import voice_runtime.pipeline as module
+
+    monkeypatch.setattr(module.FrameProcessor, "process_frame", AsyncMock())
+    now = [100.0]
+    monkeypatch.setattr(module.time, "monotonic", lambda: now[0])
+    call = SimpleNamespace(
+        caller="caller",
+        timers=SimpleNamespace(muted=False, activity=lambda _: None),
+        interrupt=AsyncMock(),
+        spawn_turn=lambda *args, **kw: anchors.append(kw["end_of_speech"]),
+    )
+    anchors = []
+    processor = module.CallerProcessor.__new__(module.CallerProcessor)
+    processor.call = call
+    processor.buffer = bytearray()
+    processor.preroll = b""
+    processor.speaking = False
+    processor.started = None
+    processor.last_voiced = None
+    processor.vad = SimpleNamespace(
+        analyze_audio=AsyncMock(side_effect=[VADState.SPEAKING, VADState.STOPPING, VADState.QUIET])
+    )
+
+    async def scenario():
+        for tick in [100.0, 100.2, 100.6]:
+            now[0] = tick
+            await processor.process_frame(
+                UserAudioRawFrame(
+                    audio=b"\0\0" * 160, sample_rate=16000, num_channels=1, user_id="caller"
+                ),
+                None,
+            )
+
+    asyncio.run(scenario())
+    assert anchors == [100.0]
+
+
+def test_buffered_and_cached_output_never_become_first_byte_or_published_audio():
+    import time
+
+    from voice_runtime.pipeline import NativeCall
+    from voice_runtime.speech.contracts import PCMChunk
+    from voice_runtime.telemetry import MetricQueue, output_measurement
+
+    async def scenario():
+        for cached, filler in [(False, False), (True, False), (True, True)]:
+            submitted = []
+
+            async def send(body):
+                submitted.extend(body["observations"])
+
+            call = NativeCall.__new__(NativeCall)
+            call.session_id = "synthetic"
+            call.caller = "caller"
+            call.generation = 1
+            call.epoch = 2
+            call.ending = False
+            call.api = SimpleNamespace(revision=3, metrics=send)
+            call.metrics = MetricQueue(call)
+            call.message = AsyncMock()
+            pcm = PCMChunk(b"\0\0" * 960, 24000)
+            call.cache = SimpleNamespace(
+                get=lambda *args: pcm if cached else None, put=lambda *args: None
+            )
+            call.english = call.urdu = SimpleNamespace(
+                synthesize=lambda *args: pcm, supervisor=SimpleNamespace(generation=1)
+            )
+            call.worker = SimpleNamespace(queue_frame=AsyncMock())
+            call.timers = SimpleNamespace(activity=lambda _: None)
+            token = output_measurement.set(
+                {
+                    "command_id": "f2ca0fae-1111-4111-8111-88c58e1db6cc",
+                    "revision": 3,
+                    "output_kind": "response",
+                    "end_of_speech": time.monotonic() - 0.1,
+                }
+            )
+            try:
+                await call.speak("One moment, please.", "en", None, 2, status_only=filler)
+            finally:
+                output_measurement.reset(token)
+            await call.metrics.flush()
+            stages = {value["stage"] for value in submitted}
+            assert not stages & {"tts_first_byte", "end_of_speech_to_audio", "llm_first_token"}
+            assert "audio_queue" in stages
+            assert ("tts_buffered_generation" in stages) is not cached
+            assert ("end_of_speech_to_audio_queue" in stages) is not filler
+            assert all(v["metadata"]["cache_hit"] == cached for v in submitted)
+            assert all(v["output_kind"] == ("filler" if filler else "response") for v in submitted)
+
+    asyncio.run(scenario())
+
+
+def test_stale_epoch_and_failed_submission_remain_missing_without_breaking_control():
+    from voice_runtime.telemetry import MetricQueue
+
+    async def scenario():
+        call = SimpleNamespace(
+            epoch=1,
+            generation=2,
+            api=SimpleNamespace(
+                revision=3, metrics=AsyncMock(side_effect=OSError("private failure"))
+            ),
+        )
+        queue = MetricQueue(call)
+        queue.offer("stt_completion", 1, "en", 0)
+        assert not queue.pending and queue.task is None
+        queue.offer("stt_completion", 1, "en", 1)
+        await queue.flush()
+        assert call.api.metrics.call_count == 1
+        assert not queue.pending
+
+    asyncio.run(scenario())

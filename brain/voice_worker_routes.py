@@ -501,3 +501,64 @@ def interrupt(
         "cache_ready": repair(store, identity, state),
         "provider_requests": 0,
     }
+
+
+@router.post("/sessions/{identity}/metrics")
+async def metrics(
+    identity: UUID,
+    request: Request,
+    credentials=Depends(bearer),
+    runtime_token: str | None = Header(default=None, alias="X-Runtime-Capability"),
+):
+    from pydantic import ValidationError
+
+    from analytics.lifecycle import guard_session
+    from analytics.telemetry import NativeBatch, record_native
+
+    def authorize(db):
+        actor, authority, voice = worker(request, db, identity, credentials, runtime_token)
+        parent = db.get(AgentSession, actor.id)
+        now = guard_session(db, parent, request.app.state.clock(), clock=request.app.state.clock)
+        require_worker(db, actor, authority, now)
+        return parent, voice, now
+
+    from starlette.concurrency import run_in_threadpool
+
+    def preflight():
+        with request.app.state.session_factory() as db, db.begin():
+            from sqlalchemy import text
+
+            db.execute(text("SET LOCAL statement_timeout='5000ms'"))
+            db.execute(text("SET LOCAL lock_timeout='1000ms'"))
+            authorize(db)
+
+    # Authenticate before consuming any body, then recheck fresh authority after it.
+    await run_in_threadpool(preflight)
+    raw = bytearray()
+    async for chunk in request.stream():
+        if len(raw) + len(chunk) > 32768:
+            raise AppError("validation_failed", 413)
+        raw.extend(chunk)
+    try:
+        body = NativeBatch.model_validate_json(raw)
+    except ValidationError:
+        raise AppError("validation_failed", 422) from None
+
+    def persist():
+        with request.app.state.session_factory() as db, db.begin():
+            from sqlalchemy import text
+
+            db.execute(text("SET LOCAL statement_timeout='5000ms'"))
+            db.execute(text("SET LOCAL lock_timeout='1000ms'"))
+            parent, voice, now = authorize(db)
+            if body.generation != voice.generation:
+                raise AppError("unauthorized", 401)
+            from analytics.models import CallRecord
+            from analytics.tracing import safe_span
+
+            call = db.get(CallRecord, parent.id)
+            with safe_span("native.metrics", call.trace_id if call else None):
+                record_native(db, parent, body, now)
+
+    await run_in_threadpool(persist)
+    return {"accepted": len(body.observations)}

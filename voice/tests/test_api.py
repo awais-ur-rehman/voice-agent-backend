@@ -48,3 +48,27 @@ def test_delayed_reply_never_rolls_worker_revision_back():
         await worker.close()
 
     asyncio.run(scenario())
+
+
+def test_metric_retry_reuses_exact_payload_and_never_changes_command_revision():
+    requests = []
+
+    def serve(request):
+        requests.append(request.content)
+        if len(requests) == 1:
+            raise httpx.ReadError("ambiguous")
+        return httpx.Response(200, json={"accepted": 1})
+
+    async def scenario():
+        api = WorkerAPI(
+            "http://local",
+            {"session_id": "sid"},
+            client=httpx.AsyncClient(base_url="http://local", transport=httpx.MockTransport(serve)),
+        )
+        await api.metrics(
+            {"generation": 1, "revision": 0, "observations": [{"event_id": "stable"}]}
+        )
+        assert requests[0] == requests[1] and api.revision == 0
+        await api.close()
+
+    asyncio.run(scenario())

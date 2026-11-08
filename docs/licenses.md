@@ -101,3 +101,7 @@ installed. The existing reviewed tokenizers and psutil pins are reused. See
 [ingestion boundaries and operations](phase-5-ingestion.md).
 
 Phase 5 checkpoint adds no new third-party packages, models, fonts, or assets. The qualification corpus and QA screenshots are project-authored synthetic material. Existing locked package/model notices and redistribution limits above continue to apply; real model acceptance is not a license claim.
+
+## Phase 6 manual tracing API — November 8, 2026
+
+Promoted the already locked `opentelemetry-api==1.45.1` to a direct dependency. The [versioned primary PyPI metadata](https://pypi.org/project/opentelemetry-api/1.45.1/) identifies Apache-2.0, Python >=3.10 and Python 3.12 support; the installed distribution metadata agrees. Retain its Apache-2.0 license and applicable notices on redistribution. The existing wheel/sdist hashes remain unchanged in `uv.lock`; no package was upgraded. The [official Python instrumentation documentation](https://opentelemetry.io/docs/languages/python/instrumentation/) describes manual spans and the separate SDK/exporter setup. This adoption adds only bounded manual API calls, with automatic exception recording/status text disabled. It adds no SDK, exporter, automatic HTTP/SQL instrumentation or telemetry transmission. API hooks without an SDK/exporter are not deployed trace evidence.
