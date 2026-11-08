@@ -1,6 +1,7 @@
 """Lightweight timing/control tests, no weights/RTC/provider requests."""
 
 import asyncio
+import time
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -202,7 +203,8 @@ def disconnect_fixture(events, send):
     call.session_id = "sid"
     call.input_sequence = 0
     call.ending = False
-    call.timers = SimpleNamespace(started=0, tick=lambda now: "end")
+    # The deadline is elapsed call time, independent of the host monotonic epoch.
+    call.timers = SimpleNamespace(started=time.monotonic() - 600, tick=lambda now: "end")
     call.pending = None
     call.invalidation = None
     call.invalidation_jobs = set()
@@ -438,3 +440,20 @@ def test_caller_end_ignores_wrong_participant_and_oversized_packet():
         assert not call.metrics.sealed and call.epoch == 4 and call.input_sequence == 0
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("now", [100.0, 1000.0])
+def test_deadline_callbacks_use_elapsed_time_independent_of_clock_origin(monkeypatch, now):
+    from voice_runtime import pipeline
+
+    # Rebind only these modules' clock references, leaving asyncio and the actual
+    # MetricQueue 1.2-second timeout on the real clock. Exercise the actual callback
+    # and all ordering, prompt cancellation, late-offer and hung-sender assertions.
+    clock = SimpleNamespace(monotonic=lambda: now)
+    monkeypatch.setattr(pipeline, "time", clock)
+    monkeypatch.setitem(globals(), "time", clock)
+    test_disconnect_callbacks_submit_pending_completed_observation_before_server_revocation(
+        "deadline"
+    )
+    test_disconnect_freezes_old_observations_and_cancels_locally_while_submission_waits("deadline")
+    test_disconnect_hung_metrics_cannot_hold_shutdown_or_send_frozen_work_after_deadline("deadline")
