@@ -166,21 +166,15 @@ def guard_session(
     *,
     clock: Callable[[], datetime] | None = None,
     error: str = "unauthorized",
-    allow_handoff: bool = False,
 ) -> datetime:
     """Acquire mirror after core locks, then refresh time before any extension.
 
     Analytics workers lock only the mirror. A committed worker expiry must win
     over a runtime waiting to extend its lease, even with an older entry clock.
-    Handoff commands may still perform their existing end-call cleanup.
     """
     call = locked_call(db, row.id)
     now = clock() if clock else now
-    if call is not None and (
-        call.ended_at is not None
-        and not (allow_handoff and call.end_reason == "handoff")
-        or now >= call.expires_at
-    ):
+    if call is not None and (call.ended_at is not None or now >= call.expires_at):
         raise AppError(error, 409 if error == "voice_unavailable" else 401)
     return now
 

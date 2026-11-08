@@ -419,3 +419,122 @@ def test_parked_task_stack_cannot_retain_payload_or_exceed_eight(database, analy
         with pytest.raises(IntegrityError) as error, database.begin() as db:
             insert_call(db, analytics_seed, parked_task_ids=value)
         assert error.value.orig.sqlstate == "23514"
+
+
+@pytest.mark.parametrize(
+    "slots",
+    ["[null]", '[null,"' + str(uuid4()) + '",null]', "[null,null,null,null,null,null,null,null]"],
+)
+def test_parked_task_slots_allow_bounded_opaque_placeholders(database, analytics_seed, slots):
+    with database.begin() as db:
+        insert_call(db, analytics_seed, parked_task_ids=slots)
+
+
+@pytest.mark.parametrize(
+    "slots",
+    [
+        "[null,null,null,null,null,null,null,null,null]",
+        "[null,{}]",
+        '[null,"private-frame"]',
+        "[null,1]",
+    ],
+)
+def test_parked_task_slots_still_reject_payloads_and_excess_depth(database, analytics_seed, slots):
+    with pytest.raises(IntegrityError) as error, database.begin() as db:
+        insert_call(db, analytics_seed, parked_task_ids=slots)
+    assert error.value.orig.sqlstate == "23514"
+
+
+@pytest.mark.parametrize("same_clinic", [True, False])
+def test_parked_task_restore_never_adopts_or_mutates_other_session(
+    database, analytics_seed, same_clinic
+):
+    from datetime import UTC, datetime
+
+    from sqlalchemy.orm import Session
+
+    from analytics.models import CallRecord, TaskRecord
+    from analytics.tasks import reconcile_task
+
+    now = datetime(2026, 11, 8, 8, tzinfo=UTC)
+    with Session(database) as db:
+        if same_clinic:
+            analytics_seed = dict(analytics_seed)
+            other_session = uuid4()
+            db.execute(
+                text(
+                    "INSERT INTO agent_sessions(id,tenant_id,agent_id,version_id,token_jti_hash,expires_at) SELECT :other,tenant_id,agent_id,version_id,'synthetic-other',expires_at FROM agent_sessions WHERE id=:original"
+                ),
+                {"other": other_session, "original": analytics_seed["session_a"]},
+            )
+            analytics_seed.update(
+                tenant_b=analytics_seed["tenant_a"],
+                agent_b=analytics_seed["agent_a"],
+                session_b=other_session,
+            )
+        insert_call(db, analytics_seed, "a")
+        insert_call(db, analytics_seed, "b")
+        foreign = TaskRecord(
+            tenant_id=analytics_seed["tenant_b"],
+            session_id=analytics_seed["session_b"],
+            kind="book",
+            status="parked",
+            started_at=now,
+        )
+        db.add(foreign)
+        db.flush()
+        call = db.get(CallRecord, analytics_seed["session_a"])
+        call.parked_task_ids = [str(foreign.id)]
+        assert (
+            reconcile_task(
+                db,
+                call,
+                {"task": "cancel", "parked": [{}]},
+                {"task": "book", "parked": []},
+                {"name": "resume_task"},
+                True,
+                now,
+            )
+            is None
+        )
+        assert call.parked_task_ids == [] and call.active_task_id is None
+        assert foreign.status == "parked" and foreign.ended_at is None
+        # Dropping an oversized/mismatched association cannot mutate it either.
+        call.parked_task_ids = [str(foreign.id)]
+        reconcile_task(
+            db,
+            call,
+            {"task": "book", "parked": []},
+            {"task": "book", "parked": []},
+            {"name": "get_clinic_info"},
+            True,
+            now,
+        )
+        assert call.parked_task_ids == [] and foreign.status == "parked"
+
+
+@pytest.mark.parametrize("has_placeholder", [True, False])
+def test_slot_migration_downgrade_refuses_lossy_active_placeholders(
+    database, analytics_seed, monkeypatch, has_placeholder
+):
+    from importlib import import_module
+    from types import SimpleNamespace
+
+    migration = import_module("migrations.versions.0012_parked_task_slots")
+    with database.connect() as db:
+        transaction = db.begin()
+        try:
+            insert_call(db, analytics_seed, parked_task_ids="[null]" if has_placeholder else "[]")
+            monkeypatch.setattr(
+                migration, "op", SimpleNamespace(execute=lambda sql: db.execute(text(sql)))
+            )
+            if has_placeholder:
+                with pytest.raises(DBAPIError, match="Cannot downgrade nullable parked task slots"):
+                    migration.downgrade()
+            else:
+                migration.downgrade()
+                assert not db.scalar(text("SELECT analytics_uuid_stack('[null]'::jsonb)"))
+                migration.upgrade()
+                assert db.scalar(text("SELECT analytics_uuid_stack('[null]'::jsonb)"))
+        finally:
+            transaction.rollback()

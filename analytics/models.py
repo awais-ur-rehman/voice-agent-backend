@@ -62,7 +62,7 @@ class CallRecord(Base):
     consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     transcript_deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     active_task_id: Mapped[UUID | None]
-    parked_task_ids: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    parked_task_ids: Mapped[list[str | None]] = mapped_column(JSONB, default=list)
     quality_flags: Mapped[list[str]] = mapped_column(JSONB, default=list)
     summary_revision: Mapped[int] = mapped_column(default=0)
     summarized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

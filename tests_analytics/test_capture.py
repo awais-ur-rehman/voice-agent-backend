@@ -436,3 +436,104 @@ def test_completed_task_does_not_absorb_later_info_turns(captured, seed):  # noq
     assert db.get(CallRecord, actor.id).active_task_id is None
     assert turn("update_dialogue_state", {"task": "book"}, text="another booking")["ok"]
     assert len(list(db.scalars(select(TaskRecord)))) == 2
+
+
+def test_parked_positions_include_completed_frames_with_repeated_task_kinds(captured, seed):  # noqa: F811
+    from datetime import timedelta
+
+    from scheduler.appointments import Book, book_transaction
+    from scheduler.db import Principal
+
+    turn, state, db, _, actor = captured
+    # A real staff booking supplies B's cancellation target, without an agent conversion.
+    book_transaction(
+        db,
+        Principal(seed["owner_a"], seed["tenant_a"], "synthetic", "owner"),
+        Book(
+            patient_id=seed["patient_a"],
+            provider_id=seed["provider_a"],
+            service_id=seed["service_a"],
+            starts_at=NOW + timedelta(days=4, hours=4),
+            confirmed=True,
+        ),
+        NOW,
+    )
+    prepare(turn, state, seed)
+    call = db.get(CallRecord, actor.id)
+    attempt_a = call.active_task_id
+    assert turn("update_dialogue_state", {"task": "cancel"})["ok"]
+    attempt_b = call.active_task_id
+    assert turn("find_appointments")["ok"]
+    assert turn("select_appointment", {"ref": state["appointments"][0]["ref"]})["ok"]
+    assert turn("read_back")["ok"]
+    assert turn("confirm", text="yes")["ok"]
+    assert db.get(TaskRecord, attempt_b).status == "completed"
+    assert turn("update_dialogue_state", {"task": "book"})["ok"]
+    attempt_c = call.active_task_id
+    assert turn(
+        "update_dialogue_state",
+        {
+            "service_id": str(seed["service_a"]),
+            "provider_id": str(seed["provider_a"]),
+            "date_phrase": "2026-11-04",
+        },
+    )["ok"]
+    assert turn("get_available_slots")["ok"]
+    assert turn("hold_slot", {"ref": state["offers"][0]["ref"]})["ok"]
+    assert turn("read_back")["ok"]
+    assert turn("confirm", text="yes")["ok"]
+    assert db.get(TaskRecord, attempt_c).status == "completed"
+    assert turn("update_dialogue_state", {"task": "reschedule"})["ok"]
+    attempt_d = call.active_task_id
+    assert call.parked_task_ids == [str(attempt_a), None, None]
+    for expected_task, expected_depth in (("book", 2), ("cancel", 1)):
+        assert turn("resume_task", text="resume")["ok"]
+        assert state["task"] == expected_task and len(state["parked"]) == expected_depth
+        assert call.active_task_id is None
+        assert db.get(TaskRecord, attempt_a).status == "parked"
+        assert db.get(TaskRecord, attempt_a).caller_turns == 0
+    assert turn("resume_task", text="resume original")["ok"]
+    assert call.active_task_id == attempt_a and call.parked_task_ids == []
+    assert db.get(TaskRecord, attempt_a).caller_turns == 1
+    assert db.get(TaskRecord, attempt_d).status == "abandoned"
+    assert len(list(db.scalars(select(TaskRecord)))) == 4
+    assert sorted(x.operation for x in db.scalars(select(OperationEvent))) == ["book", "cancel"]
+
+
+def test_default_frame_placeholder_resume_creates_no_attempt_and_stack_drops_align(captured):
+    turn, state, db, _, actor = captured
+    call = db.get(CallRecord, actor.id)
+    assert turn("update_dialogue_state", {"task": "cancel"})["ok"]
+    first = call.active_task_id
+    assert call.parked_task_ids == [None]
+    assert turn("resume_task", text="resume")["ok"]
+    assert call.active_task_id is None and call.parked_task_ids == []
+    assert len(list(db.scalars(select(TaskRecord)))) == 1
+    assert db.get(TaskRecord, first).status == "abandoned"
+    attempted = []
+    for kind in ("cancel", "reschedule", "book", "cancel", "reschedule"):
+        assert turn("update_dialogue_state", {"task": kind})["ok"]
+        attempted.append(call.active_task_id)
+        assert len(call.parked_task_ids) == len(state["parked"]) <= 3
+    assert call.parked_task_ids == [str(value) for value in attempted[1:4]]
+    assert db.get(TaskRecord, attempted[0]).status == "abandoned"
+    for expected in reversed(attempted[1:4]):
+        assert turn("resume_task")["ok"]
+        assert call.active_task_id == expected
+    assert call.parked_task_ids == []
+
+
+def test_ambiguous_stack_depth_discards_association_without_blocking_resume(captured):
+    turn, state, db, _, actor = captured
+    assert turn("update_dialogue_state", {"task": "book"})["ok"]
+    call = db.get(CallRecord, actor.id)
+    original = call.active_task_id
+    assert turn("update_dialogue_state", {"task": "cancel"})["ok"]
+    # Simulate an inconsistent analytics-only association, retaining no core data.
+    call.parked_task_ids = [str(original), None]
+    db.flush()
+    assert turn("resume_task", text="resume the previous task")["ok"]
+    assert state["task"] == "book" and state["parked"] == []
+    assert call.active_task_id is None and call.parked_task_ids == []
+    assert db.get(TaskRecord, original).status == "abandoned"
+    assert len(list(db.scalars(select(TaskRecord)))) == 2

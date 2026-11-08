@@ -235,3 +235,162 @@ def test_worker_expiry_wins_renewal_waiting_for_call_lock(database, seed):  # no
     with Session(database) as db:
         assert db.get(AgentSession, actor.id).expires_at == NOW + timedelta(minutes=30)
         assert db.get(CallRecord, actor.id).status == "expired"
+
+
+@pytest.fixture
+def handoff_worker(database, seed):  # noqa: F811
+    from uuid import uuid4
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy.orm import Session
+
+    from brain.contracts import Action
+    from brain.voice_sessions import create_voice
+    from scheduler.config import Settings
+    from scheduler.db import Principal
+    from scheduler.main import create_app
+    from tests_api.conftest import APP_URL
+
+    settings = Settings(
+        **(
+            _voice_settings().model_dump()
+            | {
+                "database_url": APP_URL,
+                "valkey_url": "redis://:phase2_valkey_test_only@127.0.0.1:56379/0",
+                "voice_bootstrap_secret": "bootstrap-round-one-only-test-secret-2026",
+            }
+        ),
+        _env_file=None,
+    )
+    staff = Principal(seed["owner_a"], seed["tenant_a"], "synthetic", "owner")
+    with Session(database) as db, db.begin():
+        voice = create_voice(db, staff, seed["agent_a"], "handoff-runtime", NOW, settings)
+        voice.status = "active"
+        voice_id, sid = voice.id, voice.session_id
+    now = [NOW]
+    app = create_app(settings, clock=lambda: now[0])
+    with TestClient(app) as client:
+        # Only the explicit follow-up end request reaches this injected planner.
+        def plan(state, text, config, facts):
+            assert text == "Please finish this conversation"
+            return Action(name="end_call", arguments={})
+
+        app.state.brain_planner.plan = plan
+        claim = client.post(
+            "/voice/worker/claim",
+            headers={
+                "Authorization": "Bearer " + settings.voice_bootstrap_secret.get_secret_value()
+            },
+            json={
+                "tenant_id": str(seed["tenant_a"]),
+                "voice_id": str(voice_id),
+                "worker_id": str(uuid4()),
+            },
+        )
+        assert claim.status_code == 200, claim.text
+        grant = claim.json()
+        headers = {
+            "Authorization": "Bearer " + grant["token"],
+            "X-Runtime-Capability": grant["runtime_token"],
+        }
+        path = f"/voice/worker/sessions/{sid}"
+        payload = {
+            "command_id": "emergency-handoff",
+            "expected_revision": 0,
+            "text": "I have chest pain",
+            "language": "en",
+            "confidence": 0.99,
+            "utterance_started_at": NOW.isoformat(),
+        }
+        handoff = client.post(path + "/turn", headers=headers, json=payload)
+        assert handoff.status_code == 200 and handoff.json()["state"]["handoff"], handoff.text
+        yield client, path, headers, now, sid, voice_id, settings, payload
+    app.state.engine.dispose()
+
+
+def test_handoff_keeps_heartbeat_and_output_control_live_until_real_end(handoff_worker, database):
+    from sqlalchemy.orm import Session
+
+    from analytics.models import TurnEvent
+    from scheduler.models import AgentSession
+
+    client, path, headers, now, sid, _, _, payload = handoff_worker
+    now[0] = NOW + timedelta(seconds=4)
+    heartbeat = client.post(path + "/heartbeat", headers=headers)
+    assert heartbeat.status_code == 200, heartbeat.text
+    assert client.get(path, headers=headers).status_code == 200
+    # Existing authenticated playback-interruption control stays usable while
+    # the nonterminal handoff speech is played by the native worker.
+    interrupted = client.post(
+        path + "/interrupt", headers=headers, json={"command_id": "handoff-playback-control"}
+    )
+    assert interrupted.status_code == 200, interrupted.text
+    with Session(database) as db:
+        call = db.get(CallRecord, sid)
+        assert call.outcome == "handoff" and "handoff" in call.quality_flags
+        assert call.status == "active" and call.ended_at is None and call.end_reason is None
+        assert call.expires_at == NOW + timedelta(seconds=49)
+        assert db.get(AgentSession, sid).status == "active"
+        assert list(db.scalars(select(TurnEvent).where(TurnEvent.kind == "session.ended"))) == []
+    now[0] = NOW + timedelta(seconds=8)
+    ended = client.post(
+        path + "/turn",
+        headers=headers,
+        json=payload
+        | {
+            "command_id": "actual-end",
+            "expected_revision": interrupted.json()["revision"],
+            "text": "Please finish this conversation",
+            "utterance_started_at": now[0].isoformat(),
+        },
+    )
+    assert ended.status_code == 200 and ended.json()["state"]["ended"], ended.text
+    with Session(database) as db:
+        call = db.get(CallRecord, sid)
+        assert call.outcome == "handoff" and call.status == "ended"
+        assert call.ended_at == now[0] and call.end_reason == "caller_end"
+        assert (
+            len(list(db.scalars(select(TurnEvent).where(TurnEvent.kind == "session.ended")))) == 1
+        )
+    assert client.post(path + "/heartbeat", headers=headers).status_code == 401
+
+
+@pytest.mark.parametrize("seconds,allowed", [(44, True), (45, False), (46, False)])
+def test_handoff_reclaim_preserves_existing_expiry_boundary(
+    handoff_worker, database, seconds, allowed
+):
+    from uuid import uuid4
+
+    from sqlalchemy.orm import Session
+
+    from analytics.lifecycle import finish_session
+    from brain.voice_sessions import claim_worker
+    from scheduler.errors import AppError
+    from scheduler.models import AgentSession
+
+    _, _, _, _, sid, voice_id, settings, _ = handoff_worker
+    with Session(database) as db:
+        call = db.get(CallRecord, sid)
+        if allowed:
+            claim_worker(
+                db, voice_id, call.tenant_id, uuid4(), NOW + timedelta(seconds=seconds), settings
+            )
+            assert call.ended_at is None and call.outcome == "handoff"
+        else:
+            with pytest.raises(AppError, match="voice_unavailable"):
+                claim_worker(
+                    db,
+                    voice_id,
+                    call.tenant_id,
+                    uuid4(),
+                    NOW + timedelta(seconds=seconds),
+                    settings,
+                )
+            finish_session(
+                db,
+                db.get(AgentSession, sid),
+                reason="timeout",
+                now=NOW + timedelta(seconds=seconds),
+            )
+            assert call.status == "expired" and call.outcome == "handoff"
+            assert call.ended_at == NOW + timedelta(seconds=45) and call.end_reason == "timeout"

@@ -181,7 +181,7 @@ def command(
     )
     from analytics.lifecycle import guard_session
 
-    now = guard_session(db, row, now, clock=clock, allow_handoff=True)
+    now = guard_session(db, row, now, clock=clock)
     active_guard(row, actor, now)
     call = locked_call(db, row.id)
     consent_pending = call is not None and call.consent == "pending"

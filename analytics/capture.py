@@ -266,8 +266,9 @@ def record_command(
             )
     if after.get("handoff") and not before.get("handoff"):
         event("handoff.requested")
-        finish_session(db, row, reason="handoff", now=now)
-    elif after.get("ended") or after.get("stage") == "ended":
+        call.outcome = "handoff"
+        call.quality_flags = sorted(set(call.quality_flags) | {"handoff"})
+    if after.get("ended") or after.get("stage") == "ended":
         finish_session(db, row, reason="caller_end", now=now)
     else:
         sync_session(db, row, now)
