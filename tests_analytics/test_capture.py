@@ -81,6 +81,29 @@ def test_actual_operation_and_command_replay_count_once(captured, seed):  # noqa
     assert len(list(db.scalars(select(TurnEvent).where(TurnEvent.tool_status == "failure")))) == 1
 
 
+def test_command_metrics_commit_replay_and_measurement_association(captured):
+    from analytics.prometheus import Registry
+
+    turn, _, db, _, _ = captured
+    registry = Registry()
+    db.info["analytics_metrics"] = registry
+    key = str(uuid4())
+    turn("get_clinic_info", {"topic": "hours"}, key=key, revision=0)
+    turn("get_clinic_info", {"topic": "hours"}, key=key, revision=0)
+    assert "analytics_stage_seconds_count{" not in registry.render()
+    samples = list(db.scalars(select(StageMetric)))
+    assert {x.stage for x in samples} == {"command_total", "tool"}
+    assert all(x.turn_event_id is not None for x in samples)
+    labels = [(sample.stage, sample.language) for sample in samples]
+    db.commit()
+    output = registry.render()
+    for stage, language in labels:
+        assert (
+            f'analytics_stage_seconds_count{{stage="{stage}",language="{language}",channel="text",status="success"}} 1'
+            in output
+        )
+
+
 def test_new_patient_confirmation_counts_no_appointment(captured):
     turn, _, db, _, _ = captured
     assert turn("find_patient", {"phone": "03007654321"})["ok"]

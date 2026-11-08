@@ -12,6 +12,118 @@ from tests_analytics.conftest import insert_call
 from tests_api.conftest import NOW
 
 
+def test_stage_metrics_publish_only_committed_native_insert_once(database, analytics_seed):
+    from analytics.prometheus import Registry
+    from analytics.telemetry import NativeBatch, record_native
+    from scheduler.models import AgentSession
+
+    registry = Registry()
+    with database.begin() as db:
+        insert_call(
+            db,
+            analytics_seed,
+            channel="voice",
+            started_at=NOW - timedelta(minutes=1),
+            expires_at=NOW + timedelta(minutes=10),
+        )
+    payload = NativeBatch.model_validate(
+        {"generation": 1, "revision": 0, "observations": [sample()]}
+    )
+    with Session(database, info={"analytics_metrics": registry}) as db:
+        with db.begin():
+            row = db.get(AgentSession, analytics_seed["session_a"])
+            row.transport_mode = "voice"
+            record_native(db, row, payload, NOW)
+            assert "analytics_stage_seconds_count{" not in registry.render()
+        record_native(db, row, payload, NOW)
+        db.commit()
+        with pytest.raises(ValueError), db.begin():
+            record_native(
+                db,
+                row,
+                NativeBatch.model_validate(
+                    {"generation": 1, "revision": 0, "observations": [sample()]}
+                ),
+                NOW,
+            )
+            raise ValueError("rollback")
+        with db.begin():
+            with pytest.raises(ValueError), db.begin_nested():
+                record_native(
+                    db,
+                    row,
+                    NativeBatch.model_validate(
+                        {"generation": 1, "revision": 0, "observations": [sample()]}
+                    ),
+                    NOW,
+                )
+                raise ValueError("savepoint rollback")
+    line = 'analytics_stage_seconds_count{stage="stt_completion",language="en",channel="voice",status="observed"} 1'
+    assert line in registry.render()
+
+
+def test_metric_savepoint_descendants_close_reuse_and_observer_failure(database, analytics_seed):
+    from analytics.models import CallRecord
+    from analytics.prometheus import Registry, committed_observation
+    from tests_analytics.test_rollups import populate
+
+    populate(database, analytics_seed)
+    registry = Registry()
+    db = Session(database, info={"analytics_metrics": registry})
+
+    def emit():
+        committed_observation(
+            db,
+            db.get(CallRecord, analytics_seed["session_a"]),
+            stage="tool",
+            language="en",
+            duration_ms=2,
+        )
+
+    with db.begin():
+        with pytest.raises(ValueError), db.begin_nested():
+            with db.begin_nested():
+                emit()
+            raise ValueError("parent savepoint rollback")
+        with db.begin_nested():
+            emit()
+    assert (
+        'analytics_stage_seconds_count{stage="tool",language="en",channel="text",status="observed"} 1'
+        in registry.render()
+    )
+    emit()
+    db.close()
+    with db.begin():
+        emit()
+    assert (
+        'analytics_stage_seconds_count{stage="tool",language="en",channel="text",status="observed"} 2'
+        in registry.render()
+    )
+    registry.observe_stage = lambda *args: (_ for _ in ()).throw(RuntimeError("unavailable"))
+    with db.begin():
+        emit()
+    db.close()
+
+
+def test_stage_registry_labels_are_bounded_absence_is_not_a_zero_sample():
+    from analytics.prometheus import Registry
+
+    registry = Registry()
+    for labels in [
+        ("private", "en", "voice", "observed"),
+        ("tool", "private", "text", "success"),
+        ("tool", "en", "private", "failure"),
+        ("tool", "en", "text", "private"),
+    ]:
+        registry.observe_stage(*labels, 3)
+    registry.observe_stage("tool", "en", "text", "success", float("nan"))
+    assert "analytics_stage_seconds_count{" not in registry.render()
+    registry.observe_stage("tool", "en", "text", "failure", 15)
+    assert 'status="failure"} 1' in registry.render()
+    assert 'stage="tts_first_byte"' not in registry.render()
+    assert "analytics_stage_seconds_count{" not in Registry().render()
+
+
 def sample(**changes):
     return (
         dict(

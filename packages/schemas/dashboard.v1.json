@@ -859,6 +859,9 @@
           "events": {
             "$ref": "#/components/schemas/EventPage"
           },
+          "measurements": {
+            "$ref": "#/components/schemas/MeasurementPage"
+          },
           "operations": {
             "additionalProperties": {
               "type": "integer"
@@ -873,13 +876,28 @@
             "title": "Operations",
             "type": "object"
           },
+          "privacy": {
+            "$ref": "#/components/schemas/PrivacyView"
+          },
           "summary": {
             "title": "Summary",
             "type": "string"
+          },
+          "trace_id": {
+            "format": "uuid",
+            "title": "Trace Id",
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/UsageView"
           }
         },
         "required": [
           "call",
+          "trace_id",
+          "privacy",
+          "usage",
+          "measurements",
           "summary",
           "operations",
           "attempted_tasks",
@@ -1881,8 +1899,9 @@
             "title": "Agent Id"
           },
           "channel": {
-            "default": "voice",
+            "default": "all",
             "enum": [
+              "all",
               "text",
               "voice"
             ],
@@ -2125,6 +2144,96 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HourCount": {
+        "additionalProperties": false,
+        "properties": {
+          "booking_sessions": {
+            "title": "Booking Sessions",
+            "type": "integer"
+          },
+          "bucket_start": {
+            "format": "date-time",
+            "title": "Bucket Start",
+            "type": "string"
+          },
+          "channel": {
+            "enum": [
+              "text",
+              "voice"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "ended_sessions": {
+            "title": "Ended Sessions",
+            "type": "integer"
+          },
+          "local_date": {
+            "format": "date",
+            "title": "Local Date",
+            "type": "string"
+          },
+          "sessions": {
+            "title": "Sessions",
+            "type": "integer"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "utc_offset_minutes": {
+            "title": "Utc Offset Minutes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "local_date",
+          "sessions",
+          "ended_sessions",
+          "booking_sessions",
+          "bucket_start",
+          "timezone",
+          "utc_offset_minutes",
+          "channel"
+        ],
+        "title": "HourCount",
+        "type": "object"
+      },
+      "HourSeries": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HourCount"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "default": 2000,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "const": "series_limit",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          }
+        },
+        "required": [
+          "items",
+          "unavailable_reason"
+        ],
+        "title": "HourSeries",
         "type": "object"
       },
       "IntentRow": {
@@ -2616,6 +2725,120 @@
         "title": "Me",
         "type": "object"
       },
+      "MeasurementPage": {
+        "additionalProperties": false,
+        "properties": {
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MeasurementView"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "has_more",
+          "next_cursor"
+        ],
+        "title": "MeasurementPage",
+        "type": "object"
+      },
+      "MeasurementView": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_ms": {
+            "title": "Duration Ms",
+            "type": "number"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "language": {
+            "enum": [
+              "en",
+              "ur",
+              "mixed",
+              "unknown"
+            ],
+            "title": "Language",
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "server",
+              "native"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "stage": {
+            "enum": [
+              "command_total",
+              "tool",
+              "llm_completion",
+              "llm_first_token",
+              "stt_completion",
+              "tts_first_byte",
+              "end_of_speech_to_audio",
+              "tts_buffered_generation",
+              "audio_queue",
+              "end_of_speech_to_audio_queue"
+            ],
+            "title": "Stage",
+            "type": "string"
+          },
+          "turn_ordinal": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turn Ordinal"
+          }
+        },
+        "required": [
+          "id",
+          "stage",
+          "language",
+          "origin",
+          "duration_ms",
+          "observed_at",
+          "turn_ordinal"
+        ],
+        "title": "MeasurementView",
+        "type": "object"
+      },
       "MediaGrant": {
         "additionalProperties": false,
         "properties": {
@@ -2804,6 +3027,9 @@
           "handoff_rate": {
             "$ref": "#/components/schemas/Ratio"
           },
+          "hours": {
+            "$ref": "#/components/schemas/HourSeries"
+          },
           "purpose": {
             "const": "production",
             "default": "production",
@@ -2823,6 +3049,10 @@
             "title": "Snapshot At",
             "type": "string"
           },
+          "text_sessions": {
+            "title": "Text Sessions",
+            "type": "integer"
+          },
           "timezones": {
             "items": {
               "type": "string"
@@ -2832,6 +3062,10 @@
           },
           "usage": {
             "$ref": "#/components/schemas/UsageView"
+          },
+          "voice_sessions": {
+            "title": "Voice Sessions",
+            "type": "integer"
           }
         },
         "required": [
@@ -2840,6 +3074,8 @@
           "snapshot_at",
           "freshness",
           "sessions",
+          "text_sessions",
+          "voice_sessions",
           "ended_sessions",
           "booking_conversion",
           "handoff_rate",
@@ -2850,7 +3086,8 @@
           "average_duration_ms",
           "duration_samples",
           "usage",
-          "days"
+          "days",
+          "hours"
         ],
         "title": "Overview",
         "type": "object"
@@ -3096,6 +3333,50 @@
           "excerpts"
         ],
         "title": "Preview",
+        "type": "object"
+      },
+      "PrivacyView": {
+        "additionalProperties": false,
+        "properties": {
+          "availability": {
+            "enum": [
+              "unavailable",
+              "unavailable_to_role",
+              "available"
+            ],
+            "title": "Availability",
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "off",
+              "pending",
+              "declined",
+              "live_disabled",
+              "deleted",
+              "expired",
+              "no_captured",
+              "captured",
+              "available"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "text_access": {
+            "enum": [
+              "restricted",
+              "manager"
+            ],
+            "title": "Text Access",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "availability",
+          "text_access"
+        ],
+        "title": "PrivacyView",
         "type": "object"
       },
       "ProfilePatch": {
@@ -5008,6 +5289,9 @@
             ],
             "title": "Next Cursor"
           },
+          "privacy": {
+            "$ref": "#/components/schemas/PrivacyView"
+          },
           "residual_sensitive_content": {
             "const": true,
             "default": true,
@@ -5023,7 +5307,8 @@
           "items",
           "total",
           "has_more",
-          "next_cursor"
+          "next_cursor",
+          "privacy"
         ],
         "title": "TranscriptPage",
         "type": "object"
@@ -8020,8 +8305,9 @@
             "name": "channel",
             "required": false,
             "schema": {
-              "default": "voice",
+              "default": "all",
               "enum": [
+                "all",
                 "text",
                 "voice"
               ],
@@ -8126,8 +8412,9 @@
             "name": "channel",
             "required": false,
             "schema": {
-              "default": "voice",
+              "default": "all",
               "enum": [
+                "all",
                 "text",
                 "voice"
               ],
@@ -8261,8 +8548,9 @@
             "name": "channel",
             "required": false,
             "schema": {
-              "default": "voice",
+              "default": "all",
               "enum": [
+                "all",
                 "text",
                 "voice"
               ],
@@ -8367,8 +8655,9 @@
             "name": "channel",
             "required": false,
             "schema": {
-              "default": "voice",
+              "default": "all",
               "enum": [
+                "all",
                 "text",
                 "voice"
               ],
@@ -8473,8 +8762,9 @@
             "name": "channel",
             "required": false,
             "schema": {
-              "default": "voice",
+              "default": "all",
               "enum": [
+                "all",
                 "text",
                 "voice"
               ],
@@ -8579,8 +8869,9 @@
             "name": "channel",
             "required": false,
             "schema": {
-              "default": "voice",
+              "default": "all",
               "enum": [
+                "all",
                 "text",
                 "voice"
               ],
@@ -8859,6 +9150,53 @@
           },
           {
             "in": "query",
+            "name": "outcome",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "booked",
+                    "cancelled",
+                    "rescheduled",
+                    "info_only",
+                    "abandoned",
+                    "handoff",
+                    "error"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Outcome"
+            }
+          },
+          {
+            "in": "query",
+            "name": "review_flag",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "repeated_prompt",
+                    "interruptions",
+                    "low_stt_confidence",
+                    "handoff"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Review Flag"
+            }
+          },
+          {
+            "in": "query",
             "name": "start",
             "required": true,
             "schema": {
@@ -8882,8 +9220,9 @@
             "name": "channel",
             "required": false,
             "schema": {
-              "default": "voice",
+              "default": "all",
               "enum": [
+                "all",
                 "text",
                 "voice"
               ],
@@ -8994,6 +9333,23 @@
               "minimum": 0,
               "title": "After",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "measurement_after",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Measurement After"
             }
           }
         ],

@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from analytics import queries, views
 from analytics.aggregation import configure
-from analytics.contracts import Channel, SettingsUpdate
+from analytics.contracts import Outcome, QualityFlag, SettingsUpdate
 from analytics.transcripts import (
     delete_transcripts,
     read_transcript_page,
@@ -29,7 +29,7 @@ Ordinal = Annotated[int, Query(ge=0)]
 def filters(
     start: date,
     end: date,
-    channel: Channel = "voice",
+    channel: views.ChannelFilter = "all",
     agent_id: UUID | None = None,
     timezone: Annotated[str | None, Query(max_length=100)] = None,
 ) -> views.Filters:
@@ -54,6 +54,14 @@ def validated(
 ):
     queries.validate_scope(db, f, request.app.state.clock())
     return f
+
+
+def call_filters(
+    f: views.Filters = Depends(validated),
+    outcome: Outcome | None = None,
+    review_flag: QualityFlag | None = None,
+) -> views.CallFilters:
+    return views.CallFilters(**f.model_dump(), outcome=outcome, review_flag=review_flag)
 
 
 @router.get("/analytics/overview", response_model=views.Overview)
@@ -109,7 +117,7 @@ def alerts(
 @router.get("/calls", response_model=views.CallPage)
 def calls(
     request: Request,
-    f: views.Filters = Depends(validated),
+    f: views.CallFilters = Depends(call_filters),
     db: Session = Depends(snapshot),
     limit: Limit = 100,
     after: Cursor = None,
@@ -124,8 +132,11 @@ def detail(
     db: Session = Depends(snapshot),
     limit: Limit = 100,
     after: Ordinal = 0,
+    measurement_after: Cursor = None,
 ):
-    return queries.detail(db, session_id, request.app.state.clock(), limit, after)
+    return queries.detail(
+        db, session_id, request.app.state.clock(), limit, after, measurement_after
+    )
 
 
 @router.get("/calls/{session_id}/transcript", response_model=views.TranscriptPage)

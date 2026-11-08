@@ -72,11 +72,15 @@ def native_worker(database, seed):  # noqa: F811
 
 
 def test_metrics_auth_bounds_retries_and_private_validation(native_worker, database):
-    client, url, headers, payload, _, _, _ = native_worker
+    client, url, headers, payload, _, _, app = native_worker
     assert client.post(url, content=b"bad private text").status_code == 401
     response = client.post(url, headers=headers, json=payload)
     assert response.status_code == 200, response.text
     assert client.post(url, headers=headers, json=payload).status_code == 200
+    assert (
+        'analytics_stage_seconds_count{stage="stt_completion",language="en",channel="voice",status="observed"} 1'
+        in app.state.analytics_metrics.render()
+    )
     bad = payload | {
         "observations": [sample(event_id=payload["observations"][0]["event_id"], duration_ms=99)]
     }
@@ -115,6 +119,19 @@ def test_metrics_recheck_expired_authority_after_body_read(native_worker, databa
     assert client.post(url, headers=headers, content=body()).status_code == 403
     with Session(database) as db:
         assert not list(db.scalars(select(StageMetric)))
+
+
+def test_concurrent_native_retry_counts_one_committed_sample(native_worker):
+    from concurrent.futures import ThreadPoolExecutor
+
+    client, url, headers, payload, _, _, app = native_worker
+    with ThreadPoolExecutor(2) as pool:
+        replies = [pool.submit(client.post, url, headers=headers, json=payload) for _ in range(2)]
+        assert [r.result().status_code for r in replies] == [200, 200]
+    assert (
+        'analytics_stage_seconds_count{stage="stt_completion",language="en",channel="voice",status="observed"} 1'
+        in app.state.analytics_metrics.render()
+    )
 
 
 def test_metrics_current_worker_ended_and_revision_fences(native_worker, database):
@@ -186,6 +203,12 @@ def test_provider_actual_invocation_survives_later_turn_conflict(native_worker, 
             rows = list(db.scalars(select(UsageInvocation)))
             assert len(rows) == 1 and rows[0].status == "success" and rows[0].input_tokens == 13
             assert not list(db.scalars(select(TurnEvent).where(TurnEvent.kind == "turn.user")))
+        metrics = app.state.analytics_metrics.render()
+        assert (
+            'analytics_stage_events_total{stage="llm_completion",language="en",channel="voice",status="success"} 1'
+            in metrics
+        )
+        assert 'analytics_stage_seconds_count{stage="llm_completion"' not in metrics
     finally:
         release.set()
         provider.close()

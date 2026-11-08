@@ -100,7 +100,9 @@ def create_app(settings: Settings | None = None, clock=None) -> FastAPI:
         if settings.valkey_url
         else None
     )
-    app.state.session_factory = sessionmaker(engine, expire_on_commit=False)
+    app.state.session_factory = sessionmaker(
+        engine, expire_on_commit=False, info={"analytics_metrics": app.state.analytics_metrics}
+    )
     from knowledge.embedding import EmbeddingClient
 
     app.state.knowledge_embeddings = (
@@ -152,9 +154,12 @@ def create_app(settings: Settings | None = None, clock=None) -> FastAPI:
         ):
             response.headers["Cache-Control"] = "no-store"
         route = request.scope.get("route")
-        app.state.analytics_metrics.observe(
-            getattr(route, "path", ""), time.perf_counter() - started, response.status_code
-        )
+        try:
+            app.state.analytics_metrics.observe(
+                getattr(route, "path", ""), time.perf_counter() - started, response.status_code
+            )
+        except Exception:
+            pass
         logger.info(
             json.dumps(
                 {

@@ -159,7 +159,7 @@ def database_writer(factory, tenant_id, session_id):
             fields = value.model_dump() | {"session_id": session_id, "tenant_id": tenant_id}
             stmt = insert(UsageInvocation).values(id=uuid4(), **fields)
             # Only this exact invocation may complete; no domain mutation or success inference.
-            db.execute(
+            changed = db.scalar(
                 stmt.on_conflict_do_update(
                     index_elements=["invocation_id"],
                     set_={
@@ -177,9 +177,16 @@ def database_writer(factory, tenant_id, session_id):
                     },
                     where=(UsageInvocation.session_id == session_id)
                     & (UsageInvocation.tenant_id == tenant_id)
-                    & (UsageInvocation.status == "started"),
-                )
+                    & (UsageInvocation.status == "started")
+                    & (value.status != "started"),
+                ).returning(UsageInvocation.id)
             )
+            if changed is not None:
+                from analytics.prometheus import committed_observation
+
+                committed_observation(
+                    db, call, stage="llm_completion", language=call.language, status=value.status
+                )
             dirty(db, call, value.completed_at or value.started_at)
 
     return write
@@ -338,4 +345,9 @@ def record_native(db, row, batch, now):
         if value.metadata.stt_confidence is not None and value.metadata.stt_confidence < 0.5:
             call.quality_flags = sorted(set(call.quality_flags) | {"low_stt_confidence"})
         db.flush()
+        from analytics.prometheus import committed_observation
+
+        committed_observation(
+            db, call, stage=value.stage, language=value.language, duration_ms=value.duration_ms
+        )
     dirty(db, call, now)

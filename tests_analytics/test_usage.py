@@ -151,10 +151,18 @@ def test_usage_ledger_survives_separate_domain_rollback(database, analytics_seed
     ids = analytics_seed
     with database.begin() as db:
         insert_call(db, ids)
-    write = database_writer(lambda: Session(database), ids["tenant_a"], ids["session_a"])
+    from analytics.prometheus import Registry
+
+    registry = Registry()
+    write = database_writer(
+        lambda: Session(database, info={"analytics_metrics": registry}),
+        ids["tenant_a"],
+        ids["session_a"],
+    )
     value = UsageObservation(
         invocation_id=uuid4(), model="safe/model", status="started", started_at=datetime.now(UTC)
     )
+    write(value)
     write(value)
     with pytest.raises(RuntimeError), Session(database) as db, db.begin():
         raise RuntimeError("domain rollback")
@@ -171,6 +179,15 @@ def test_usage_ledger_survives_separate_domain_rollback(database, analytics_seed
     with Session(database) as db:
         rows = list(db.scalars(select(UsageInvocation)))
         assert len(rows) == 1 and rows[0].input_tokens == 9
+    assert (
+        'analytics_stage_events_total{stage="llm_completion",language="unknown",channel="text",status="started"} 1'
+        in registry.render()
+    )
+    assert (
+        'analytics_stage_events_total{stage="llm_completion",language="unknown",channel="text",status="success"} 1'
+        in registry.render()
+    )
+    assert "analytics_stage_seconds_count{" not in registry.render()
 
 
 def test_configured_usd_rates_snapshot_reported_counts_only():
@@ -254,3 +271,47 @@ def test_http_failure_preserves_actually_reported_usage_without_success_latency(
         provider.plan({"task": "book", "fields": {}}, "hello", {}, {})
     assert values[-1].status == "failure" and values[-1].input_tokens == 17
     assert sink.stages == [] and "private" not in repr(values)
+
+
+def test_concurrent_duplicate_terminal_invocations_count_committed_status_once(
+    database, analytics_seed
+):
+    from sqlalchemy.orm import Session
+
+    from analytics.contracts import UsageObservation
+    from analytics.prometheus import Registry
+    from analytics.telemetry import database_writer
+    from tests_analytics.conftest import insert_call
+
+    with database.begin() as db:
+        insert_call(db, analytics_seed)
+    registry = Registry()
+    writer = database_writer(
+        lambda: Session(database, info={"analytics_metrics": registry}),
+        analytics_seed["tenant_a"],
+        analytics_seed["session_a"],
+    )
+    values = [
+        UsageObservation(
+            invocation_id=uuid4(), model="synthetic", status="started", started_at=datetime.now(UTC)
+        )
+        for _ in range(2)
+    ]
+    for value in values:
+        writer(value)
+    finals = [
+        v.model_copy(update={"status": "failure", "completed_at": datetime.now(UTC)})
+        for v in values
+    ]
+    with ThreadPoolExecutor(4) as pool:
+        futures = [pool.submit(writer, value) for value in finals * 2]
+        for future in futures:
+            future.result()
+    assert (
+        'analytics_stage_events_total{stage="llm_completion",language="unknown",channel="text",status="failure"} 2'
+        in registry.render()
+    )
+    assert (
+        'analytics_stage_events_total{stage="llm_completion",language="unknown",channel="text",status="started"} 2'
+        in registry.render()
+    )

@@ -1,16 +1,19 @@
-"""Operator-private process-local API projection timing; resets on process restart.
+"""Operator-private committed stage/status and projection metrics; process-local.
 
-This registry does not claim global call/voice latency or cross-tenant usage.
-Only fixed endpoint/result labels exist. No telemetry dependency or export socket.
+Fixed allowlist labels only. No global usage claim, exporter, or network socket.
 """
 
 import hmac
+import math
 import threading
 import time
 from dataclasses import dataclass, field
+from typing import get_args
 
 from fastapi import APIRouter, Request, Response
+from sqlalchemy import event
 
+from analytics.contracts import Channel, Language, Stage
 from scheduler.errors import AppError
 
 PATHS = {
@@ -41,6 +44,32 @@ class Registry:
         self.values = {
             (name, result): Histogram() for name in PATHS.values() for result in ["ok", "error"]
         }
+        self.stages: dict[tuple[str, str, str, str], Histogram] = {}
+        self.statuses: dict[tuple[str, str, str, str], int] = {}
+
+    def observe_stage(self, stage, language, channel, status, duration_ms=None):
+        if (
+            stage not in get_args(Stage)
+            or language not in get_args(Language)
+            or channel not in get_args(Channel)
+            or status not in {"observed", "started", "success", "malformed", "timeout", "failure"}
+        ):
+            return
+        if duration_ms is not None and (
+            not math.isfinite(duration_ms) or not 0 <= duration_ms <= 600000
+        ):
+            return
+        key = (stage, language, channel, status)
+        with self.lock:
+            self.statuses[key] = self.statuses.get(key, 0) + 1
+            if duration_ms is not None:
+                duration = duration_ms / 1000
+                row = self.stages.setdefault(key, Histogram())
+                row.total += duration
+                row.count += 1
+                for i, bound in enumerate(BUCKETS):
+                    if duration <= bound:
+                        row.buckets[i] += 1
 
     def observe(self, path: str, duration: float, status: int):
         if path not in PATHS:
@@ -62,6 +91,33 @@ class Registry:
             "# TYPE analytics_projection_seconds histogram",
         ]
         with self.lock:
+            lines.extend(
+                [
+                    "# HELP analytics_stage_events_total Committed stage observations and provider invocation transitions; process-local.",
+                    "# TYPE analytics_stage_events_total counter",
+                    "# HELP analytics_stage_seconds Committed measured durations; absent stages have no fabricated samples.",
+                    "# TYPE analytics_stage_seconds histogram",
+                ]
+            )
+            for key, n in sorted(self.statuses.items()):
+                labels = ",".join(
+                    f'{name}="{value}"'
+                    for name, value in zip(["stage", "language", "channel", "status"], key)
+                )
+                lines.append(f"analytics_stage_events_total{{{labels}}} {n}")
+                row = self.stages.get(key)
+                if row is not None:
+                    for bound, count in zip(BUCKETS, row.buckets):
+                        lines.append(
+                            f'analytics_stage_seconds_bucket{{{labels},le="{bound}"}} {count}'
+                        )
+                    lines.extend(
+                        [
+                            f'analytics_stage_seconds_bucket{{{labels},le="+Inf"}} {row.count}',
+                            f"analytics_stage_seconds_sum{{{labels}}} {row.total}",
+                            f"analytics_stage_seconds_count{{{labels}}} {row.count}",
+                        ]
+                    )
             for (endpoint, result), row in sorted(self.values.items()):
                 labels = f'endpoint="{endpoint}",result="{result}"'
                 for bound, n in zip(BUCKETS, row.buckets):
@@ -76,6 +132,61 @@ class Registry:
                     ]
                 )
         return "\n".join(lines) + "\n"
+
+
+def committed_observation(db, call, *, stage, language, status="observed", duration_ms=None):
+    """Per-transaction events, emitted only after outer commit. Never affect domain success.
+
+    Savepoint commits retain events for the outer commit; savepoint rollbacks discard
+    that savepoint and its descendants. SQL identities, not process counters, dedupe.
+    """
+    try:
+        registry = db.info.get("analytics_metrics")
+        if registry is None or call.purpose != "production":
+            return
+        if "analytics_pending" not in db.info:
+            db.info["analytics_pending"] = []
+
+            def commit(session):
+                if session.in_nested_transaction():
+                    return
+                pending = session.info["analytics_pending"]
+                session.info["analytics_pending"] = []
+                for _, observation in pending:
+                    try:
+                        registry.observe_stage(*observation)
+                    except Exception:
+                        pass
+
+            def rollback(session, previous):
+                def retained(item):
+                    transaction = item[0]
+                    while transaction is not None:
+                        if transaction is previous:
+                            return False
+                        transaction = transaction.parent
+                    return True
+
+                session.info["analytics_pending"] = list(
+                    filter(retained, session.info["analytics_pending"])
+                )
+
+            event.listen(db, "after_commit", commit)
+            event.listen(db, "after_soft_rollback", rollback)
+
+            def ended(session, transaction):
+                # Session.close() rolls back without after_soft_rollback. A reused
+                # Session must never publish the abandoned transaction's events.
+                if transaction.parent is None:
+                    session.info["analytics_pending"] = []
+
+            event.listen(db, "after_transaction_end", ended)
+        transaction = db.get_nested_transaction() or db.get_transaction()
+        db.info["analytics_pending"].append(
+            (transaction, (stage, language, call.channel, status, duration_ms))
+        )
+    except Exception:
+        pass
 
 
 @router.get("/private/analytics/metrics")

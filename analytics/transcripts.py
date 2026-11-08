@@ -65,7 +65,7 @@ def append_text(
         return
     clean = redact(value, literals)
     if clean:
-        db.execute(
+        inserted = db.scalar(
             insert(Transcript)
             .values(
                 id=uuid4(),
@@ -78,7 +78,39 @@ def append_text(
                 expires_at=expires,
             )
             .on_conflict_do_nothing()
+            .returning(Transcript.id)
         )
+        if inserted is not None:
+            call.transcript_captured_at = max(
+                call.transcript_captured_at or occurred_at, occurred_at
+            )
+
+
+def privacy_state(call, settings, *, available=None, manager_access=False):
+    """Staff uses only call/settings metadata; exact text availability is manager-only."""
+    if call.transcript_deleted_at is not None:
+        reason = "deleted"
+    elif not call.capture_enabled_at_start or call.consent == "off":
+        reason = "off"
+    elif call.consent in {"pending", "declined"}:
+        reason = call.consent
+    elif settings is None or not settings.capture_enabled:
+        reason = "live_disabled"
+    elif available:
+        reason = "available"
+    elif call.transcript_captured_at is None:
+        reason = "no_captured"
+    else:
+        reason = "expired" if available is False else "captured"
+    return dict(
+        reason=reason,
+        text_access="manager" if manager_access else "restricted",
+        availability="unavailable_to_role"
+        if not manager_access
+        else "available"
+        if reason == "available"
+        else "unavailable",
+    )
 
 
 def manager(user: Principal) -> None:
@@ -175,7 +207,8 @@ def read_transcript_page(
     if call is None or call.purpose != "production":
         raise AppError("not_found", 404)
     settings = settings_row(db, user.tenant_id, shared=True)
-    empty = dict(items=[], total=0, has_more=False, next_cursor=None)
+    privacy = privacy_state(call, settings, manager_access=True)
+    empty = dict(items=[], total=0, has_more=False, next_cursor=None, privacy=privacy)
     if (
         call.transcript_deleted_at is not None
         or not call.capture_enabled_at_start
@@ -207,5 +240,9 @@ def read_transcript_page(
     more = len(rows) > limit
     rows = rows[:limit]
     return dict(
-        items=rows, total=total, has_more=more, next_cursor=rows[-1]["ordinal"] if more else None
+        items=rows,
+        total=total,
+        has_more=more,
+        next_cursor=rows[-1]["ordinal"] if more else None,
+        privacy=privacy_state(call, settings, available=total > 0, manager_access=True),
     )

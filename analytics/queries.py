@@ -15,16 +15,19 @@ from analytics.aggregation import COUNTERS
 from analytics.contracts import Stage
 from analytics.models import (
     AnalyticsAlert,
+    AnalyticsSettings,
     CallRecord,
     DailyRollup,
     DirtyBucket,
     HourlyRollup,
     OperationEvent,
+    StageMetric,
     TaskRecord,
     TurnEvent,
+    UsageInvocation,
     WorkerState,
 )
-from analytics.views import Filters, Ratio
+from analytics.views import CallFilters, Filters, Ratio
 from scheduler.errors import AppError
 from scheduler.models import Agent
 
@@ -32,10 +35,11 @@ from scheduler.models import Agent
 def conditions(model, filters: Filters):
     result = [
         model.purpose == "production",
-        model.channel == filters.channel,
         model.local_date >= filters.start,
         model.local_date <= filters.end,
     ]
+    if filters.channel != "all":
+        result.append(model.channel == filters.channel)
     if filters.agent_id:
         result.append(model.agent_id == filters.agent_id)
     if filters.timezone:
@@ -110,6 +114,34 @@ def totals(db: Session, f: Filters) -> dict:
 
 def overview(db: Session, f: Filters, now: datetime) -> dict:
     t = totals(db, f)
+    channels = dict(
+        db.execute(
+            select(DailyRollup.channel, func.sum(DailyRollup.sessions))
+            .where(*conditions(DailyRollup, f))
+            .group_by(DailyRollup.channel)
+        ).all()
+    )
+    hour_keys = [
+        HourlyRollup.bucket_start,
+        HourlyRollup.timezone,
+        HourlyRollup.utc_offset_minutes,
+        HourlyRollup.channel,
+        HourlyRollup.local_date,
+    ]
+    hours = list(
+        db.execute(
+            select(
+                *hour_keys,
+                func.sum(HourlyRollup.sessions).label("sessions"),
+                func.sum(HourlyRollup.ended_sessions).label("ended_sessions"),
+                func.sum(HourlyRollup.booking_sessions).label("booking_sessions"),
+            )
+            .where(*conditions(HourlyRollup, f))
+            .group_by(*hour_keys)
+            .order_by(*hour_keys)
+            .limit(2001)
+        ).mappings()
+    )
     days = (
         db.execute(
             select(
@@ -127,6 +159,8 @@ def overview(db: Session, f: Filters, now: datetime) -> dict:
     )
     return meta(db, f, now) | dict(
         sessions=t["sessions"],
+        text_sessions=channels.get("text", 0),
+        voice_sessions=channels.get("voice", 0),
         ended_sessions=t["ended_sessions"],
         booking_conversion=ratio(t["booking_sessions"], t["ended_sessions"]),
         handoff_rate=ratio(t["handoff_sessions"], t["ended_sessions"]),
@@ -147,6 +181,10 @@ def overview(db: Session, f: Filters, now: datetime) -> dict:
             estimated_usd=t["known_cost"] if t["cost_known"] else None,
         ),
         days=[dict(d) for d in days],
+        hours=dict(
+            items=[dict(h) for h in hours] if len(hours) <= 2000 else [],
+            unavailable_reason="series_limit" if len(hours) > 2000 else None,
+        ),
     )
 
 
@@ -191,7 +229,7 @@ def parameters(f: Filters) -> dict:
     }
 
 
-COHORT_SQL = """c.purpose='production' AND c.channel=:channel AND c.local_date BETWEEN :start AND :end
+COHORT_SQL = """c.purpose='production' AND (:channel='all' OR c.channel=:channel) AND c.local_date BETWEEN :start AND :end
  AND (CAST(:agent AS uuid) IS NULL OR c.agent_id=:agent)
  AND (CAST(:timezone AS text) IS NULL OR c.timezone=:timezone)"""
 
@@ -205,6 +243,14 @@ def latency(db: Session, f: Filters, now: datetime) -> dict:
         or 0
     )
     rows: Sequence[RowMapping] = []
+    voice_eligible = (
+        db.scalar(
+            select(func.count())
+            .select_from(CallRecord)
+            .where(*conditions(CallRecord, f), CallRecord.channel == "voice")
+        )
+        or 0
+    )
     if reason is None:
         n = db.scalar(
             text(
@@ -247,7 +293,7 @@ def latency(db: Session, f: Filters, now: datetime) -> dict:
                 in {"tts_buffered_generation", "audio_queue", "end_of_speech_to_audio_queue"},
                 samples=None if reason else 0,
                 sampled_sessions=None if reason else 0,
-                eligible_sessions=eligible if f.channel == "voice" or not voice_stage else 0,
+                eligible_sessions=voice_eligible if voice_stage else eligible,
                 p50_ms=None,
                 p95_ms=None,
             )
@@ -342,10 +388,14 @@ def call_view(call: CallRecord, now: datetime) -> dict:
     }
 
 
-def calls(db: Session, f: Filters, now: datetime, limit: int, after: str | None):
+def calls(db: Session, f: CallFilters, now: datetime, limit: int, after: str | None):
     query = select(CallRecord).where(
         *conditions(CallRecord, f), CallRecord.started_at > now - timedelta(days=90)
     )
+    if f.outcome is not None:
+        query = query.where(CallRecord.outcome == f.outcome)
+    if f.review_flag is not None:
+        query = query.where(CallRecord.quality_flags.contains([f.review_flag]))
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
     cursor = decode_cursor(after)
     if cursor:
@@ -372,7 +422,14 @@ def calls(db: Session, f: Filters, now: datetime, limit: int, after: str | None)
     }
 
 
-def detail(db: Session, sid: UUID, now: datetime, limit: int, after: int):
+def detail(
+    db: Session,
+    sid: UUID,
+    now: datetime,
+    limit: int,
+    after: int,
+    measurement_after: str | None = None,
+):
     call = db.scalar(
         select(CallRecord).where(
             CallRecord.session_id == sid,
@@ -382,6 +439,62 @@ def detail(db: Session, sid: UUID, now: datetime, limit: int, after: int):
     )
     if call is None:
         raise AppError("not_found", 404)
+    from analytics.transcripts import privacy_state
+
+    settings = db.get(AnalyticsSettings, call.tenant_id)
+    usage_known = (UsageInvocation.input_tokens.is_not(None)) & (
+        UsageInvocation.output_tokens.is_not(None)
+    )
+    usage = (
+        db.execute(
+            select(
+                func.count().label("invocations"),
+                func.count().filter(usage_known).label("usage_known"),
+                func.count(UsageInvocation.cost).label("cost_known"),
+                func.sum(UsageInvocation.input_tokens).filter(usage_known).label("input_tokens"),
+                func.sum(UsageInvocation.output_tokens).filter(usage_known).label("output_tokens"),
+                func.sum(UsageInvocation.cost).label("estimated_usd"),
+            ).where(UsageInvocation.session_id == sid)
+        )
+        .mappings()
+        .one()
+    )
+    measurements = (
+        select(
+            StageMetric.id,
+            StageMetric.stage,
+            StageMetric.language,
+            StageMetric.origin,
+            StageMetric.duration_ms,
+            StageMetric.observed_at,
+            TurnEvent.ordinal.label("turn_ordinal"),
+        )
+        .outerjoin(
+            TurnEvent,
+            (TurnEvent.session_id == StageMetric.session_id)
+            & (TurnEvent.event_id == StageMetric.turn_event_id)
+            & (TurnEvent.tenant_id == StageMetric.tenant_id),
+        )
+        .where(StageMetric.session_id == sid)
+    )
+    measurement_total = db.scalar(select(func.count()).select_from(measurements.subquery())) or 0
+    cursor = decode_cursor(measurement_after)
+    if cursor:
+        try:
+            stamp, ident = datetime.fromisoformat(cursor[0]), UUID(cursor[1])
+        except ValueError:
+            raise AppError("invalid_cursor", 422) from None
+        if stamp.tzinfo is None:
+            raise AppError("invalid_cursor", 422)
+        measurements = measurements.where(
+            tuple_(StageMetric.observed_at, StageMetric.id) > tuple_(stamp, ident)
+        )
+    samples = [
+        dict(r)
+        for r in db.execute(
+            measurements.order_by(StageMetric.observed_at, StageMetric.id).limit(limit + 1)
+        ).mappings()
+    ]
     counts = {
         r.operation: r.n
         for r in db.execute(
@@ -414,6 +527,12 @@ def detail(db: Session, sid: UUID, now: datetime, limit: int, after: int):
     ]
     return dict(
         call=call_view(call, now),
+        trace_id=call.trace_id,
+        privacy=privacy_state(call, settings),
+        usage=dict(usage),
+        measurements=page(
+            samples, measurement_total, limit, lambda r: encode_cursor([r["observed_at"], r["id"]])
+        ),
         summary=f"{counts.get('book', 0)} bookings, {counts.get('cancel', 0)} cancellations, {counts.get('reschedule', 0)} reschedules; {tasks.completed}/{tasks.n} scheduling tasks completed.",
         operations={k: counts.get(k, 0) for k in ["book", "cancel", "reschedule"]},
         attempted_tasks=tasks.n,
@@ -424,11 +543,14 @@ def detail(db: Session, sid: UUID, now: datetime, limit: int, after: int):
 
 def alerts(db: Session, f: Filters, now: datetime, limit: int, after: str | None):
     query = select(AnalyticsAlert).where(
-        (AnalyticsAlert.channel == f.channel) | (AnalyticsAlert.kind == "backlog"),
         AnalyticsAlert.last_seen_at >= datetime.combine(f.start, datetime.min.time(), UTC),
         AnalyticsAlert.last_seen_at
         < datetime.combine(f.end + timedelta(days=1), datetime.min.time(), UTC),
     )
+    if f.channel != "all":
+        query = query.where(
+            (AnalyticsAlert.channel == f.channel) | (AnalyticsAlert.kind == "backlog")
+        )
     if f.agent_id:
         query = query.where(AnalyticsAlert.agent_id == f.agent_id)
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0

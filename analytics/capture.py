@@ -209,14 +209,14 @@ def record_command(
         event("lang.switched")
     call.language = lang
     for sample in observation.stages:
-        db.execute(
+        inserted = db.scalar(
             insert(StageMetric)
             .values(
                 id=uuid4(),
                 tenant_id=row.tenant_id,
                 session_id=row.id,
                 event_id=sample.event_id,
-                turn_event_id=sample.turn_event_id,
+                turn_event_id=sample.turn_event_id or assistant,
                 stage=sample.stage,
                 language=sample.language,
                 origin=sample.origin,
@@ -224,7 +224,21 @@ def record_command(
                 observed_at=sample.observed_at or now,
             )
             .on_conflict_do_nothing()
+            .returning(StageMetric.id)
         )
+        if inserted is not None:
+            from analytics.prometheus import committed_observation
+
+            committed_observation(
+                db,
+                call,
+                stage=sample.stage,
+                language=sample.language,
+                duration_ms=sample.duration_ms,
+                status=("success" if result.get("ok") else "failure")
+                if sample.stage in {"tool", "command_total"}
+                else "observed",
+            )
     if (
         not observation.suppress_text
         and call.capture_enabled_at_start

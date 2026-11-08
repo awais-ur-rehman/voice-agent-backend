@@ -15,6 +15,7 @@ from analytics.contracts import (
     EventKind,
     Language,
     Outcome,
+    QualityFlag,
     Stage,
     ToolName,
 )
@@ -24,10 +25,13 @@ class View(BaseModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
 
+ChannelFilter = Literal["all", "text", "voice"]
+
+
 class Filters(View):
     start: date
     end: date
-    channel: Channel = "voice"
+    channel: ChannelFilter = "all"
     agent_id: UUID | None = None
     timezone: str | None = Field(default=None, max_length=100)
 
@@ -36,6 +40,11 @@ class Filters(View):
         if not 0 <= (self.end - self.start).days < 31:
             raise ValueError("range_must_be_1_to_31_inclusive_days")
         return self
+
+
+class CallFilters(Filters):
+    outcome: Outcome | None = None
+    review_flag: QualityFlag | None = None
 
 
 class FreshnessView(View):
@@ -81,8 +90,23 @@ class DayCount(View):
     booking_sessions: int
 
 
+class HourCount(DayCount):
+    bucket_start: datetime
+    timezone: str
+    utc_offset_minutes: int
+    channel: Channel
+
+
+class HourSeries(View):
+    items: list[HourCount]
+    unavailable_reason: Literal["series_limit"] | None
+    limit: int = 2000
+
+
 class Overview(Cohort):
     sessions: int
+    text_sessions: int
+    voice_sessions: int
     ended_sessions: int
     booking_conversion: Ratio
     handoff_rate: Ratio
@@ -94,6 +118,7 @@ class Overview(Cohort):
     duration_samples: int
     usage: UsageView
     days: list[DayCount]
+    hours: HourSeries
 
 
 class Quality(Cohort):
@@ -230,8 +255,48 @@ class EventPage(View):
     next_cursor: int | None
 
 
+PrivacyReason = Literal[
+    "off",
+    "pending",
+    "declined",
+    "live_disabled",
+    "deleted",
+    "expired",
+    "no_captured",
+    "captured",
+    "available",
+]
+
+
+class PrivacyView(View):
+    reason: PrivacyReason
+    availability: Literal["unavailable", "unavailable_to_role", "available"]
+    text_access: Literal["restricted", "manager"]
+
+
+class MeasurementView(View):
+    id: UUID
+    stage: Stage
+    language: Language
+    origin: Literal["server", "native"]
+    duration_ms: float
+    observed_at: datetime
+    turn_ordinal: int | None
+
+
+class MeasurementPage(View):
+    items: list[MeasurementView]
+    total: int
+    has_more: bool
+    next_cursor: str | None
+
+
 class CallDetail(View):
     call: CallView
+    trace_id: UUID
+    privacy: PrivacyView
+    usage: UsageView
+    measurements: MeasurementPage
     summary: str
     operations: dict[Literal["book", "cancel", "reschedule"], int]
     attempted_tasks: int
@@ -251,6 +316,7 @@ class TranscriptPage(View):
     total: int
     has_more: bool
     next_cursor: int | None
+    privacy: PrivacyView
     residual_sensitive_content: Literal[True] = True
 
 
