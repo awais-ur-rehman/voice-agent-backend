@@ -4,7 +4,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import BigInteger, DateTime, Numeric, String, Text, func
+from sqlalchemy import BigInteger, DateTime, Identity, Numeric, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -92,6 +92,7 @@ class OperationEvent(SessionEvent, Base):
 
 class TurnEvent(SessionEvent, Base):
     __tablename__ = "analytics_turns"
+    ordinal: Mapped[int] = mapped_column(BigInteger, Identity(always=True))
     command_id: Mapped[UUID | None]
     task_id: Mapped[UUID | None]
     kind: Mapped[EventKind] = mapped_column(String)
@@ -192,8 +193,9 @@ class DirtyBucket(Bucket, Base):
 
 class AnalyticsAlert(Row, Base):
     __tablename__ = "analytics_alerts"
+    language: Mapped[Language] = mapped_column(String, default="unknown")
     agent_id: Mapped[UUID]
-    channel: Mapped[Channel] = mapped_column(String)
+    channel: Mapped[Channel | None] = mapped_column(String)
     kind: Mapped[AlertKind] = mapped_column(String)
     state: Mapped[str]
     window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -204,3 +206,9 @@ class AnalyticsAlert(Row, Base):
     opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class WorkerState(Base):
+    __tablename__ = "analytics_worker_state"
+    tenant_id: Mapped[UUID] = mapped_column(primary_key=True)
+    last_success_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

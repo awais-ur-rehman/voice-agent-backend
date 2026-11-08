@@ -156,3 +156,56 @@ def read_transcripts(
             .limit(max(1, min(limit, 100)))
         )
     )
+
+
+def read_transcript_page(
+    db: Session,
+    user: Principal,
+    session_id: UUID,
+    now: datetime,
+    *,
+    limit: int = 100,
+    after: int = 0,
+) -> dict:
+    from analytics.models import TurnEvent
+
+    manager(user)
+    tenant_context(db, user.tenant_id)
+    call = locked_call(db, session_id)
+    if call is None or call.purpose != "production":
+        raise AppError("not_found", 404)
+    settings = settings_row(db, user.tenant_id, shared=True)
+    empty = dict(items=[], total=0, has_more=False, next_cursor=None)
+    if (
+        call.transcript_deleted_at is not None
+        or not call.capture_enabled_at_start
+        or call.consent != "accepted"
+        or not settings.capture_enabled
+    ):
+        return empty
+    query = (
+        select(TurnEvent.ordinal, Transcript.speaker, Transcript.occurred_at, Transcript.text)
+        .join(
+            TurnEvent,
+            (TurnEvent.tenant_id == Transcript.tenant_id)
+            & (TurnEvent.session_id == Transcript.session_id)
+            & (TurnEvent.event_id == Transcript.event_id),
+        )
+        .where(
+            Transcript.session_id == session_id,
+            Transcript.expires_at > now,
+            Transcript.occurred_at > now - timedelta(days=settings.retention_days),
+        )
+    )
+    total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    rows = [
+        dict(r)
+        for r in db.execute(
+            query.where(TurnEvent.ordinal > after).order_by(TurnEvent.ordinal).limit(limit + 1)
+        ).mappings()
+    ]
+    more = len(rows) > limit
+    rows = rows[:limit]
+    return dict(
+        items=rows, total=total, has_more=more, next_cursor=rows[-1]["ordinal"] if more else None
+    )

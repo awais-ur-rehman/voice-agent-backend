@@ -74,6 +74,7 @@ class Job(Row, Base):
 
 class QueryEvent(Row, Base):
     __tablename__ = "knowledge_query_events"
+    session_id: Mapped[UUID | None]
     agent_id: Mapped[UUID]
     command_id: Mapped[UUID]
     query_hash: Mapped[str]

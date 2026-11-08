@@ -57,6 +57,7 @@ def record_event(db, scope, query_id, fingerprint, language, result, duration_ms
             tenant_id=scope.tenant_id,
             agent_id=scope.agent_id,
             command_id=query_id,
+            session_id=scope.session_id if scope.purpose in {"runtime", "test"} else None,
             query_hash=fingerprint,
             language=language,
             purpose=scope.purpose,

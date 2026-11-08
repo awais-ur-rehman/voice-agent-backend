@@ -14,6 +14,7 @@ FROM base AS runtime
 RUN uv sync --locked --no-dev --no-install-project
 COPY scheduler ./scheduler
 COPY brain ./brain
+COPY analytics ./analytics
 COPY knowledge ./knowledge
 COPY voice/catalog.json ./voice/catalog.json
 COPY scripts ./scripts
@@ -41,3 +42,8 @@ COPY scheduler ./scheduler
 RUN useradd --create-home --uid 10001 knowledge-worker
 USER knowledge-worker
 CMD ["uv", "run", "--no-sync", "python", "-m", "knowledge_worker.main"]
+
+
+FROM runtime AS analytics-worker
+COPY analytics_worker ./analytics_worker
+CMD ["uv", "run", "--no-sync", "python", "-m", "analytics_worker.main"]

@@ -1,0 +1,26 @@
+# Explicit optional overlay. Task 6 owns provisioning, migrations and rollout.
+name: voice-agent-phase1
+services:
+  analytics-worker:
+    profiles: [analytics]
+    build:
+      context: .
+      target: analytics-worker
+    image: voice-agent-analytics-worker:local
+    environment:
+      ANALYTICS_WORKER_ENABLED: ${ANALYTICS_WORKER_ENABLED:-false}
+      ANALYTICS_WORKER_DATABASE_URL: ${ANALYTICS_WORKER_DATABASE_URL:-}
+      ANALYTICS_WORKER_POLL_SECONDS: ${ANALYTICS_WORKER_POLL_SECONDS:-10}
+      ANALYTICS_WORKER_BATCH_SIZE: ${ANALYTICS_WORKER_BATCH_SIZE:-100}
+    networks: [default]
+    cpus: 0.5
+    mem_limit: 256m
+    pids_limit: 32
+    read_only: true
+    tmpfs: [/tmp:size=16m]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+networks:
+  default:
+    external: true
+    name: voice-agent-phase1_default

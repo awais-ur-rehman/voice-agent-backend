@@ -18,7 +18,10 @@ from scheduler.models import AgentSession, AgentVersion, Tenant, VoiceSession
 
 
 def dirty(db: Session, call: CallRecord, now: datetime) -> None:
-    bucket = call.started_at.astimezone(UTC).replace(minute=0, second=0, microsecond=0)
+    offset = timedelta(minutes=call.utc_offset_minutes)
+    bucket = (call.started_at.astimezone(UTC) + offset).replace(
+        minute=0, second=0, microsecond=0
+    ) - offset
     stmt = insert(DirtyBucket).values(
         id=uuid4(),
         tenant_id=call.tenant_id,

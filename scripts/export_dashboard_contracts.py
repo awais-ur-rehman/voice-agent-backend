@@ -7,6 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from pydantic.json_schema import models_json_schema
 
+from analytics.routes import router as analytics_router
 from brain import draft_test_routes, voice_routes
 from brain.agent_config import AgentConfig, LegacyAgentConfig
 from knowledge import routes as knowledge_routes
@@ -20,6 +21,7 @@ def render() -> str:
     app = FastAPI(title="Dashboard API", version="1.0.0")
     # Explicit staff-only router allowlist. Never mount runtime or worker routers.
     for router in (
+        analytics_router,
         knowledge_routes.router,
         auth.router,
         catalog.router,
