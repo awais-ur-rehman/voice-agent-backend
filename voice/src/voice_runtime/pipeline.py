@@ -156,6 +156,11 @@ class NativeCall:
         if metrics is not None:
             metrics.offer(stage, duration, language, epoch, metadata=metadata, context=context)
 
+    def seal_metrics(self):
+        metrics = getattr(self, "metrics", None)
+        if metrics is not None:
+            metrics.seal()
+
     async def flush_metrics(self):
         metrics = getattr(self, "metrics", None)
         if metrics is not None:
@@ -243,7 +248,9 @@ class NativeCall:
     async def fail(self, code):
         await self.message("state", state="error", code=code)
 
-    async def interrupt(self):
+    async def interrupt(self, *, disconnecting=False):
+        if disconnecting:
+            self.seal_metrics()
         self.epoch += 1
         in_flight = self.pending is not None and not self.pending.done()
         incomplete = self.ledger is not None and not self.ledger.complete
@@ -269,6 +276,11 @@ class NativeCall:
             if self.ledger:
                 self.ledger.invalidate()
             await self.message("invalidate")
+        if disconnecting:
+            # Local epoch, speech children and audio are already fenced. Only
+            # accepted pre-fence observations may drain before SQL invalidation.
+            await self.flush_metrics()
+        if in_flight or incomplete:
             # SQL invalidation must overtake a slow planner without blocking VAD.
             self.invalidation = asyncio.create_task(self.api.interrupt())
             self.invalidation_jobs.add(self.invalidation)
@@ -568,18 +580,19 @@ class NativeCall:
     async def participant_left(self, transport, participant):
         if participant != self.caller:
             return
-        await self.interrupt()
-        await self.flush_metrics()
+        await self.interrupt(disconnecting=True)
         await self.api.request("/disconnect", {})
         await self.worker.cancel()
 
     async def disconnected(self, transport):
+        self.seal_metrics()
         self.epoch += 1
         for adapter in (self.asr, self.english, self.urdu):
             await asyncio.to_thread(adapter.cancel)
         if self.ledger:
             self.ledger.invalidate()
         try:
+            await self.worker.queue_frame(InterruptionFrame())
             await self.flush_metrics()
             await self.api.request("/disconnect", {})
         except Exception:

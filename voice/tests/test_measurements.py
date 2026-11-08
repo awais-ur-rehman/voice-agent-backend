@@ -5,6 +5,8 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import pytest
+
 
 def test_queue_bounds_nonblocking_epoch_revision_fences_and_failures():
     from voice_runtime.telemetry import MetricQueue
@@ -184,5 +186,175 @@ def test_stale_epoch_and_failed_submission_remain_missing_without_breaking_contr
         await queue.flush()
         assert call.api.metrics.call_count == 1
         assert not queue.pending
+
+    asyncio.run(scenario())
+
+
+def disconnect_fixture(events, send):
+    from voice_runtime.delivery import DeliveryLedger
+    from voice_runtime.pipeline import NativeCall
+    from voice_runtime.telemetry import MetricQueue
+
+    call = NativeCall.__new__(NativeCall)
+    call.epoch = 4
+    call.generation = 1
+    call.caller = "caller"
+    call.pending = None
+    call.invalidation = None
+    call.invalidation_jobs = set()
+    call.current_output = None
+    call.message = AsyncMock()
+
+    class Adapter:
+        def __init__(self, name):
+            self.name = name
+
+        def cancel(self):
+            events.append("cancel-" + self.name)
+
+    call.asr = Adapter("asr")
+    call.english = Adapter("en")
+    call.urdu = Adapter("ur")
+
+    call.audio_fenced = asyncio.Event()
+
+    async def queue(frame):
+        events.append("audio-fenced")
+        call.audio_fenced.set()
+
+    async def cancel():
+        events.append("worker-cancelled")
+
+    call.worker = SimpleNamespace(queue_frame=queue, cancel=cancel)
+    call.ledger = DeliveryLedger("sid", generation=1, participant="caller")
+    call.ledger.publish("segment", 160, 16000)
+
+    async def interrupt():
+        events.append("server-interrupt")
+        call.api.revision += 1
+        return {"revision": call.api.revision}
+
+    async def request(route, body):
+        events.append(route)
+        await asyncio.sleep(0)
+
+    call.api = SimpleNamespace(revision=7, metrics=send, interrupt=interrupt, request=request)
+    call.metrics = MetricQueue(call)
+    return call
+
+
+async def disconnect_callback(call, kind):
+    if kind == "participant_left":
+        await call.participant_left(None, "caller")
+    else:
+        await call.disconnected(None)
+
+
+@pytest.mark.parametrize("kind", ["participant_left", "disconnected"])
+def test_disconnect_callbacks_submit_pending_completed_observation_before_server_revocation(kind):
+    async def scenario(kind):
+        events = []
+        submitted = []
+
+        async def send(body):
+            events.append("metrics")
+            submitted.append(body)
+
+        call = disconnect_fixture(events, send)
+        # Do not yield: this accepted observation is pending when the actual callback begins.
+        call.metrics.offer("stt_completion", 12, "en", 4)
+        event_id = call.metrics.pending[0][2]["event_id"]
+        await disconnect_callback(call, kind)
+        await call.metrics.flush()
+        assert len(submitted) == 1, events
+        assert submitted[0]["revision"] == 7 and submitted[0]["generation"] == 1
+        assert submitted[0]["observations"][0]["event_id"] == event_id
+        assert events.index("metrics") < events.index("/disconnect")
+        if "server-interrupt" in events:
+            assert events.index("metrics") < events.index("server-interrupt")
+        assert call.epoch == 5 and call.ledger.invalidated
+        assert events[-1] == "worker-cancelled"
+        if call.invalidation_jobs:
+            await asyncio.gather(*call.invalidation_jobs)
+
+    asyncio.run(scenario(kind))
+
+
+@pytest.mark.parametrize("kind", ["participant_left", "disconnected"])
+def test_disconnect_freezes_old_observations_and_cancels_locally_while_submission_waits(kind):
+    async def scenario(kind):
+        events = []
+        submitted = []
+        entered = asyncio.Event()
+        release = asyncio.Event()
+
+        async def send(body):
+            events.append("metrics")
+            submitted.append(body)
+            entered.set()
+            await release.wait()
+
+        call = disconnect_fixture(events, send)
+        call.metrics.offer("stt_completion", 12, "en", 4)
+        closing = asyncio.create_task(disconnect_callback(call, kind))
+        try:
+            await asyncio.wait_for(entered.wait(), 0.5)
+            # A blocked metrics request must not hold up local ASR/TTS/audio cancellation.
+            await asyncio.wait_for(call.audio_fenced.wait(), 0.5)
+            assert all("cancel-" + name in events for name in ["asr", "en", "ur"])
+            assert "/disconnect" not in events and "server-interrupt" not in events
+            call.metrics.offer("stt_completion", 99, "en", 4)
+            call.metrics.offer("stt_completion", 100, "en", call.epoch)
+            assert not call.metrics.pending
+            release.set()
+            await asyncio.wait_for(closing, 0.5)
+            assert len(submitted) == 1
+            assert [v["duration_ms"] for v in submitted[0]["observations"]] == [12]
+            assert events.index("metrics") < events.index("/disconnect")
+        finally:
+            release.set()
+            await asyncio.gather(closing, return_exceptions=True)
+            if call.invalidation_jobs:
+                await asyncio.gather(*call.invalidation_jobs)
+
+    asyncio.run(scenario(kind))
+
+
+@pytest.mark.parametrize("kind", ["participant_left", "disconnected"])
+def test_disconnect_hung_metrics_cannot_hold_shutdown_or_send_frozen_work_after_deadline(kind):
+    async def scenario():
+        events = []
+        submitted = []
+        entered = asyncio.Event()
+        never = asyncio.Event()
+
+        async def send(body):
+            submitted.append(body)
+            events.append("metrics")
+            entered.set()
+            try:
+                await never.wait()
+            finally:
+                events.append("metrics-cancelled")
+
+        call = disconnect_fixture(events, send)
+        call.metrics.offer("stt_completion", 11, "en", 4)
+        await entered.wait()
+        # One already in flight plus a completed observation still queued at shutdown.
+        call.metrics.offer("stt_completion", 12, "en", 4)
+        await asyncio.wait_for(disconnect_callback(call, kind), 2)
+        await asyncio.sleep(0)
+        assert call.metrics.task.done()
+        # Re-entrant disconnect/cleanup must not inherit cancellation from its sender.
+        await call.metrics.flush()
+        assert not call.metrics.pending
+        assert events.index("audio-fenced") < events.index("/disconnect")
+        assert events.index("metrics-cancelled") < events.index("worker-cancelled")
+        assert len(submitted) == 1
+        call.metrics.offer("stt_completion", 99, "en", call.epoch)
+        assert not call.metrics.pending
+        assert "worker-cancelled" in events
+        if call.invalidation_jobs:
+            await asyncio.gather(*call.invalidation_jobs)
 
     asyncio.run(scenario())
