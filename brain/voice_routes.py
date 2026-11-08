@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from valkey.exceptions import ValkeyError
 
+from scheduler.admission import admit_start
 from scheduler.contracts import Contract
 from scheduler.db import Principal, principal, session, tenant_context
 from scheduler.errors import AppError
@@ -371,6 +372,7 @@ def start(
             body.request_key,
             request.app.state.clock(),
             request.app.state.settings,
+            admit_new=lambda: admit_start(request, user),
         )
         parent = db.get(AgentSession, voice.session_id)
         _ready(request, _language_mode(db, parent))

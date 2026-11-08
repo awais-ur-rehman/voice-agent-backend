@@ -12,6 +12,7 @@ from sqlalchemy import text as sql_text
 from valkey.exceptions import ValkeyError
 
 from analytics.telemetry import current_sink, database_writer, measured_request
+from scheduler.admission import admit_start
 from scheduler.contracts import Contract
 from scheduler.db import Principal, bearer, principal, session
 from scheduler.errors import AppError
@@ -95,6 +96,7 @@ def repair(store, identity, state):
 def start(
     body: SessionCreate, request: Request, user: Principal = Depends(principal), db=Depends(session)
 ):
+    admit_start(request, user)
     store = require_store(request)
     created = create_session(
         db, user, body.agent_id, request.app.state.clock(), request.app.state.settings

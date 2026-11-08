@@ -48,7 +48,7 @@ def require_worker(
     return row
 
 
-def create_voice(db, staff, agent_id, request_key, now, settings):
+def create_voice(db, staff, agent_id, request_key, now, settings, *, admit_new=None):
     from datetime import timedelta
     from uuid import uuid4
 
@@ -77,6 +77,8 @@ def create_voice(db, staff, agent_id, request_key, now, settings):
         if parent.agent_id != agent_id:
             raise AppError("idempotency_conflict", 409)
         return existing
+    if admit_new is not None:
+        admit_new()
     created = create_session(db, staff, agent_id, now, settings, transport_mode="voice")
     voice = VoiceSession(
         tenant_id=staff.tenant_id,

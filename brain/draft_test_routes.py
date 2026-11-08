@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import AwareDatetime, Field
 
 from knowledge.contracts import KnowledgeTrace
+from scheduler.admission import admit_start
 from scheduler.appointments import IdempotencyKey
 from scheduler.contracts import Contract
 from scheduler.db import Principal, manager, session, tenant_context
@@ -273,6 +274,7 @@ def voice_start(
             body.request_key,
             request.app.state.clock(),
             request.app.state.settings,
+            admit_new=lambda: admit_start(request, user),
         )
         parent = db.get(AgentSession, voice.session_id)
         voice.call_deadline = min(voice.call_deadline, row.expires_at)

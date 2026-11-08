@@ -55,6 +55,7 @@ def database():
 def seed(database):
     with database.begin() as conn:
         conn.execute(text("TRUNCATE tenants CASCADE"))
+        conn.execute(text("TRUNCATE admission_buckets"))
     ids = {}
     with Session(database, expire_on_commit=False) as db, db.begin():
         for suffix in ("a", "b"):

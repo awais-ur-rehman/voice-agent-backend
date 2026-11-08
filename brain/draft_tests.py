@@ -332,6 +332,9 @@ def provision(db, user, agent_id, revision, key, replace, request):
         if previous.agent_id != agent_id or previous.draft_revision != revision:
             raise AppError("idempotency_conflict", 409)
         return previous, []
+    from scheduler.admission import admit_start
+
+    admit_start(request, user)
     if draft.revision != revision:
         raise AppError("revision_conflict", 409)
     rooms = []

@@ -48,6 +48,8 @@ class Settings(BaseSettings):
         default=None, ge=0, le=1000000, allow_inf_nan=False
     )
     analytics_metrics_secret: SecretStr | None = Field(default=None, min_length=32)
+    drain_mode: bool = False
+    shutdown_drain_seconds: float = Field(default=3, ge=0, le=10, allow_inf_nan=False)
     registration_enabled: bool = False
     knowledge_enabled: bool = False
     knowledge_embedding_url: str = "http://127.0.0.1:8001"

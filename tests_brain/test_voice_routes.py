@@ -184,7 +184,7 @@ def harness(monkeypatch):
 
     h.rooms = Rooms()
     monkeypatch.setattr(routes, "LiveKitRooms", lambda *args, **kwargs: h.rooms)
-    monkeypatch.setattr(routes, "create_voice", lambda *args: voice)
+    monkeypatch.setattr(routes, "create_voice", lambda *args, **kwargs: voice)
     monkeypatch.setattr(routes, "_locked_pair", lambda *args, **kwargs: (parent, voice))
     monkeypatch.setattr(routes, "tenant_context", lambda *args: None)
 
@@ -505,6 +505,17 @@ def test_real_sql_staff_voice_isolation_receipts_and_compensation(seed, database
             assert "runtime" not in created.text
             assert client.post("/voice/sessions", headers=owner, json=payload).json() == body
             assert [kind for kind, _ in calls] == ["create"]
+            app.state.settings.drain_mode = True
+            replay = client.post("/voice/sessions", headers=owner, json=payload)
+            assert replay.status_code == 201 and replay.json() == body
+            blocked = client.post(
+                "/voice/sessions", headers=owner, json={**payload, "request_key": "drain-new"}
+            )
+            assert blocked.status_code == 503
+            assert blocked.json()["error"]["code"] == "service_draining"
+            assert client.get(f"/voice/sessions/{identity}", headers=owner).status_code == 200
+            app.state.settings.drain_mode = False
+
             for headers in (stranger, other_tenant):
                 assert client.get(f"/voice/sessions/{identity}", headers=headers).status_code == 404
                 assert (

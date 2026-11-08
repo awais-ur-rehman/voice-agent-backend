@@ -133,6 +133,9 @@ class BookingPlanner:
     def close(self):
         pass
 
+    def drain(self, timeout):
+        return True
+
 
 def test_real_planner_gateway_books_only_synthetic_records(dashboard, seed, database):
     from scheduler.models import Appointment
@@ -202,6 +205,9 @@ def test_inference_cannot_commit_after_expiry_or_end(dashboard, seed, database):
 
             def close(self):
                 pass
+
+            def drain(self, timeout):
+                return True
 
         dashboard.app.state.brain_planner = RacePlanner()
         response = send(dashboard, scope, 0, "tell me")
@@ -771,3 +777,57 @@ def test_publication_and_test_allocation_share_lock_order(dashboard, seed, datab
     assert allocated.status_code in (201, 409), allocated.text
     if allocated.status_code == 409:
         assert allocated.json()["error"]["code"] == "revision_conflict", allocated.text
+
+
+def test_drain_preserves_draft_replay_and_end(dashboard, seed, database):
+    key = str(uuid4())
+    first = start(dashboard, seed["agent_a"], key)
+    assert first.status_code == 201
+    dashboard.app.state.settings.drain_mode = True
+    replay = start(dashboard, seed["agent_a"], key)
+    assert replay.status_code == 201 and replay.json()["id"] == first.json()["id"]
+    blocked = start(dashboard, seed["agent_b"])
+    assert blocked.status_code == 404  # Tenant fencing still precedes admission.
+    blocked = start(dashboard, seed["agent_a"], replace=True)
+    assert blocked.status_code == 503 and blocked.json()["error"]["code"] == "service_draining"
+    assert dashboard.post("/dashboard/tests/" + first.json()["id"] + "/end").status_code == 200
+    with database.connect() as conn:
+        assert conn.scalar(text("SELECT hits FROM admission_buckets WHERE scope='start_user'")) == 1
+
+
+def test_draft_voice_charges_parent_once_and_drain_replay(dashboard, seed, database, monkeypatch):
+    import json
+
+    from brain.voice_rooms import LiveKitRooms
+    from scheduler.admission import bucket_key
+
+    dashboard.app.state.settings.voice_enabled = True
+    monkeypatch.setattr(LiveKitRooms, "create", lambda self, room: None)
+    monkeypatch.setattr(LiveKitRooms, "delete", lambda self, room: None)
+    store = dashboard.app.state.brain_store
+    store.client.delete("voice:capacity")
+    store.client.set("voice:ready", json.dumps({"en": True, "ur": True}), ex=15)
+    try:
+        first = start(dashboard, seed["agent_a"]).json()
+        url = "/dashboard/tests/" + first["id"] + "/voice"
+        created = dashboard.post(url, json={"request_key": "same-voice"})
+        assert created.status_code == 201, created.text
+        dashboard.app.state.settings.drain_mode = True
+        replay = dashboard.post(url, json={"request_key": "same-voice"})
+        assert (
+            replay.status_code == 201
+            and replay.json()["session_id"] == created.json()["session_id"]
+        )
+        blocked = dashboard.post(url, json={"request_key": "new-voice"})
+        assert blocked.status_code == 503 and blocked.json()["error"]["code"] == "service_draining"
+        key = bucket_key(
+            dashboard.app.state.settings, "start_user", f"{seed['tenant_a']}:{seed['owner_a']}"
+        )
+        with database.connect() as conn:
+            rows = conn.execute(
+                text("SELECT bucket_key,hits FROM admission_buckets WHERE scope='start_user'")
+            ).all()
+            assert rows == [(key, 2)]
+        assert dashboard.post(url + "/end").status_code == 200
+    finally:
+        store.client.delete("voice:ready", "voice:capacity")

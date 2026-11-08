@@ -82,6 +82,8 @@ def test_worker_http_claim_playback_and_generation_fencing(seed, database, monke
                 "Authorization": "Bearer " + grant["token"],
                 "X-Runtime-Capability": grant["runtime_token"],
             }
+            app.state.settings.drain_mode = True
+            assert client.get("/health/ready").status_code == 503
             assert client.get(base, headers=headers).status_code == 200
             assert client.post(base + "/heartbeat", headers=headers).status_code == 200
             interrupted = client.post(
@@ -320,6 +322,7 @@ def test_worker_can_cleanup_after_brain_has_revoked_runtime(seed, database, monk
         database_url=APP_URL,
         jwt_secret=SECRET,
         runtime_secret="runtime-terminal-test-distinct-secret-2026",
+        drain_mode=True,
         voice_worker_secret="worker-terminal-test-distinct-secret-2026",
         voice_bootstrap_secret="bootstrap-terminal-test-distinct-secret-2026",
         livekit_api_key="synthetic",
