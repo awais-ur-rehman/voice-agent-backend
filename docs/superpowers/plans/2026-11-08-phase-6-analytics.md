@@ -86,11 +86,11 @@
 
 **Consumes:** exact generated Task4 schema/operation map. Reuse session-aware TanStack queries, shared PageHeader/QueryState/buttons/dialog/table/form tokens. Lazy routes `/analytics`, `/calls`, `/calls/:identity`; no extra chart dependency or competing UI library.
 
-- [ ] RED filter/range/page/auth reset/error/retry, null-rate/latency/cost coverage, real-zero vs missing, purpose/channel distinctions, RTL escaping, staff no-text/manager privacy opt-in/delete and initial/default-off states.
-- [ ] Implement aligned analytics header/filters, compact metrics strip, accessible daily/peak-hour/intent figures with table/text alternatives, quality/stage sample table, alert state and fingerprint-based knowledge gaps. No fake deltas/voice measurements or raw implementation JSON.
-- [ ] Implement paginated call/session log and routed detail with code-owned summary, safe tool trace, per-turn measured stage table, opt-in redacted transcript and explicit off/deleted/expired states. Keyboard/focus/back/late-auth responses safe; no transcript storage in browser caches beyond current authenticated in-memory queries, clear on account change.
-- [ ] Manager capture/retention dialog uses revision guards and explicit prospective consent/remaining-sensitive-data notice, no implied perfect redaction. Transcript deletion must invalidate detail without stale text flashing.
-- [ ] GREEN full frontend check and maintained serial browser cases at1440/1024/390: aligned spacing/16px mobile/44px controls/no overflow, empty and real-zero/partial data, bilingual timeline, filters/detail/back/focus/privacy and account switch. Visually inspect saved synthetic screenshots; fixtures remain distinct from actual live sessions. Commit.
+- [x] RED filter/range/page/auth reset/error/retry, null-rate/latency/cost coverage, real-zero vs missing, purpose/channel distinctions, RTL escaping, staff no-text/manager privacy opt-in/delete and initial/default-off states.
+- [x] Implement aligned analytics header/filters, compact metrics strip, accessible daily/peak-hour/intent figures with table/text alternatives, quality/stage sample table, alert state and fingerprint-based knowledge gaps. No fake deltas/voice measurements or raw implementation JSON.
+- [x] Implement paginated call/session log and routed detail with code-owned summary, safe tool trace, per-turn measured stage table, opt-in redacted transcript and explicit off/deleted/expired states. Keyboard/focus/back/late-auth responses safe; no transcript storage in browser caches beyond current authenticated in-memory queries, clear on account change.
+- [x] Manager capture/retention dialog uses revision guards and explicit prospective consent/remaining-sensitive-data notice, no implied perfect redaction. Transcript deletion must invalidate detail without stale text flashing.
+- [x] GREEN full frontend check and maintained serial browser cases at1440/1024/390: aligned spacing/16px mobile/44px controls/no overflow, empty and real-zero/partial data, bilingual timeline, filters/detail/back/focus/privacy and account switch. Visually inspect saved synthetic screenshots; fixtures remain distinct from actual live sessions. Commit.
 
 ### Task 6: Local CPU checkpoint, live text demo and publication
 
