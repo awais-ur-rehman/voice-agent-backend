@@ -49,11 +49,22 @@ class WorkerAPI:
         }
         for attempt in range(2):
             try:
-                return await self.request("/turn", payload)
+                result = await self.request("/turn", payload)
+                return result | {"_measurement_command_id": payload["command_id"]}
             except (httpx.TransportError, httpx.TimeoutException):
                 if attempt:
                     raise
                 await asyncio.sleep(0.1)
+
+    async def metrics(self, payload):
+        # The queue freezes event IDs, generation and revision for an ambiguous retry.
+        for attempt in range(2):
+            try:
+                return await self.request("/metrics", payload, timeout_seconds=0.5)
+            except (httpx.TransportError, httpx.TimeoutException):
+                if attempt:
+                    raise
+                await asyncio.sleep(0.05)
 
     async def interrupt(self):
         payload = {"command_id": str(uuid.uuid4())}

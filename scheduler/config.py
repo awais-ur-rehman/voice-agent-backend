@@ -1,3 +1,4 @@
+from decimal import Decimal
 from pathlib import Path
 
 from pydantic import Field, SecretStr, model_validator
@@ -18,6 +19,13 @@ class Settings(BaseSettings):
     llm_model: str = "nvidia/nemotron-3.5-bolt-e4b"
     llm_timeout_seconds: float = Field(default=30, ge=1, le=60)
     llm_request_budget: int = Field(default=100, ge=1, le=1000)
+    llm_input_rate_usd_per_million: Decimal | None = Field(
+        default=None, ge=0, le=1000000, allow_inf_nan=False
+    )
+    llm_output_rate_usd_per_million: Decimal | None = Field(
+        default=None, ge=0, le=1000000, allow_inf_nan=False
+    )
+    analytics_metrics_secret: SecretStr | None = Field(default=None, min_length=32)
     registration_enabled: bool = False
     knowledge_enabled: bool = False
     knowledge_embedding_url: str = "http://127.0.0.1:8001"
@@ -52,6 +60,23 @@ class Settings(BaseSettings):
             )
             if any(secret is not None and value == secret.get_secret_value() for secret in others):
                 raise ValueError("A distinct knowledge blob ownership secret is required")
+        if self.analytics_metrics_secret is not None:
+            value = self.analytics_metrics_secret.get_secret_value()
+            scrape_others = (
+                self.jwt_secret,
+                self.runtime_secret,
+                self.voice_worker_secret,
+                self.voice_bootstrap_secret,
+                self.knowledge_embedding_secret,
+                self.knowledge_blob_secret,
+                self.livekit_api_secret,
+                self.llm_api_key,
+            )
+            if any(
+                secret is not None and value == secret.get_secret_value()
+                for secret in scrape_others
+            ):
+                raise ValueError("A distinct analytics scrape secret is required")
         return self
 
 

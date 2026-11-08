@@ -190,7 +190,22 @@ def _release_capacity(store, identity):
     store.client.eval(_RELEASE_CAPACITY, 1, "voice:capacity", str(identity))
 
 
-def _end_locked(parent, voice, store, now, status, *, release_hold=True):
+def _end_locked(db, parent, voice, store, now, status, *, release_hold=True, reason=None):
+    from analytics.lifecycle import finish_session
+
+    finish_session(
+        db,
+        parent,
+        reason=reason
+        or (
+            "provisioning_failed"
+            if status == "failed"
+            else "timeout"
+            if _expired(parent, voice, now)
+            else "staff_end"
+        ),
+        now=now,
+    )
     cleanup_failed = False
     if voice.status not in {"ended", "failed"}:
         state = deepcopy(parent.checkpoint or {})
@@ -228,7 +243,7 @@ def _terminate(request, user, identity, *, status="ended", expected_generation=N
         # A late failed provisioner cannot revoke/delete a newer live generation.
         if expected_generation is not None and voice.generation != expected_generation:
             return None
-        failed = _end_locked(parent, voice, store, request.app.state.clock(), status)
+        failed = _end_locked(db, parent, voice, store, request.app.state.clock(), status)
         room = voice.room
         snapshot = _snapshot(parent, voice, request)
     try:
@@ -261,7 +276,15 @@ def _provision(request, user, identity, room, generation, *, internal_auth=None)
             if internal_auth:
                 internal_auth(db)
             parent, voice = _owned_pair(db, user, identity)
-            now = request.app.state.clock()
+            from analytics.lifecycle import guard_session
+
+            now = guard_session(
+                db,
+                parent,
+                request.app.state.clock(),
+                clock=request.app.state.clock,
+                error="voice_unavailable",
+            )
             if (
                 voice.status != "provisioning"
                 or voice.generation != generation
@@ -273,6 +296,9 @@ def _provision(request, user, identity, room, generation, *, internal_auth=None)
             _ready(request, _language_mode(db, parent))
             voice.status = "active"
             voice.delivery = None
+            from analytics.lifecycle import sync_session
+
+            sync_session(db, parent, now, voice)
             snapshot = _snapshot(parent, voice, request)
             notification = json.dumps({"tenant_id": str(user.tenant_id), "voice_id": str(voice.id)})
         _store(request).client.rpush("voice:queue", notification)
@@ -355,6 +381,9 @@ def start(
             # its room creation or compensate its eventual successful result.
             return _snapshot(parent, voice, request)
         voice.delivery = {"provisioning_started_at": request.app.state.clock().isoformat()}
+        from analytics.lifecycle import sync_session
+
+        sync_session(db, parent, request.app.state.clock(), voice)
         identity, room, generation = parent.id, voice.room, voice.generation
     return _provision(request, user, identity, room, generation)
 
@@ -402,7 +431,9 @@ def resume(
         parent, _voice = _owned_pair(db, user, identity)
         _ready(request, _language_mode(db, parent))
         old_hold = deepcopy((parent.checkpoint or {}).get("hold"))
-        voice = resume_voice(db, user, identity, request.app.state.clock())
+        voice = resume_voice(
+            db, user, identity, request.app.state.clock(), clock=request.app.state.clock
+        )
         if old_hold:
             store.release_hold(
                 str(parent.tenant_id), old_hold["provider"], str(identity), old_hold["hold_id"]
@@ -410,5 +441,8 @@ def resume(
         _reserve(store, parent, voice, request.app.state.clock())
         voice.status = "provisioning"
         voice.delivery = {"provisioning_started_at": request.app.state.clock().isoformat()}
+        from analytics.lifecycle import sync_session
+
+        sync_session(db, parent, request.app.state.clock(), voice)
         room, generation = voice.room, voice.generation
     return _provision(request, user, identity, room, generation)

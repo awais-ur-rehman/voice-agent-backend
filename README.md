@@ -119,3 +119,5 @@ FastAPI/Python 3.12 owns auth, clinic APIs, policy, verification and persistence
 Backend owns shared schemas under `packages/schemas`; publish versioned artifacts for the separate frontend rather than maintaining handwritten duplicate contracts. Default clinic timezone is `Asia/Karachi`, currency PKR, with Pakistan phone normalization. [Engineering rules](AGENTS.md), [branch workflow](CONTRIBUTING.md), [license ledger](docs/licenses.md), and [comparison status](docs/model-comparison-status.md) apply.
 
 Phase 5 local checkpoint: [testing instructions](docs/phase-5-testing.md) and [measured results / acceptance limits](docs/phase-5-results.md). Real embedding qualification remains explicitly deferred; source management and hosted adapter probes do not establish end-to-end RAG acceptance.
+
+Phase 6 analytics checkpoint: [owner testing](docs/phase-6-testing.md) and [observations and limits](docs/phase-6-results.md). Text analytics and offline controls do not qualify native speech, embeddings, billing, or load.

@@ -64,6 +64,29 @@ class ToolEngine:
         state["readback"] = None
 
     def execute(self, state, raw, caller_text="", *, _retry=False):
+        import time as timer
+
+        from analytics.capture import current_observation
+        from analytics.contracts import StageObservation
+
+        started = timer.monotonic()
+        try:
+            return self._guarded_execute(state, raw, caller_text, _retry=_retry)
+        finally:
+            observation = current_observation.get()
+            elapsed = (timer.monotonic() - started) * 1000
+            if observation is not None and not _retry and elapsed <= 600000:
+                observation.stages.append(
+                    StageObservation(
+                        event_id=uuid4(),
+                        stage="tool",
+                        language=state.get("lang", "unknown"),
+                        origin="server",
+                        duration_ms=elapsed,
+                    )
+                )
+
+    def _guarded_execute(self, state, raw, caller_text="", *, _retry=False):
         try:
             action = parse_action(raw)
         except ValidationError:
@@ -1026,7 +1049,17 @@ class ToolEngine:
                 json.dumps(parameters, sort_keys=True, separators=(",", ":")).encode()
             ).hexdigest()
         )
-        return idempotent(self.db, self.actor, key, "runtime:" + state["task"], body, execute)
+
+        def recorded_execute():
+            from analytics.operations import record_operation
+
+            value = execute()
+            record_operation(self.db, self.actor.id, state["task"], self.now)
+            return value
+
+        return idempotent(
+            self.db, self.actor, key, "runtime:" + state["task"], body, recorded_execute
+        )
 
     def trusted_event(self, state, kind, *, delivered_text=""):
         if kind == "delivery_interrupted":

@@ -2,9 +2,12 @@
 
 import json
 import re
+import sys
 import threading
 import time
 from concurrent.futures import Future
+from contextvars import copy_context
+from datetime import UTC, datetime
 
 import httpx2
 from pydantic import ValidationError
@@ -150,7 +153,10 @@ class Nemotron:
             finally:
                 self.ground_slot.release()
 
-        threading.Thread(target=run, daemon=True, name="grounded-answer").start()
+        context = copy_context()
+        threading.Thread(
+            target=lambda: context.run(run), daemon=True, name="grounded-answer"
+        ).start()
         try:
             return result.result(timeout=max(0, deadline - time.monotonic()))
         except TimeoutError:
@@ -170,6 +176,29 @@ class Nemotron:
             ):
                 raise ProviderError("unavailable")
             self.requests += 1
+        from analytics.telemetry import current_sink
+
+        sink = current_sink.get()
+        measurement = (
+            sink.start(
+                self.settings.llm_model,
+                self.settings.llm_input_rate_usd_per_million,
+                self.settings.llm_output_rate_usd_per_million,
+            )
+            if sink
+            else None
+        )
+        from analytics.tracing import safe_span
+
+        span = safe_span("provider.invoke", sink.trace_id if sink else None)
+        span.__enter__()
+        usage = None
+        status = "failure"
+        completed_monotonic = None
+        completed_at = None
+        response = None
+        if measurement is not None:
+            measurement = (measurement[0], time.monotonic())
         try:
             response = self.client.post(
                 "https://integrate.api.nvidia.com/v1/chat/completions",
@@ -197,10 +226,16 @@ class Nemotron:
                     },
                 },
             )
+            completed_monotonic = time.monotonic()
+            completed_at = datetime.now(UTC)
             response.raise_for_status()
+            status = "malformed"
             data = response.json()
+            usage = data.get("usage") if isinstance(data, dict) else None
             action = decode(data["choices"][0]["message"]["content"])
+            status = "success"
             if deadline is not None and time.monotonic() >= deadline:
+                status = "timeout"
                 raise ProviderError("deadline")
         except (
             httpx2.HTTPError,
@@ -210,12 +245,35 @@ class Nemotron:
             TypeError,
             ProviderError,
         ) as exc:
+            if response is not None and usage is None:
+                try:
+                    reported = response.json()
+                    usage = reported.get("usage") if isinstance(reported, dict) else None
+                except (ValueError, TypeError):
+                    pass
+            if (
+                isinstance(exc, httpx2.TimeoutException)
+                or deadline is not None
+                and time.monotonic() >= deadline
+            ):
+                status = "timeout"
             self.last_failure = str(exc) if isinstance(exc, ProviderError) else type(exc).__name__
             with self.lock:
                 self.failures += 1
                 if self.failures >= 2:
                     self.open_until = time.monotonic() + 30
             raise ProviderError("provider_failed", requests=1) from None
+        finally:
+            span.__exit__(*sys.exc_info())
+            if sink is not None and measurement is not None:
+                sink.finish(
+                    measurement[0],
+                    measurement[1],
+                    status,
+                    usage,
+                    completed_monotonic=completed_monotonic,
+                    completed_at=completed_at,
+                )
         with self.lock:
             self.failures = 0
         return action

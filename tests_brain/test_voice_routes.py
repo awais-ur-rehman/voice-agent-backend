@@ -106,8 +106,14 @@ class Database:
 
 @pytest.fixture
 def harness(monkeypatch):
+    import analytics.lifecycle as lifecycle
     import brain.voice_routes as routes
 
+    # This harness replaces SQL entirely; real mirror persistence is covered by
+    # tests_analytics/test_lifecycle.py and the SQL worker-route integration tests.
+    monkeypatch.setattr(lifecycle, "finish_session", lambda *args, **kwargs: None)
+    monkeypatch.setattr(lifecycle, "sync_session", lambda *args, **kwargs: None)
+    monkeypatch.setattr(lifecycle, "guard_session", lambda db, parent, now, **kwargs: now)
     staff = Principal(uuid4(), uuid4(), "synthetic@example.com", "staff")
     parent = SimpleNamespace(
         id=uuid4(),
@@ -182,7 +188,7 @@ def harness(monkeypatch):
     monkeypatch.setattr(routes, "_locked_pair", lambda *args, **kwargs: (parent, voice))
     monkeypatch.setattr(routes, "tenant_context", lambda *args: None)
 
-    def resume(*args):
+    def resume(*args, **kwargs):
         if voice.creator_id != staff.id or voice.status != "disconnected":
             raise AppError("voice_unavailable", 409)
         voice.status = "active"

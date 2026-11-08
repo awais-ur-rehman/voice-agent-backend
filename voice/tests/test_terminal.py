@@ -1,5 +1,6 @@
 import asyncio
-from unittest.mock import AsyncMock
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, Mock
 
 
 def test_brain_ended_response_plays_goodbye_then_closes_media_and_never_listens():
@@ -10,7 +11,9 @@ def test_brain_ended_response_plays_goodbye_then_closes_media_and_never_listens(
         call.ending = False
         call.epoch = 2
         call.api = type("API", (), {"request": AsyncMock()})()
-        call.worker = type("Worker", (), {"cancel": AsyncMock()})()
+        call.worker = SimpleNamespace(cancel=AsyncMock(), queue_frame=AsyncMock())
+        call.asr = call.english = call.urdu = SimpleNamespace(cancel=Mock())
+        call.ledger = None
         call.speak = AsyncMock()
         response = {"state": {"ended": True}, "result": {"say": {"en": "Goodbye."}}}
         await call.complete_response(response, "en", 2)

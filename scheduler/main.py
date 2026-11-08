@@ -81,6 +81,11 @@ def create_app(settings: Settings | None = None, clock=None) -> FastAPI:
             engine.dispose()
 
     app = FastAPI(title="Voice Agent Scheduling API", version="0.2.0", lifespan=lifespan)
+    from analytics.prometheus import Registry
+    from analytics.prometheus import router as metrics_router
+
+    app.state.analytics_metrics = Registry()
+    app.include_router(metrics_router)
     app.state.settings, app.state.engine = settings, engine
     app.state.brain_planner = Nemotron(settings)
     app.state.brain_store = (
@@ -95,7 +100,9 @@ def create_app(settings: Settings | None = None, clock=None) -> FastAPI:
         if settings.valkey_url
         else None
     )
-    app.state.session_factory = sessionmaker(engine, expire_on_commit=False)
+    app.state.session_factory = sessionmaker(
+        engine, expire_on_commit=False, info={"analytics_metrics": app.state.analytics_metrics}
+    )
     from knowledge.embedding import EmbeddingClient
 
     app.state.knowledge_embeddings = (
@@ -142,7 +149,17 @@ def create_app(settings: Settings | None = None, clock=None) -> FastAPI:
         started, request_id = time.perf_counter(), str(uuid4())
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
+        if request.url.path.startswith(
+            ("/dashboard/analytics", "/dashboard/calls", "/private/analytics")
+        ):
+            response.headers["Cache-Control"] = "no-store"
         route = request.scope.get("route")
+        try:
+            app.state.analytics_metrics.observe(
+                getattr(route, "path", ""), time.perf_counter() - started, response.status_code
+            )
+        except Exception:
+            pass
         logger.info(
             json.dumps(
                 {
@@ -178,10 +195,12 @@ def create_app(settings: Settings | None = None, clock=None) -> FastAPI:
     app.include_router(appointments.router)
     app.include_router(auth.router)
     app.include_router(catalog.router)
+    from analytics.routes import router as analytics_router
     from knowledge.routes import router as knowledge_router
 
     from .dashboard import agents, patients, profile, scheduling
 
+    app.include_router(analytics_router)
     app.include_router(knowledge_router)
     app.include_router(agents.router)
     app.include_router(profile.router)

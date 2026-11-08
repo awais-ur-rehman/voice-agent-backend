@@ -27,6 +27,7 @@ from voice_runtime.speech.contracts import PCMChunk
 from voice_runtime.speech.kokoro import KokoroAdapter
 from voice_runtime.speech.parler import ParlerAdapter
 from voice_runtime.speech.whisper import WhisperAdapter
+from voice_runtime.telemetry import MetricQueue, output_measurement
 
 
 class CallerProcessor(FrameProcessor):
@@ -41,6 +42,7 @@ class CallerProcessor(FrameProcessor):
         self.speaking = False
         self.started = None
         self.preroll = b""
+        self.last_voiced = None
 
     async def process_frame(self, frame, direction):
         await super().process_frame(frame, direction)
@@ -53,6 +55,7 @@ class CallerProcessor(FrameProcessor):
         if frame.sample_rate != 16000 or frame.num_channels != 1 or len(frame.audio) % 2:
             await self.call.fail("invalid_audio_format")
             return
+        frame_ended = time.monotonic()
         state = await self.vad.analyze_audio(frame.audio)
         self.preroll = (self.preroll + frame.audio)[-8000:]
         if state == VADState.STARTING and self.started is None:
@@ -64,6 +67,9 @@ class CallerProcessor(FrameProcessor):
             self.speaking = True
             self.buffer = bytearray(self.preroll)
             await self.call.interrupt()
+        if state == VADState.SPEAKING:
+            # Native monotonic end of the last frame classified voiced, before stop silence.
+            self.last_voiced = frame_ended
         if self.speaking:
             self.call.timers.activity(time.monotonic())
             self.buffer.extend(frame.audio)
@@ -71,6 +77,7 @@ class CallerProcessor(FrameProcessor):
                 self.buffer.clear()
                 self.speaking = False
                 self.started = None
+                self.last_voiced = None
                 await self.call.fail("utterance_too_long")
                 return
         if state == VADState.QUIET:
@@ -78,7 +85,8 @@ class CallerProcessor(FrameProcessor):
                 pcm = PCMChunk(bytes(self.buffer), 16000)
                 self.buffer.clear()
                 self.speaking = False
-                self.call.spawn_turn(pcm, self.started)
+                self.call.spawn_turn(pcm, self.started, end_of_speech=self.last_voiced)
+                self.last_voiced = None
             self.started = None
 
 
@@ -89,6 +97,7 @@ class NativeCall:
         self.greetings = grant.get("greetings", {})
         self.caller = grant["caller_participant"]
         self.api = WorkerAPI(base_url, grant)
+        self.metrics = MetricQueue(self)
         self.session_id = str(grant["session_id"])
         self.generation = grant["generation"]
         self.language_mode = grant["language_mode"]
@@ -142,6 +151,28 @@ class NativeCall:
         self.transport.event_handler("on_participant_disconnected")(self.participant_left)
         self.transport.event_handler("on_disconnected")(self.disconnected)
 
+    def observe(self, stage, duration, language, epoch, *, metadata=None, context=None):
+        metrics = getattr(self, "metrics", None)
+        if metrics is not None:
+            metrics.offer(stage, duration, language, epoch, metadata=metadata, context=context)
+
+    def seal_metrics(self):
+        metrics = getattr(self, "metrics", None)
+        if metrics is not None:
+            metrics.seal()
+
+    async def flush_metrics(self):
+        metrics = getattr(self, "metrics", None)
+        if metrics is not None:
+            await metrics.flush()
+
+    async def greeting(self, text, language):
+        token = output_measurement.set({"output_kind": "greeting"})
+        try:
+            await self.speak(text, language, None, self.epoch)
+        finally:
+            output_measurement.reset(token)
+
     async def message(self, kind, **fields):
         self.sequence += 1
         payload = {
@@ -173,7 +204,7 @@ class NativeCall:
             language
         ]
         greeting = getattr(self, "greetings", {}).get(language, greeting)
-        self.pending = asyncio.create_task(self.speak(greeting, language, None, self.epoch))
+        self.pending = asyncio.create_task(self.greeting(greeting, language))
 
     async def status_filler(self, language, epoch, done, *, delay=0.8):
         if done.is_set():
@@ -217,7 +248,9 @@ class NativeCall:
     async def fail(self, code):
         await self.message("state", state="error", code=code)
 
-    async def interrupt(self):
+    async def interrupt(self, *, disconnecting=False):
+        if disconnecting:
+            self.seal_metrics()
         self.epoch += 1
         in_flight = self.pending is not None and not self.pending.done()
         incomplete = self.ledger is not None and not self.ledger.complete
@@ -243,6 +276,11 @@ class NativeCall:
             if self.ledger:
                 self.ledger.invalidate()
             await self.message("invalidate")
+        if disconnecting:
+            # Local epoch, speech children and audio are already fenced. Only
+            # accepted pre-fence observations may drain before SQL invalidation.
+            await self.flush_metrics()
+        if in_flight or incomplete:
             # SQL invalidation must overtake a slow planner without blocking VAD.
             self.invalidation = asyncio.create_task(self.api.interrupt())
             self.invalidation_jobs.add(self.invalidation)
@@ -255,21 +293,44 @@ class NativeCall:
             self.invalidation.add_done_callback(consumed)
         await self.message("state", state="listening")
 
-    def spawn_turn(self, pcm, started):
+    def spawn_turn(self, pcm, started, *, end_of_speech=None):
         # At most one owned task: interrupted work is fenced before replacement.
         if self.pending and not self.pending.done():
             self.pending.cancel()
-        self.pending = asyncio.create_task(self.turn(pcm, started, self.epoch))
+        self.pending = asyncio.create_task(
+            self.turn(pcm, started, self.epoch, end_of_speech=end_of_speech)
+        )
 
-    async def turn(self, pcm, started, epoch):
+    async def turn(self, pcm, started, epoch, *, end_of_speech=None):
         try:
             await self.message("state", state="thinking")
+            asr_started = time.monotonic()
             result = await asyncio.to_thread(
                 self.asr.transcribe, pcm, self.language_mode, (), self.asr.supervisor.generation
             )
             if epoch != self.epoch:
                 return
-            if result.uncertain or not result.text:
+            self.observe(
+                "stt_completion",
+                (time.monotonic() - asr_started) * 1000,
+                result.language,
+                epoch,
+                metadata={
+                    "uncertain": result.uncertain,
+                    **(
+                        {"stt_confidence": result.confidence}
+                        if result.confidence is not None
+                        else {}
+                    ),
+                },
+            )
+            await self.flush_metrics()
+            if (
+                result.uncertain
+                or not result.text
+                or result.confidence is not None
+                and result.confidence < 0.5
+            ):
                 await self.fail("asr_uncertain")
                 return
             if self.invalidation is not None:
@@ -285,14 +346,31 @@ class NativeCall:
                 "ji",
                 "hmm",
             }:
-                await self.speak(resume[0], resume[1], None, epoch)
+                token = output_measurement.set({"output_kind": "resumed"})
+                try:
+                    await self.speak(resume[0], resume[1], None, epoch)
+                finally:
+                    output_measurement.reset(token)
                 return
             async with self.control_lock:
                 await self.api.request("")
                 response = await self.plan(result, started, epoch)
             if epoch != self.epoch:
                 return
-            await self.complete_response(response, result.language, epoch)
+            token = output_measurement.set(
+                {
+                    "output_kind": "response"
+                    if response.get("_measurement_command_id")
+                    else "control",
+                    "command_id": response.get("_measurement_command_id"),
+                    "revision": response["revision"],
+                    "end_of_speech": end_of_speech,
+                }
+            )
+            try:
+                await self.complete_response(response, result.language, epoch)
+            finally:
+                output_measurement.reset(token)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -318,13 +396,14 @@ class NativeCall:
             await self.speak(say, language, revision, epoch)
         finally:
             if terminal:
-                try:
-                    await self.api.request("/end", {})
-                finally:
-                    await self.worker.cancel()
+                await self.end()
 
     async def speak(self, text, language, readback_revision, epoch, *, status_only=False):
         adapter = self.english if language == "en" else self.urdu
+        context = dict(output_measurement.get() or {"output_kind": "control"})
+        if status_only:
+            context = {"output_kind": "filler"}
+        first_queued = False
         self.ledger = DeliveryLedger(
             self.session_id, generation=self.generation, participant=self.caller
         )
@@ -360,13 +439,23 @@ class NativeCall:
                 if is_public
                 else None
             )
+            cache_hit = pcm is not None
             if pcm is None:
+                synthesis_started = time.monotonic()
                 pcm = await asyncio.to_thread(
                     adapter.synthesize,
                     sentence,
                     language,
                     getattr(self, "voice_profiles", {}).get(language),
                     adapter.supervisor.generation,
+                )
+                self.observe(
+                    "tts_buffered_generation",
+                    (time.monotonic() - synthesis_started) * 1000,
+                    language,
+                    epoch,
+                    metadata={"cache_hit": False, "output_state": "generated"},
+                    context=context,
                 )
             if epoch != self.epoch:
                 return
@@ -409,6 +498,7 @@ class NativeCall:
                 critical=readback_revision is not None,
             )
             await self.message("state", state="speaking")
+            queue_started = time.monotonic()
             for offset in range(0, len(output), 960):
                 if epoch != self.epoch:
                     return
@@ -417,7 +507,27 @@ class NativeCall:
                         audio=output[offset : offset + 960], sample_rate=24000, num_channels=1
                     )
                 )
+                if not first_queued:
+                    first_queued = True
+                    anchor = context.get("end_of_speech")
+                    if anchor is not None and context.get("output_kind") == "response":
+                        self.observe(
+                            "end_of_speech_to_audio_queue",
+                            (time.monotonic() - anchor) * 1000,
+                            language,
+                            epoch,
+                            metadata={"cache_hit": cache_hit, "output_state": "queued"},
+                            context=context,
+                        )
                 await asyncio.sleep(0.02)
+            self.observe(
+                "audio_queue",
+                (time.monotonic() - queue_started) * 1000,
+                language,
+                epoch,
+                metadata={"cache_hit": cache_hit, "output_state": "queued"},
+                context=context,
+            )
             await asyncio.sleep(0.2)
             if epoch != self.epoch:
                 return
@@ -455,28 +565,47 @@ class NativeCall:
                 if self.timers.muted:
                     await self.interrupt()
             elif message.get("kind") == "end":
-                await self.api.request("/end", {})
-                await self.worker.cancel()
+                await self.end()
             else:
                 return
             self.input_sequence = message["sequence"]
         except (ValueError, TypeError, KeyError):
             return
 
+    async def end(self):
+        # Freeze accepted diagnostics before fencing local speech or revoking
+        # server authority. MetricQueue bounds this drain and cancels a hung sender.
+        self.seal_metrics()
+        self.ending = True
+        self.epoch += 1
+        try:
+            for adapter in (self.asr, self.english, self.urdu):
+                await asyncio.to_thread(adapter.cancel)
+            if self.ledger:
+                self.ledger.invalidate()
+            await self.worker.queue_frame(InterruptionFrame())
+            await self.flush_metrics()
+            await self.api.request("/end", {})
+        finally:
+            await self.worker.cancel()
+
     async def participant_left(self, transport, participant):
         if participant != self.caller:
             return
-        await self.interrupt()
+        await self.interrupt(disconnecting=True)
         await self.api.request("/disconnect", {})
         await self.worker.cancel()
 
     async def disconnected(self, transport):
+        self.seal_metrics()
         self.epoch += 1
         for adapter in (self.asr, self.english, self.urdu):
             await asyncio.to_thread(adapter.cancel)
         if self.ledger:
             self.ledger.invalidate()
         try:
+            await self.worker.queue_frame(InterruptionFrame())
+            await self.flush_metrics()
             await self.api.request("/disconnect", {})
         except Exception:
             # If the server is unreachable its lease fence still rejects late work.
@@ -504,8 +633,7 @@ class NativeCall:
                     else self.timers.tick(now)
                 )
                 if action == "end" and now - self.timers.started >= 600:
-                    await self.api.request("/end", {})
-                    await self.worker.cancel()
+                    await self.end()
                     return
                 if action in ("reprompt", "end") and not busy:
                     async with self.control_lock:
@@ -535,6 +663,7 @@ class NativeCall:
             await runner.add_workers(self.worker)
             await runner.run()
         finally:
+            self.seal_metrics()
             heartbeat.cancel()
             for invalidation in self.invalidation_jobs:
                 invalidation.cancel()
@@ -546,6 +675,7 @@ class NativeCall:
                 await asyncio.to_thread(adapter.cancel)
             if self.ending:
                 try:
+                    await self.flush_metrics()
                     await self.api.request("/end", {})
                 except Exception:
                     pass

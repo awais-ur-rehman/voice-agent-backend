@@ -208,8 +208,12 @@ def test_blocked_transport_cannot_escape_absolute_deadline():
     from knowledge.parsing import IngestionError
 
     release = threading.Event()
+    entered = threading.Event()
+    workers = []
 
     def blocked(**_):
+        workers.append(threading.current_thread())
+        entered.set()
         release.wait(2)
         return Response()
 
@@ -225,6 +229,11 @@ def test_blocked_transport_cannot_escape_absolute_deadline():
         assert time.monotonic() - started < 0.5
     finally:
         release.set()
+        # A timed-out fetch deliberately owns the shared slot until its worker
+        # exits. Do not let the next test race that worker's finally cleanup.
+        assert entered.wait(1)
+        workers[0].join(timeout=1)
+        assert not workers[0].is_alive()
 
 
 def test_transport_host_header_uses_original_authority(monkeypatch):
