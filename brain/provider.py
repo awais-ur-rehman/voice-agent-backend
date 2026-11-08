@@ -2,12 +2,7 @@
 
 import json
 import re
-import sys
-import threading
 import time
-from concurrent.futures import Future
-from contextvars import copy_context
-from datetime import UTC, datetime
 
 import httpx2
 from pydantic import ValidationError
@@ -109,18 +104,26 @@ def action_schema(state, text=""):
 
 
 class Nemotron:
-    def __init__(self, settings, transport=None):
+    def __init__(self, settings, transport=None, *, clock=time.monotonic):
+        from .provider_router import ProviderRouter
+
         self.settings = settings
         self.client = httpx2.Client(timeout=settings.llm_timeout_seconds, transport=transport)
-        self.lock = threading.Lock()
-        self.ground_slot = threading.BoundedSemaphore(1)
-        self.requests = 0
-        self.last_failure = None
-        self.failures = 0
-        self.open_until = 0.0
+        self.router = ProviderRouter(settings, self.client, clock=clock)
+
+    @property
+    def requests(self):
+        return self.router.requests
+
+    @property
+    def last_failure(self):
+        return self.router.last_failure
 
     def close(self):
-        self.client.close()
+        self.router.close()
+
+    def drain(self, timeout: float) -> bool:
+        return self.router.drain(timeout)
 
     def plan(self, state, text, config, facts):
         return self._structured(
@@ -133,147 +136,28 @@ class Nemotron:
     def ground(self, query, language, chunks, *, deadline):
         from knowledge.grounding import answer_messages, answer_schema
 
-        if time.monotonic() >= deadline or not self.ground_slot.acquire(blocking=False):
-            raise ProviderError("unavailable")
-        result: Future[str] = Future()
-
-        def run():
-            try:
-                result.set_result(
-                    self._structured(
-                        answer_messages(query, language, chunks),
-                        answer_schema(language),
-                        "grounded_answer",
-                        lambda content: content,
-                        deadline=deadline,
-                    )
-                )
-            except Exception as exc:
-                result.set_exception(exc)
-            finally:
-                self.ground_slot.release()
-
-        context = copy_context()
-        threading.Thread(
-            target=lambda: context.run(run), daemon=True, name="grounded-answer"
-        ).start()
-        try:
-            return result.result(timeout=max(0, deadline - time.monotonic()))
-        except TimeoutError:
-            # The single occupied slot fences late work until the network call
-            # actually exits; a deadline never admits an unbounded queue.
-            raise ProviderError("deadline", requests=1) from None
+        return self._structured(
+            answer_messages(query, language, chunks),
+            answer_schema(language),
+            "grounded_answer",
+            lambda content: content,
+            deadline=deadline,
+        )
 
     def _structured(self, prompt, schema, name, decode, *, deadline=None):
-        with self.lock:
-            if (
-                deadline is not None
-                and time.monotonic() >= deadline
-                or not self.settings.llm_api_key
-                or not self.settings.llm_api_key.get_secret_value()
-                or self.requests >= self.settings.llm_request_budget
-                or time.monotonic() < self.open_until
-            ):
-                raise ProviderError("unavailable")
-            self.requests += 1
-        from analytics.telemetry import current_sink
-
-        sink = current_sink.get()
-        measurement = (
-            sink.start(
-                self.settings.llm_model,
-                self.settings.llm_input_rate_usd_per_million,
-                self.settings.llm_output_rate_usd_per_million,
-            )
-            if sink
-            else None
-        )
-        from analytics.tracing import safe_span
-
-        span = safe_span("provider.invoke", sink.trace_id if sink else None)
-        span.__enter__()
-        usage = None
-        status = "failure"
-        completed_monotonic = None
-        completed_at = None
-        response = None
-        if measurement is not None:
-            measurement = (measurement[0], time.monotonic())
-        try:
-            response = self.client.post(
-                "https://integrate.api.nvidia.com/v1/chat/completions",
-                headers={"Authorization": "Bearer " + self.settings.llm_api_key.get_secret_value()},
-                timeout=min(
-                    self.settings.llm_timeout_seconds, max(0.001, deadline - time.monotonic())
-                )
-                if deadline is not None
-                else self.settings.llm_timeout_seconds,
-                json={
-                    "model": self.settings.llm_model,
-                    "messages": prompt,
-                    "temperature": 0,
-                    "top_p": 1,
-                    "max_tokens": 512,
-                    "stream": False,
-                    "chat_template_kwargs": {"enable_thinking": False},
-                    "response_format": {
-                        "type": "json_schema",
-                        "json_schema": {
-                            "name": name,
-                            "strict": True,
-                            "schema": schema,
-                        },
-                    },
+        return self.router.invoke(
+            {
+                "messages": prompt,
+                "temperature": 0,
+                "top_p": 1,
+                "max_tokens": 512,
+                "stream": False,
+                "chat_template_kwargs": {"enable_thinking": False},
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {"name": name, "strict": True, "schema": schema},
                 },
-            )
-            completed_monotonic = time.monotonic()
-            completed_at = datetime.now(UTC)
-            response.raise_for_status()
-            status = "malformed"
-            data = response.json()
-            usage = data.get("usage") if isinstance(data, dict) else None
-            action = decode(data["choices"][0]["message"]["content"])
-            status = "success"
-            if deadline is not None and time.monotonic() >= deadline:
-                status = "timeout"
-                raise ProviderError("deadline")
-        except (
-            httpx2.HTTPError,
-            ValueError,
-            KeyError,
-            IndexError,
-            TypeError,
-            ProviderError,
-        ) as exc:
-            if response is not None and usage is None:
-                try:
-                    reported = response.json()
-                    usage = reported.get("usage") if isinstance(reported, dict) else None
-                except (ValueError, TypeError):
-                    pass
-            if (
-                isinstance(exc, httpx2.TimeoutException)
-                or deadline is not None
-                and time.monotonic() >= deadline
-            ):
-                status = "timeout"
-            self.last_failure = str(exc) if isinstance(exc, ProviderError) else type(exc).__name__
-            with self.lock:
-                self.failures += 1
-                if self.failures >= 2:
-                    self.open_until = time.monotonic() + 30
-            raise ProviderError("provider_failed", requests=1) from None
-        finally:
-            span.__exit__(*sys.exc_info())
-            if sink is not None and measurement is not None:
-                sink.finish(
-                    measurement[0],
-                    measurement[1],
-                    status,
-                    usage,
-                    completed_monotonic=completed_monotonic,
-                    completed_at=completed_at,
-                )
-        with self.lock:
-            self.failures = 0
-        return action
+            },
+            decode,
+            deadline=deadline,
+        )

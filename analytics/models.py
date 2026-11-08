@@ -127,6 +127,8 @@ class UsageInvocation(Row, Base):
     session_id: Mapped[UUID]
     invocation_id: Mapped[UUID]
     provider: Mapped[str]
+    route: Mapped[str] = mapped_column(default="primary")
+    fallback_from: Mapped[UUID | None]
     model: Mapped[str] = mapped_column(String(128))
     status: Mapped[InvocationStatus] = mapped_column(String)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

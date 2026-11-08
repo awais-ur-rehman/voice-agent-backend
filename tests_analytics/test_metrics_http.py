@@ -199,6 +199,7 @@ def test_provider_actual_invocation_survives_later_turn_conflict(native_worker, 
             )
             release.set()
             assert pending.result(timeout=3).status_code == 409
+        assert provider.drain(2)
         with Session(database) as db:
             rows = list(db.scalars(select(UsageInvocation)))
             assert len(rows) == 1 and rows[0].status == "success" and rows[0].input_tokens == 13
