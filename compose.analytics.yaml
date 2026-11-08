@@ -8,6 +8,7 @@ services:
       target: analytics-worker
     image: voice-agent-analytics-worker:local
     environment:
+      UV_CACHE_DIR: /tmp/uv-cache
       ANALYTICS_WORKER_ENABLED: ${ANALYTICS_WORKER_ENABLED:-false}
       ANALYTICS_WORKER_DATABASE_URL: ${ANALYTICS_WORKER_DATABASE_URL:-}
       ANALYTICS_WORKER_POLL_SECONDS: ${ANALYTICS_WORKER_POLL_SECONDS:-10}

@@ -1,0 +1,212 @@
+{
+  "evidence_kind": "actual local normal API and restricted worker; curated fictional tenant only; separate from fixtures",
+  "clinic": "Pearl Dental Studio \u2014 Demo",
+  "observed_date": "2026-11-08",
+  "sessions": [
+    {
+      "kind": "english_info",
+      "session_id": "204b85e9-3441-4e31-b80c-bf153a77976d",
+      "channel": "text",
+      "language": "en",
+      "outcome": "info_only",
+      "receipt_count": 2
+    },
+    {
+      "kind": "urdu_info",
+      "session_id": "61ed77ae-1af4-40f8-a2b4-b41641f104e6",
+      "channel": "text",
+      "language": "en",
+      "outcome": "info_only",
+      "receipt_count": 2
+    },
+    {
+      "kind": "knowledge_unavailable",
+      "session_id": "09656c87-4735-4dac-85a7-7ee690766340",
+      "channel": "text",
+      "language": "en",
+      "outcome": "abandoned",
+      "receipt_count": 2
+    },
+    {
+      "kind": "handoff",
+      "session_id": "80903962-da57-4425-bc4d-79f11f6b5b8c",
+      "channel": "text",
+      "language": "en",
+      "outcome": "handoff",
+      "receipt_count": 2
+    },
+    {
+      "kind": "post_refresh_metrics_info",
+      "session_id": "e9cc8e43-231a-442f-89e2-960f1c904a50",
+      "channel": "text",
+      "language": "en",
+      "outcome": "info_only",
+      "receipt_count": 2
+    }
+  ],
+  "counts": {
+    "analytics_calls": 5,
+    "analytics_turns": 45,
+    "analytics_transcripts": 0,
+    "analytics_operations": 0,
+    "analytics_usage_invocations": 0,
+    "knowledge_sources": 24,
+    "knowledge_chunks": 0,
+    "callbacks": 1
+  },
+  "overview": {
+    "sessions": 5,
+    "text_sessions": 5,
+    "voice_sessions": 0,
+    "ended_sessions": 5,
+    "booking_conversion": {
+      "numerator": 0,
+      "denominator": 5,
+      "value": 0.0
+    },
+    "handoff_rate": {
+      "numerator": 1,
+      "denominator": 5,
+      "value": 0.2
+    },
+    "abandonment_rate": {
+      "numerator": 1,
+      "denominator": 5,
+      "value": 0.2
+    },
+    "book_operations": 0,
+    "cancel_operations": 0,
+    "reschedule_operations": 0,
+    "usage": {
+      "invocations": 0,
+      "usage_known": 0,
+      "cost_known": 0,
+      "input_tokens": null,
+      "output_tokens": null,
+      "estimated_usd": null,
+      "currency": "USD",
+      "basis": "reported_tokens_configured_usd_per_million"
+    }
+  },
+  "latency": [
+    {
+      "stage": "command_total",
+      "diagnostic": false,
+      "samples": 10,
+      "sampled_sessions": 5,
+      "eligible_sessions": 5,
+      "p50_ms": 9.781312501218054,
+      "p95_ms": 43.79462689830687
+    },
+    {
+      "stage": "tool",
+      "diagnostic": false,
+      "samples": 10,
+      "sampled_sessions": 5,
+      "eligible_sessions": 5,
+      "p50_ms": 1.281812001252547,
+      "p95_ms": 11.324281099223297
+    },
+    {
+      "stage": "llm_completion",
+      "diagnostic": false,
+      "samples": 0,
+      "sampled_sessions": 0,
+      "eligible_sessions": 5,
+      "p50_ms": null,
+      "p95_ms": null
+    },
+    {
+      "stage": "llm_first_token",
+      "diagnostic": false,
+      "samples": 0,
+      "sampled_sessions": 0,
+      "eligible_sessions": 5,
+      "p50_ms": null,
+      "p95_ms": null
+    },
+    {
+      "stage": "stt_completion",
+      "diagnostic": false,
+      "samples": 0,
+      "sampled_sessions": 0,
+      "eligible_sessions": 0,
+      "p50_ms": null,
+      "p95_ms": null
+    },
+    {
+      "stage": "tts_first_byte",
+      "diagnostic": false,
+      "samples": 0,
+      "sampled_sessions": 0,
+      "eligible_sessions": 0,
+      "p50_ms": null,
+      "p95_ms": null
+    },
+    {
+      "stage": "end_of_speech_to_audio",
+      "diagnostic": false,
+      "samples": 0,
+      "sampled_sessions": 0,
+      "eligible_sessions": 0,
+      "p50_ms": null,
+      "p95_ms": null
+    },
+    {
+      "stage": "tts_buffered_generation",
+      "diagnostic": true,
+      "samples": 0,
+      "sampled_sessions": 0,
+      "eligible_sessions": 0,
+      "p50_ms": null,
+      "p95_ms": null
+    },
+    {
+      "stage": "audio_queue",
+      "diagnostic": true,
+      "samples": 0,
+      "sampled_sessions": 0,
+      "eligible_sessions": 0,
+      "p50_ms": null,
+      "p95_ms": null
+    },
+    {
+      "stage": "end_of_speech_to_audio_queue",
+      "diagnostic": true,
+      "samples": 0,
+      "sampled_sessions": 0,
+      "eligible_sessions": 0,
+      "p50_ms": null,
+      "p95_ms": null
+    }
+  ],
+  "capture_off_before": true,
+  "capture_off_after": true,
+  "freshness": {
+    "as_of": "2026-11-08T13:04:05.796344Z",
+    "stale": false,
+    "pending_buckets": 0,
+    "pending_expirations": 0,
+    "source": "persisted_rollups"
+  },
+  "knowledge_gap": {
+    "decision": "processing_pending",
+    "occurrences": 1
+  },
+  "private_metrics_auth": {
+    "JWT": 403,
+    "bad_secret": 403,
+    "distinct_secret": 200
+  },
+  "process_local_stage_series": [
+    "analytics_stage_events_total{stage=\"command_total\",language=\"en\",channel=\"text\",status=\"success\"} 2",
+    "analytics_stage_events_total{stage=\"tool\",language=\"en\",channel=\"text\",status=\"success\"} 2"
+  ],
+  "limits": [
+    "No provider/model/native/embedding execution",
+    "Urdu-script controlled input remained observed English",
+    "One normal synthetic Callback with NULL phone; no appointment/patient/source edits",
+    "Backups created privately; restore not tested",
+    "Durations are local command/tool observations, not speech or load qualification"
+  ]
+}

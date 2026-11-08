@@ -1,5 +1,6 @@
 """Initialize the dedicated application role using separate migration credentials."""
 
+import argparse
 import os
 
 import psycopg
@@ -68,31 +69,7 @@ def init_database(
                     )
                 )
             # Never reset an existing private worker credential on ordinary API provisioning.
-            cursor.execute("SELECT oid FROM pg_roles WHERE rolname='analytics_worker'")
-            analytics_worker = cursor.fetchone()
-            if analytics_worker:
-                cursor.execute(
-                    "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datdba=%s) "
-                    "OR EXISTS (SELECT 1 FROM pg_namespace WHERE nspowner=%s) "
-                    "OR EXISTS (SELECT 1 FROM pg_class WHERE relowner=%s)",
-                    (analytics_worker[0], analytics_worker[0], analytics_worker[0]),
-                )
-                if cursor.fetchone() == (True,):
-                    raise RuntimeError(
-                        "analytics_worker must not own a database, schema, or relation."
-                    )
-            else:
-                cursor.execute("CREATE ROLE analytics_worker NOLOGIN")
-            cursor.execute(
-                "ALTER ROLE analytics_worker NOSUPERUSER NOCREATEDB NOCREATEROLE "
-                "NOINHERIT NOREPLICATION NOBYPASSRLS"
-            )
-            if analytics_worker_password is not None:
-                cursor.execute(
-                    sql.SQL("ALTER ROLE analytics_worker LOGIN PASSWORD {}").format(
-                        sql.Literal(analytics_worker_password)
-                    )
-                )
+            _analytics_role(cursor, analytics_worker_password)
             cursor.execute("SELECT current_database()")
             database_row = cursor.fetchone()
             assert database_row is not None
@@ -104,8 +81,58 @@ def init_database(
             )
 
 
+def _analytics_role(cursor, password: str | None) -> None:
+    cursor.execute("SELECT oid FROM pg_roles WHERE rolname='analytics_worker'")
+    analytics_worker = cursor.fetchone()
+    if analytics_worker:
+        cursor.execute(
+            "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datdba=%s) "
+            "OR EXISTS (SELECT 1 FROM pg_namespace WHERE nspowner=%s) "
+            "OR EXISTS (SELECT 1 FROM pg_class WHERE relowner=%s)",
+            (analytics_worker[0], analytics_worker[0], analytics_worker[0]),
+        )
+        if cursor.fetchone() == (True,):
+            raise RuntimeError("analytics_worker must not own a database, schema, or relation.")
+    else:
+        cursor.execute("CREATE ROLE analytics_worker NOLOGIN")
+    cursor.execute(
+        "ALTER ROLE analytics_worker NOSUPERUSER NOCREATEDB NOCREATEROLE "
+        "NOINHERIT NOREPLICATION NOBYPASSRLS"
+    )
+    if password is not None:
+        cursor.execute(
+            sql.SQL("ALTER ROLE analytics_worker LOGIN PASSWORD {}").format(sql.Literal(password))
+        )
+
+
+def init_analytics_worker(admin_url: str, password: str) -> None:
+    """Provision only the optional narrow worker, preserving every existing app secret."""
+    if not password:
+        raise ValueError("The analytics worker password must not be empty.")
+    url = admin_url.replace("postgresql+psycopg://", "postgresql://", 1)
+    with psycopg.connect(url) as connection, connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT rolsuper OR rolcreatedb OR rolcreaterole OR rolinherit OR rolreplication "
+            "OR rolbypassrls OR EXISTS(SELECT 1 FROM pg_auth_members WHERE member=r.oid) "
+            "FROM pg_roles r WHERE rolname='analytics_worker'"
+        )
+        if cursor.fetchone() == (True,):
+            raise RuntimeError("analytics_worker must be an unprivileged standalone role.")
+        _analytics_role(cursor, password)
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--analytics-worker-only", action="store_true")
+    args = parser.parse_args()
     try:
+        if args.analytics_worker_only:
+            init_analytics_worker(
+                os.environ["SCHEDULER_MIGRATION_DATABASE_URL"],
+                os.environ["SCHEDULER_ANALYTICS_WORKER_PASSWORD"],
+            )
+            print("Analytics worker database role initialized.")
+            return
         init_database(
             os.environ["SCHEDULER_MIGRATION_DATABASE_URL"],
             os.environ["SCHEDULER_APP_PASSWORD"],

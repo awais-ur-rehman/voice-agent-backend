@@ -19,8 +19,15 @@ def qualify(engine):
             )
         ).one()
         unsafe = db.scalar(
-            text("""SELECT EXISTS(SELECT 1 FROM pg_class WHERE relowner=(SELECT oid FROM pg_roles WHERE rolname=current_user)
-          AND relnamespace='public'::regnamespace) OR EXISTS(SELECT 1 FROM pg_auth_members WHERE member=(SELECT oid FROM pg_roles WHERE rolname=current_user))""")
+            text("""WITH worker AS (SELECT oid FROM pg_roles WHERE rolname=current_user)
+          SELECT EXISTS(SELECT 1 FROM pg_database WHERE datdba=(SELECT oid FROM worker))
+          OR EXISTS(SELECT 1 FROM pg_namespace WHERE nspowner=(SELECT oid FROM worker)
+            OR (nspowner='pg_database_owner'::regrole AND EXISTS(
+              SELECT 1 FROM pg_database WHERE datname=current_database()
+              AND datdba=(SELECT oid FROM worker))))
+          OR EXISTS(SELECT 1 FROM pg_class WHERE relowner=(SELECT oid FROM worker)
+            AND relnamespace='public'::regnamespace)
+          OR EXISTS(SELECT 1 FROM pg_auth_members WHERE member=(SELECT oid FROM worker))""")
         )
         if role.name != "analytics_worker" or any(role[1:]) or unsafe:
             raise RuntimeError("analytics_worker_role_required")

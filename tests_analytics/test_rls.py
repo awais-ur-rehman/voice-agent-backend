@@ -190,3 +190,99 @@ def test_optional_worker_provisioning_preserves_existing_call_signature_and_secr
     finally:
         with database.begin() as db:
             db.execute(text("ALTER ROLE analytics_worker NOLOGIN PASSWORD NULL"))
+
+
+@pytest.mark.parametrize("owned", ["database", "schema"])
+def test_startup_rejects_database_or_schema_owner(database, owned):
+    """Even implicit pg_database_owner authority must fail the enable-time guard."""
+    from sqlalchemy import event
+
+    from analytics_worker.main import qualify
+    from tests_api.conftest import ADMIN_URL
+
+    engine = create_engine(ADMIN_URL, hide_parameters=True)
+
+    @event.listens_for(engine, "connect")
+    def worker_role(connection, _):
+        with connection.cursor() as cursor:
+            cursor.execute("SET ROLE analytics_worker")
+        connection.commit()
+
+    try:
+        qualify(engine)  # The restricted migrated baseline is accepted.
+        with database.begin() as db:
+            assert db.scalar(text("SELECT current_database()")) == "voice_agent_test"
+            if owned == "database":
+                db.execute(text("ALTER DATABASE voice_agent_test OWNER TO analytics_worker"))
+            else:
+                db.execute(
+                    text("CREATE SCHEMA analytics_owner_test AUTHORIZATION analytics_worker")
+                )
+        with pytest.raises(RuntimeError, match="analytics_worker_role_required"):
+            qualify(engine)
+    finally:
+        engine.dispose()
+        with database.begin() as db:
+            if owned == "database":
+                db.execute(text("ALTER DATABASE voice_agent_test OWNER TO postgres"))
+            else:
+                db.execute(text("DROP SCHEMA IF EXISTS analytics_owner_test"))
+
+
+def test_analytics_only_provisioning_preserves_other_role_credentials_and_flags(database):
+    from scripts.init_db import init_analytics_worker
+    from tests_api.conftest import ADMIN_URL
+
+    def snapshot():
+        with database.connect() as db:
+            return db.execute(
+                text(
+                    "SELECT rolname,rolpassword,rolcanlogin,rolsuper,rolbypassrls,rolinherit,rolcreatedb,rolcreaterole,rolreplication FROM pg_authid WHERE rolname IN ('scheduler_app','knowledge_worker') ORDER BY rolname"
+                )
+            ).all()
+
+    before = snapshot()
+    try:
+        with pytest.raises(ValueError):
+            init_analytics_worker(ADMIN_URL, "")
+        init_analytics_worker(ADMIN_URL, "isolated-analytics-test-only")
+        assert bool(before == snapshot()), "other roles must remain byte-identical"
+        from sqlalchemy.engine import make_url
+
+        from analytics_worker.main import qualify
+
+        url = make_url(ADMIN_URL).set(
+            username="analytics_worker", password="isolated-analytics-test-only"
+        )
+        engine = create_engine(url, hide_parameters=True)
+        try:
+            qualify(engine)
+        finally:
+            engine.dispose()
+    finally:
+        with database.begin() as db:
+            db.execute(text("ALTER ROLE analytics_worker NOLOGIN PASSWORD NULL"))
+
+
+@pytest.mark.parametrize("unsafe", ["membership", "privileged", "ownership"])
+def test_analytics_only_provisioning_rejects_unsafe_existing_role(database, unsafe):
+    from scripts.init_db import init_analytics_worker
+    from tests_api.conftest import ADMIN_URL
+
+    try:
+        with database.begin() as db:
+            if unsafe == "membership":
+                db.execute(text("GRANT scheduler_app TO analytics_worker"))
+            elif unsafe == "privileged":
+                db.execute(text("ALTER ROLE analytics_worker CREATEDB"))
+            else:
+                db.execute(
+                    text("CREATE SCHEMA analytics_owner_test AUTHORIZATION analytics_worker")
+                )
+        with pytest.raises(RuntimeError):
+            init_analytics_worker(ADMIN_URL, "isolated-analytics-test-only")
+    finally:
+        with database.begin() as db:
+            db.execute(text("REVOKE scheduler_app FROM analytics_worker"))
+            db.execute(text("ALTER ROLE analytics_worker NOCREATEDB NOLOGIN PASSWORD NULL"))
+            db.execute(text("DROP SCHEMA IF EXISTS analytics_owner_test"))
