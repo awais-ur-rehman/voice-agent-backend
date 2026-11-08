@@ -162,6 +162,11 @@ def run_command(
     internal_auth=None,
     internal_complete=None,
 ):
+    started_monotonic = time.monotonic()
+    from analytics.contracts import SafeMetadata, TurnObservation
+    from analytics.models import CallRecord
+    from analytics.privacy import safety_action
+
     store = require_store(request)
     factory = request.app.state.session_factory
     settings = request.app.state.settings
@@ -182,6 +187,8 @@ def run_command(
 
             require_worker(db, actor, voice_authority, request.app.state.clock())
         state = deepcopy(row.checkpoint)
+        call = db.get(CallRecord, identity)
+        consent_pending = call is not None and call.consent == "pending"
         version = db.get(AgentVersion, actor.version_id)
         config = version.config
         existing = db.scalar(
@@ -223,7 +230,11 @@ def run_command(
     provider_requests = 0
     prepared = None
     clarify = False
-    if not existing and live:
+    explicit_action = body.action.model_dump(mode="json") if not live and not event else None
+    safety = safety_action(getattr(body, "text", ""), explicit_action) if consent_pending else None
+    if not existing and consent_pending and not event:
+        action = safety
+    elif not existing and live:
         text = body.text.strip()
         action, clarify = local_input_action(state, text, config, literals)
         if action:
@@ -305,6 +316,26 @@ def run_command(
                 deadline=time.monotonic() + 15,
             )
             provider_requests += max(0, getattr(provider, "requests", 0) - before_requests)
+    if failed:
+        action = None  # No tool ran on a provider-failure response.
+    observation = TurnObservation(
+        started_monotonic=started_monotonic,
+        input_text=getattr(body, "text", ""),
+        identity_literals=literals,
+        suppress_text=consent_pending,
+        control=body.kind if event else None,
+        metadata=SafeMetadata(
+            stt_confidence=voice_input.confidence,
+            uncertain=voice_input.uncertain,
+            trusted=True,
+            error_code="provider_unavailable" if failed else None,
+        )
+        if voice_input is not None
+        else SafeMetadata(
+            trusted=voice_authority is not None,
+            error_code="provider_unavailable" if failed else None,
+        ),
+    )
     with factory() as db, db.begin():
         if prepared is not None:
             # Bound the parent mapping/creator checks too, before command()
@@ -391,6 +422,8 @@ def run_command(
             execute,
             clock=request.app.state.clock,
             voice_authority=voice_authority,
+            observation=observation,
+            action=action,
         )
         if internal_complete:
             internal_complete(db, next_state)  # Parent scope check permits terminal children.

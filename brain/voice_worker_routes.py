@@ -121,6 +121,7 @@ def _claim(request, body):
             body.worker_id,
             request.app.state.clock(),
             request.app.state.settings,
+            clock=request.app.state.clock,
         )
         parent = db.get(AgentSession, grant.session_id)
         version = db.get(AgentVersion, parent.version_id)
@@ -196,9 +197,20 @@ def heartbeat(
 ):
     with request.app.state.session_factory() as db, db.begin():
         actor, authority, voice = worker(request, db, identity, credentials, runtime_token)
-        voice.worker_lease_until = min(
-            request.app.state.clock() + timedelta(seconds=15), voice.call_deadline
+        from analytics.lifecycle import guard_session
+
+        now = guard_session(
+            db,
+            db.get(AgentSession, actor.id),
+            request.app.state.clock(),
+            clock=request.app.state.clock,
+            error="voice_unavailable",
         )
+        require_worker(db, actor, authority, now)
+        voice.worker_lease_until = min(now + timedelta(seconds=15), voice.call_deadline)
+        from analytics.lifecycle import sync_session
+
+        sync_session(db, db.get(AgentSession, actor.id), request.app.state.clock(), voice)
         client = require_store(request).client
         for pending in client.lrange("voice:pending", 0, 31):
             try:
@@ -233,6 +245,24 @@ def audio_turn(
         and body.confidence < 0.5
         or not now - timedelta(seconds=90) <= body.utterance_started_at <= now
     ):
+        from analytics.capture import rejected_audio
+        from analytics.contracts import SafeMetadata
+
+        with request.app.state.session_factory() as db, db.begin():
+            actor, _, _ = worker(request, db, identity, credentials, runtime_token)
+            rejected_audio(
+                db,
+                db.get(AgentSession, actor.id),
+                body.command_id,
+                SafeMetadata(
+                    accepted=False,
+                    trusted=True,
+                    uncertain=body.uncertain,
+                    stt_confidence=body.confidence,
+                ),
+                now,
+                secret=request.app.state.settings.runtime_secret.get_secret_value(),
+            )
         raise AppError("uncertain_audio", 422)
     from fastapi.security import HTTPAuthorizationCredentials
 
@@ -331,6 +361,9 @@ def ack(
         ledger = deepcopy(voice.delivery)
         acknowledge(ledger, body.ack, body.participant, request.app.state.clock())
         voice.delivery = ledger
+        from analytics.capture import record_delivery
+
+        record_delivery(db, db.get(AgentSession, identity), ledger, request.app.state.clock())
     return {"acknowledged": True}
 
 
@@ -349,6 +382,9 @@ def finish(
             raise AppError("idempotency_conflict", 409)
         finish_delivery(ledger, request.app.state.clock())
         voice.delivery = ledger
+        from analytics.capture import record_delivery
+
+        record_delivery(db, db.get(AgentSession, identity), ledger, request.app.state.clock())
     return {"finished": True}
 
 

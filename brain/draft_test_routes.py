@@ -277,6 +277,9 @@ def voice_start(
         parent = db.get(AgentSession, voice.session_id)
         voice.call_deadline = min(voice.call_deadline, row.expires_at)
         parent.expires_at = min(parent.expires_at, row.expires_at)
+        from analytics.lifecycle import finish_session, sync_session
+
+        sync_session(db, parent, request.app.state.clock(), voice)
         # Text confirmations cannot authorize a spoken action.
         if text_session.transport_mode == "text" and text_session.status == "active":
             hold = (text_session.checkpoint or {}).get("hold")
@@ -288,6 +291,7 @@ def voice_start(
                     hold["hold_id"],
                 )
             text_session.revision += 1
+            finish_session(db, text_session, reason="staff_end", now=request.app.state.clock())
             text_session.status = "ended"
             text_session.revoked_at = request.app.state.clock()
             text_session.token_jti_hash = ""
@@ -303,6 +307,9 @@ def voice_start(
         ):
             return _snapshot(parent, voice, request)
         voice.delivery = {"provisioning_started_at": request.app.state.clock().isoformat()}
+        from analytics.lifecycle import sync_session
+
+        sync_session(db, parent, request.app.state.clock(), voice)
         sid, room, generation, child = (
             parent.id,
             voice.room,
@@ -373,7 +380,9 @@ def voice_resume(
         parent, _ = _owned_pair(db, child, sid)
         store = _ready(request, _language_mode(db, parent))
         hold = (parent.checkpoint or {}).get("hold")
-        voice = resume_voice(db, child, sid, request.app.state.clock())
+        voice = resume_voice(
+            db, child, sid, request.app.state.clock(), clock=request.app.state.clock
+        )
         if hold:
             store.release_hold(
                 str(row.child_tenant_id), hold["provider"], str(sid), hold["hold_id"]
@@ -381,6 +390,9 @@ def voice_resume(
         _reserve(store, parent, voice, request.app.state.clock())
         voice.status = "provisioning"
         voice.delivery = {"provisioning_started_at": request.app.state.clock().isoformat()}
+        from analytics.lifecycle import sync_session
+
+        sync_session(db, parent, request.app.state.clock(), voice)
         room, generation = voice.room, voice.generation
     return _provision(
         request,

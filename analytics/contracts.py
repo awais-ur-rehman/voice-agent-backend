@@ -1,4 +1,4 @@
-"""Bounded internal observations. Never public request DTOs or caller text containers."""
+"""Bounded internal observations; ephemeral text fields are excluded from serialization."""
 
 from datetime import datetime
 from decimal import Decimal
@@ -138,6 +138,16 @@ class StageObservation(InternalContract):
 class TurnObservation(InternalContract):
     """Owned by one command; unknown stage timing is represented by no sample."""
 
+    completed_task_ids: list[UUID] = Field(
+        default_factory=list, max_length=8, exclude=True, repr=False
+    )
+    started_monotonic: float | None = Field(
+        default=None, ge=0, allow_inf_nan=False, exclude=True, repr=False
+    )
+    input_text: str = Field(default="", max_length=8000, exclude=True, repr=False)
+    identity_literals: tuple[str, ...] = Field(default=(), exclude=True, repr=False)
+    suppress_text: bool = Field(default=False, exclude=True)
+    control: Literal["delivery_interrupted", "upstream_timeout", "silence"] | None = None
     stages: list[StageObservation] = Field(default_factory=list, max_length=32)
     metadata: SafeMetadata = Field(default_factory=SafeMetadata)
     language: Language = "unknown"

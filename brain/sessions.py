@@ -6,6 +6,7 @@ The caller owns the database transaction and repairs Valkey only after commit.
 import hashlib
 import hmac
 import json
+import time
 from copy import deepcopy
 from datetime import datetime, timedelta
 from uuid import UUID, uuid4
@@ -75,6 +76,19 @@ def create_session(
     token = issue_runtime(row, settings)
     db.add(row)
     db.flush()
+    from analytics.lifecycle import begin_session
+    from analytics.models import CallRecord
+    from analytics.privacy import NOTICE
+
+    begin_session(db, row, now)
+    captured = db.get(CallRecord, row.id)
+    assert captured is not None
+    if captured.capture_enabled_at_start:
+        state["greeting"] = {
+            language: value + " " + NOTICE for language, value in state["greeting"].items()
+        }
+        row.checkpoint = recovery_checkpoint(state)
+    db.flush()
     return {
         "session_id": str(row.id),
         "token": token,
@@ -96,7 +110,15 @@ def command(
     *,
     clock=None,
     voice_authority=None,
+    observation=None,
+    action=None,
 ) -> tuple[dict, dict]:
+    started = time.monotonic()
+    from analytics.capture import current_observation, record_command
+    from analytics.contracts import SafeMetadata, StageObservation, TurnObservation
+    from analytics.privacy import consent_decision, consent_response, safety_action
+    from analytics.transcripts import locked_call
+
     if not isinstance(command_id, str) or not 1 <= len(command_id) <= 128:
         raise AppError("validation_error", 422)
     tenant_context(db, actor.tenant_id)
@@ -150,7 +172,35 @@ def command(
     state = deepcopy(row.checkpoint)
     state["transport_mode"] = row.transport_mode
     previous_readback = deepcopy(state.get("readback"))
-    result = execute(db, state)
+    before = deepcopy(state)
+    action = action if action is not None else payload.get("action")
+    observation = observation or TurnObservation(
+        input_text=payload.get("text", ""),
+        control=payload.get("kind"),
+        metadata=SafeMetadata(trusted=voice_authority is not None),
+    )
+    from analytics.lifecycle import guard_session
+
+    now = guard_session(db, row, now, clock=clock, allow_handoff=True)
+    active_guard(row, actor, now)
+    call = locked_call(db, row.id)
+    consent_pending = call is not None and call.consent == "pending"
+    bypass = safety_action(observation.input_text, action) if consent_pending else None
+    context_token = current_observation.set(observation)
+    try:
+        if consent_pending and observation.control is None and (not bypass or action != bypass):
+            decision = consent_decision(observation.input_text)
+            if decision and call is not None:
+                call.consent, call.consent_at = decision, now
+            observation = observation.model_copy(update={"suppress_text": True})
+            action = None
+            result = consent_response(decision)
+        else:
+            if consent_pending:
+                observation = observation.model_copy(update={"suppress_text": True})
+            result = execute(db, state)
+    finally:
+        current_observation.reset(context_token)
     if isinstance(result, tuple):
         response, state = result
     else:
@@ -188,6 +238,33 @@ def command(
         )
     )
     db.flush()
+    elapsed = (
+        time.monotonic()
+        - (observation.started_monotonic if observation.started_monotonic is not None else started)
+    ) * 1000
+    if elapsed <= 600000 and not any(
+        sample.stage == "command_total" for sample in observation.stages
+    ):
+        observation.stages.append(
+            StageObservation(
+                event_id=uuid4(),
+                stage="command_total",
+                language=state.get("lang", "unknown"),
+                origin="server",
+                duration_ms=elapsed,
+            )
+        )
+    record_command(
+        db,
+        row,
+        command_id=str(UUID(hex=digest[:32])),
+        before=before,
+        after=state,
+        action=action,
+        result=response,
+        observation=observation,
+        now=now,
+    )
     return response, state
 
 
@@ -214,6 +291,9 @@ def purge_recovery(db: Session, now: datetime, limit: int = 500) -> dict:
         )
     )
     for row in sessions:
+        from analytics.lifecycle import finish_session
+
+        finish_session(db, row, reason="timeout", now=row.expires_at)
         row.checkpoint = None
         row.status = "expired"
         row.revoked_at = row.revoked_at or now
@@ -239,9 +319,16 @@ def renew_session(db: Session, actor: RuntimeActor, now: datetime, settings, *, 
     agent = db.get(Agent, actor.agent_id)
     if agent is None:
         raise AppError("unauthorized", 401)
+    from analytics.lifecycle import guard_session
+
+    now = guard_session(db, row, now, clock=clock)
+    active_guard(row, actor, now)
     token = issue_runtime(row, settings)
     row.expires_at = now + INACTIVITY
     row.updated_at = now
+    from analytics.lifecycle import sync_session
+
+    sync_session(db, row, now)
     db.flush()
     return {
         "session_id": str(row.id),

@@ -86,9 +86,13 @@ def create_voice(db, staff, agent_id, request_key, now, settings):
         room="voice-" + uuid4().hex,
         participant="caller-" + uuid4().hex,
         call_deadline=now + timedelta(minutes=10),
+        created_at=now,
     )
     db.add(voice)
     db.flush()
+    from analytics.lifecycle import sync_session
+
+    sync_session(db, db.get(AgentSession, voice.session_id), now, voice)
     return voice
 
 
@@ -123,7 +127,7 @@ def _locked_pair(db, tenant_id, voice_id=None, session_id=None):
     return parent, voice
 
 
-def claim_worker(db, voice_id, tenant_id, worker_id, now, settings):
+def claim_worker(db, voice_id, tenant_id, worker_id, now, settings, *, clock=None):
     from datetime import timedelta
 
     from .security import issue_runtime
@@ -131,12 +135,23 @@ def claim_worker(db, voice_id, tenant_id, worker_id, now, settings):
     from .voice_tokens import decode_worker, media_token, worker_token
 
     parent, voice = _locked_pair(db, tenant_id, voice_id=voice_id)
+    from analytics.lifecycle import guard_session
+
+    now = guard_session(db, parent, now, clock=clock, error="voice_unavailable")
     if (
         voice.status != "active"
         or voice.call_deadline <= now
         or parent.status != "active"
         or parent.expires_at <= now
         or parent.revoked_at is not None
+    ):
+        raise AppError("voice_unavailable", 409)
+    # Match _expired/resume_voice: the existing 30-second cleanup grace is
+    # terminal, even if a delayed cleanup sweep has not revoked the parent yet.
+    if (
+        voice.worker_id is not None
+        and voice.worker_lease_until is not None
+        and now >= voice.worker_lease_until + timedelta(seconds=30)
     ):
         raise AppError("voice_unavailable", 409)
     live_lease = voice.worker_lease_until and voice.worker_lease_until > now
@@ -155,6 +170,9 @@ def claim_worker(db, voice_id, tenant_id, worker_id, now, settings):
     voice.worker_nonce_hash = authority.nonce_hash
     voice.worker_lease_until = min(now + timedelta(seconds=15), voice.call_deadline)
     runtime = issue_runtime(parent, settings)
+    from analytics.lifecycle import sync_session
+
+    sync_session(db, parent, now, voice)
     db.flush()
     return WorkerGrant(
         session_id=parent.id,
@@ -209,14 +227,20 @@ def disconnect_voice(db, actor, authority, now):
     voice.status = "disconnected"
     voice.disconnected_at = now
     voice.worker_lease_until = now
+    from analytics.lifecycle import sync_session
+
+    sync_session(db, parent, now, voice)
     db.flush()
     return voice
 
 
-def resume_voice(db, staff, session_id, now):
+def resume_voice(db, staff, session_id, now, *, clock=None):
     from datetime import timedelta
 
     parent, voice = _locked_pair(db, staff.tenant_id, session_id=session_id)
+    from analytics.lifecycle import guard_session
+
+    now = guard_session(db, parent, now, clock=clock, error="voice_unavailable")
     if voice.creator_id != staff.id:
         raise AppError("voice_unavailable", 409)
     if (
@@ -248,5 +272,8 @@ def resume_voice(db, staff, session_id, now):
     voice.worker_id = None
     voice.worker_nonce_hash = None
     voice.worker_lease_until = None
+    from analytics.lifecycle import sync_session
+
+    sync_session(db, parent, now, voice)
     db.flush()
     return voice

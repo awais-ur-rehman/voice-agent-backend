@@ -128,8 +128,22 @@ def revoke(db, row, request, status="ended"):
             "cleanup_hold"
         )
         if voice:
-            _end_locked(session, voice, store, now, "ended", release_hold=False)
+            _end_locked(
+                db,
+                session,
+                voice,
+                store,
+                now,
+                "ended",
+                release_hold=False,
+                reason="timeout" if status == "expired" else "staff_end",
+            )
         else:
+            from analytics.lifecycle import finish_session
+
+            finish_session(
+                db, session, reason="timeout" if status == "expired" else "staff_end", now=now
+            )
             if session.status == "active":
                 session.revision += 1
             session.status = "ended"

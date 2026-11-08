@@ -58,6 +58,7 @@ class CallRecord(Base):
     language: Mapped[Language] = mapped_column(String, default="unknown")
     capture_enabled_at_start: Mapped[bool] = mapped_column(default=False)
     consent: Mapped[Consent] = mapped_column(String, default="off")
+    consent_notice_version: Mapped[str | None] = mapped_column(String)
     consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     transcript_deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     active_task_id: Mapped[UUID | None]
