@@ -7,6 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Request
 from pydantic import AwareDatetime, Field
 
+from knowledge.contracts import KnowledgeTrace
 from scheduler.appointments import IdempotencyKey
 from scheduler.contracts import Contract
 from scheduler.db import Principal, manager, session, tenant_context
@@ -97,6 +98,7 @@ class TurnResult(Contract):
     status: Literal["active", "ended", "expired"]
     messages: list[Message]
     tool_trace: list[ToolTrace]
+    knowledge: KnowledgeTrace | None = None
 
 
 class TestVoiceCreate(Contract):
@@ -230,6 +232,7 @@ def turn(
         revision=result["revision"],
         status="ended" if result["state"].get("ended") else "active",
         messages=[Message(text=envelope["say"][language])],
+        knowledge=envelope.get("knowledge"),
         tool_trace=[
             ToolTrace(
                 action=result["executed_action"],

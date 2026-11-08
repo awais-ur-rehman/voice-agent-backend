@@ -36,11 +36,24 @@ from .voice_delivery import VoiceTurnContext
 
 class ToolEngine:
     def __init__(
-        self, db, actor, store, now, *, clock=None, voice_context: VoiceTurnContext | None = None
+        self,
+        db,
+        actor,
+        store,
+        now,
+        *,
+        clock=None,
+        voice_context: VoiceTurnContext | None = None,
+        prepared_knowledge=None,
+        command_id=None,
+        knowledge_clarification=False,
     ):
         self.db, self.actor, self.store, self.now = db, actor, store, now
         self.clock = clock or (lambda: self.now)
         self.voice_context = voice_context
+        self.prepared_knowledge = prepared_knowledge
+        self.command_id = command_id
+        self.knowledge_clarification = knowledge_clarification
 
     def release(self, state):
         hold = state.pop("hold", None)
@@ -115,6 +128,10 @@ class ToolEngine:
                 "40001",
             }:
                 raise
+            if name == "search_knowledge":
+                # A contention failure is not permission to discard a hold or
+                # enqueue a callback. Roll back this command for an exact retry.
+                raise AppError("service_unavailable", 503) from None
             if isinstance(exc, OperationalError) and name in {
                 "book_appointment",
                 "reschedule_appointment",
@@ -148,7 +165,9 @@ class ToolEngine:
         remember(
             state,
             caller_text,
-            response["say"][state.get("lang", "en")],
+            "[knowledge answer omitted]"
+            if name == "search_knowledge"
+            else response["say"][state.get("lang", "en")],
             sensitive=name
             in {
                 "find_patient",
@@ -169,6 +188,10 @@ class ToolEngine:
     def _execute(self, s, name, a, text):
         db = self.db
         tenant = get(db, Tenant, self.actor.tenant_id)
+        if name == "ask_caller" and self.knowledge_clarification:
+            from .knowledge import clarification
+
+            return clarification(s)
         if name == "ask_caller":
             return toned_question(self.next_question(s), s.get("tone", "friendly"))
         if name == "set_caller_contact":
@@ -457,6 +480,7 @@ class ToolEngine:
             s.pop("lookup_phone", None)
             return result("patient_created")
         if name == "get_clinic_info":
+            s["readback"] = None
             topic = a.get("topic", "services")
             if topic in ("services", "fees"):
                 rows = list(db.scalars(select(Service).where(Service.active.is_(True))))
@@ -507,9 +531,14 @@ class ToolEngine:
                     "clinic_profile", {}
                 )
                 prefix = "address" if topic == "location" else "preparation"
-                if not all(profile.get(prefix + "_" + lang) for lang in ("en", "ur")):
-                    return result(error="no_answer")
-                return result(say={lang: profile[prefix + "_" + lang] for lang in ("en", "ur")})
+                fallback = result(error="no_answer")
+                say = {
+                    lang: profile.get(prefix + "_" + lang) or fallback["say"][lang]
+                    for lang in ("en", "ur")
+                }
+                if not profile.get(prefix + "_" + s.get("lang", "en")):
+                    return result(error="no_answer", say=say)
+                return result(say=say)
             if topic == "hours":
                 from .normalization import say_time
 
@@ -582,7 +611,9 @@ class ToolEngine:
                 )
             return result(error="no_answer")
         if name == "search_knowledge":
-            return result(error="no_answer")
+            from .knowledge import answer
+
+            return answer(self, s)
         if name == "find_appointments":
             self.release(s)
             s.pop("appointment", None)

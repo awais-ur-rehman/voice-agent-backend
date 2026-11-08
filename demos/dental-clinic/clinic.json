@@ -1,0 +1,263 @@
+{
+  "schema_version": 1,
+  "fictional_demo": true,
+  "version": "2026-11-08",
+  "clinic": {
+    "name": "Pearl Dental Studio — Demo",
+    "timezone": "Asia/Karachi",
+    "address_en": "Suite 2, Demo Health Plaza, Example Avenue, Karachi. Fictional demo address; not a real clinic.",
+    "address_ur": "سوئٹ ۲، ڈیمو ہیلتھ پلازہ، ایگزامپل ایونیو، کراچی۔ یہ فرضی ڈیمو پتہ ہے، حقیقی کلینک نہیں۔",
+    "preparation_en": "Please arrive 10 minutes early. Bring any previous dental reports, a list of current medicines and allergies, and your appointment details. A parent or legal guardian must accompany a child. Ask the dentist for any procedure-specific instructions; the assistant cannot give medicine or fasting instructions.",
+    "preparation_ur": "براہ کرم دس منٹ پہلے آئیں۔ پرانی دانتوں کی رپورٹس، موجودہ ادویات اور الرجی کی فہرست، اور اپوائنٹمنٹ کی تفصیل ساتھ لائیں۔ بچے کے ساتھ والدین یا قانونی سرپرست آئیں۔ کسی خاص علاج کی تیاری کی ہدایات ڈینٹسٹ سے لیں؛ معاون دوا یا فاقے کی ہدایات نہیں دے سکتا۔",
+    "min_notice_min": 60,
+    "horizon_days": 30,
+    "cancellation_min": 120,
+    "daily_limit": 3
+  },
+  "providers": [
+    {
+      "name": "Dr Ayesha Khan",
+      "name_ur": "ڈاکٹر عائشہ خان",
+      "specialty": "General dentistry — fictional demo clinician"
+    },
+    {
+      "name": "Dr Omar Raza",
+      "name_ur": "ڈاکٹر عمر رضا",
+      "specialty": "Orthodontics — fictional demo clinician"
+    }
+  ],
+  "services": [
+    {
+      "name": "Dental consultation",
+      "name_ur": "دانتوں کا معائنہ",
+      "duration_min": 30,
+      "price": "2500.00",
+      "provider_index": 0,
+      "buffer_after_min": 5
+    },
+    {
+      "name": "Scaling and polishing",
+      "name_ur": "دانتوں کی صفائی اور پالش",
+      "duration_min": 45,
+      "price": "6500.00",
+      "provider_index": 0,
+      "buffer_after_min": 5
+    },
+    {
+      "name": "Dental filling assessment",
+      "name_ur": "فلنگ کا معائنہ",
+      "duration_min": 30,
+      "price": "2500.00",
+      "provider_index": 0,
+      "buffer_after_min": 5
+    },
+    {
+      "name": "Root canal assessment",
+      "name_ur": "روٹ کینال کا معائنہ",
+      "duration_min": 30,
+      "price": "3000.00",
+      "provider_index": 0,
+      "buffer_after_min": 5
+    },
+    {
+      "name": "Children dental consultation",
+      "name_ur": "بچوں کے دانتوں کا معائنہ",
+      "duration_min": 30,
+      "price": "2000.00",
+      "provider_index": 0,
+      "buffer_after_min": 5
+    },
+    {
+      "name": "Orthodontic consultation",
+      "name_ur": "بریسز کا ابتدائی معائنہ",
+      "duration_min": 45,
+      "price": "3500.00",
+      "provider_index": 1,
+      "buffer_after_min": 5
+    }
+  ],
+  "hours": {
+    "weekdays": [
+      1,
+      2,
+      3,
+      4,
+      6
+    ],
+    "start_time": "10:00:00",
+    "end_time": "19:00:00",
+    "friday_start": "15:00:00",
+    "friday_end": "19:00:00",
+    "sunday_closed": true
+  },
+  "sources": [
+    {
+      "key": "services-en",
+      "kind": "faq",
+      "name": "Pearl Dental Demo · services · EN",
+      "question": "What dental services are available?",
+      "answer": "Pearl Dental Studio Demo offers dental consultations, scaling and polishing, filling assessments, root canal assessments, children’s dental consultations and orthodontic consultations. Dr Ayesha Khan handles general dentistry and children’s consultations. Dr Omar Raza handles orthodontic consultations. Filling, root canal, braces and aligner treatment plans and final treatment quotations require a dentist’s assessment; an assessment appointment is not a promise of treatment that day. Implants, sedation, oral surgery and home visits are not offered in this demo."
+    },
+    {
+      "key": "services-ur",
+      "kind": "faq",
+      "name": "Pearl Dental Demo · services · UR",
+      "question": "کلینک میں کون سی سہولتیں دستیاب ہیں؟",
+      "answer": "پرل ڈینٹل اسٹوڈیو ڈیمو میں دانتوں کا معائنہ، صفائی اور پالش، فلنگ اور روٹ کینال کا ابتدائی معائنہ، بچوں کے دانتوں کا معائنہ، اور بریسز کی مشاورت دستیاب ہے۔ ڈاکٹر عائشہ خان عام دندان سازی اور بچوں کا معائنہ کرتی ہیں۔ ڈاکٹر عمر رضا بریسز کی مشاورت کرتے ہیں۔ فلنگ، روٹ کینال، بریسز یا الائنرز کے مکمل علاج کا منصوبہ اور حتمی قیمت ڈینٹسٹ کے معائنے کے بعد طے ہوتی ہے۔ ابتدائی معائنہ اسی دن علاج کی ضمانت نہیں۔ اس ڈیمو میں امپلانٹس، سیڈیشن، منہ کی سرجری یا گھر پر وزٹ دستیاب نہیں۔"
+    },
+    {
+      "key": "parking-en",
+      "kind": "faq",
+      "name": "Pearl Dental Demo · parking · EN",
+      "question": "Is parking available?",
+      "answer": "Free visitor parking is available behind Demo Health Plaza. Use the blue visitor-parking entrance, then follow the Pearl Dental Studio signs to Suite 2. Bicycle racks are beside the visitor entrance. Parking spaces are first come, first served and cannot be reserved by the assistant. This is a fictional demo facility."
+    },
+    {
+      "key": "parking-ur",
+      "kind": "faq",
+      "name": "Pearl Dental Demo · parking · UR",
+      "question": "کیا پارکنگ موجود ہے؟",
+      "answer": "ڈیمو ہیلتھ پلازہ کے پیچھے مہمانوں کے لیے مفت پارکنگ ہے۔ نیلے رنگ کے وزیٹر پارکنگ گیٹ سے داخل ہو کر پرل ڈینٹل اسٹوڈیو کے نشانات کے مطابق سوئٹ ۲ جائیں۔ سائیکل کے اسٹینڈ مہمانوں کے دروازے کے ساتھ ہیں۔ جگہ پہلے آنے کی بنیاد پر ملتی ہے؛ معاون پارکنگ محفوظ نہیں کر سکتا۔ یہ فرضی ڈیمو سہولت ہے۔"
+    },
+    {
+      "key": "accessibility-en",
+      "kind": "faq",
+      "name": "Pearl Dental Demo · accessibility · EN",
+      "question": "Is the clinic wheelchair accessible?",
+      "answer": "The fictional demo clinic has a step-free entrance, a wheelchair ramp, a lift to Suite 2, wide reception access and an accessible toilet. A companion may accompany a patient. Tell reception in advance if assistance or additional appointment time is needed. The assistant can describe these facilities but cannot guarantee a specific staff member will be available."
+    },
+    {
+      "key": "accessibility-ur",
+      "kind": "faq",
+      "name": "Pearl Dental Demo · accessibility · UR",
+      "question": "کیا وہیل چیئر کے لیے سہولت ہے؟",
+      "answer": "اس فرضی ڈیمو کلینک میں بغیر سیڑھی کے داخلہ، وہیل چیئر ریمپ، سوئٹ ۲ تک لفٹ، کشادہ استقبالیہ اور قابل رسائی بیت الخلا ہے۔ مریض کے ساتھ ایک ساتھی آ سکتا ہے۔ مدد یا اضافی وقت چاہیے تو استقبالیہ کو پہلے بتائیں۔ معاون سہولتوں کی معلومات دے سکتا ہے، کسی خاص عملے کی موجودگی کی ضمانت نہیں۔"
+    },
+    {
+      "key": "payments-en",
+      "kind": "faq",
+      "name": "Pearl Dental Demo · payments · EN",
+      "question": "Which payment methods do you accept?",
+      "answer": "Pearl Dental Studio Demo accepts cash in Pakistani rupees, debit or credit cards, and bank transfer at reception. An itemized receipt is available after payment. Payment details and card numbers must never be entered into the assistant chat. The demo does not collect online payments, send payment links or provide bank-account details through the assistant. Treatment estimates are confirmed by reception after the dentist’s assessment."
+    },
+    {
+      "key": "payments-ur",
+      "kind": "faq",
+      "name": "Pearl Dental Demo · payments · UR",
+      "question": "ادائیگی کے کون سے طریقے ہیں؟",
+      "answer": "پرل ڈینٹل اسٹوڈیو ڈیمو کے استقبالیہ پر پاکستانی روپے میں نقد، ڈیبٹ یا کریڈٹ کارڈ، اور بینک ٹرانسفر قبول ہیں۔ ادائیگی کے بعد تفصیلی رسید مل سکتی ہے۔ کارڈ نمبر یا ادائیگی کی خفیہ تفصیل معاون کی چیٹ میں نہ دیں۔ ڈیمو میں آن لائن ادائیگی یا ادائیگی کا لنک نہیں؛ معاون بینک اکاؤنٹ کی تفصیل نہیں دیتا۔ علاج کے تخمینے کی تصدیق ڈینٹسٹ کے معائنے کے بعد استقبالیہ کرتا ہے۔"
+    },
+    {
+      "key": "insurance-en",
+      "kind": "faq",
+      "name": "Pearl Dental Demo · insurance · EN",
+      "question": "Do you accept dental insurance?",
+      "answer": "The demo clinic does not offer direct insurance billing or cashless insurer approval. Patients pay the clinic and may request an itemized receipt for a reimbursement claim with their insurer. Coverage, claim acceptance and reimbursement amounts are determined by the insurer, not the clinic or assistant. Bring any claim-form requirements to reception; the assistant cannot approve a claim."
+    },
+    {
+      "key": "insurance-ur",
+      "kind": "faq",
+      "name": "Pearl Dental Demo · insurance · UR",
+      "question": "کیا انشورنس قبول ہوتی ہے؟",
+      "answer": "ڈیمو کلینک میں انشورنس کی براہ راست بلنگ یا کیش لیس منظوری نہیں ہوتی۔ مریض کلینک کو ادائیگی کر کے انشورنس کمپنی سے رقم واپس لینے کے لیے تفصیلی رسید مانگ سکتے ہیں۔ کوریج، کلیم کی منظوری اور واپس ملنے والی رقم انشورنس کمپنی طے کرتی ہے، کلینک یا معاون نہیں۔ کلیم فارم کی ضروریات استقبالیہ کو دیں؛ معاون کلیم منظور نہیں کر سکتا۔"
+    },
+    {
+      "key": "children-en",
+      "kind": "faq",
+      "name": "Pearl Dental Demo · children · EN",
+      "question": "Can I bring my child for a dental visit?",
+      "answer": "Children’s dental consultations are available with Dr Ayesha Khan in this fictional demo. A parent or legal guardian must attend with anyone under 18 and handle the registration and consent discussion with the clinic. Please tell reception the child’s age and any accessibility needs. The assistant does not recommend a treatment, decide whether sedation is needed or provide clinical consent."
+    },
+    {
+      "key": "children-ur",
+      "kind": "faq",
+      "name": "Pearl Dental Demo · children · UR",
+      "question": "کیا بچوں کا معائنہ ہوتا ہے؟",
+      "answer": "اس فرضی ڈیمو میں ڈاکٹر عائشہ خان بچوں کے دانتوں کا معائنہ کرتی ہیں۔ اٹھارہ سال سے کم عمر مریض کے ساتھ والدین یا قانونی سرپرست آئیں اور رجسٹریشن اور رضامندی کی بات کلینک سے کریں۔ بچے کی عمر اور رسائی کی خاص ضرورت استقبالیہ کو بتائیں۔ معاون علاج تجویز نہیں کرتا، سیڈیشن کی ضرورت کا فیصلہ نہیں کرتا اور طبی رضامندی نہیں دیتا۔"
+    },
+    {
+      "key": "anxiety-en",
+      "kind": "faq",
+      "name": "Pearl Dental Demo · anxiety · EN",
+      "question": "Can you accommodate nervous patients?",
+      "answer": "The demo clinic offers a quieter waiting area and can note a request for a slower, explanation-focused consultation. A companion is welcome. Tell reception about the request before the visit; availability of additional appointment time must be checked by staff. The assistant cannot promise pain-free treatment, sedation, a particular medicine or a clinical outcome."
+    },
+    {
+      "key": "anxiety-ur",
+      "kind": "faq",
+      "name": "Pearl Dental Demo · anxiety · UR",
+      "question": "اگر دانتوں کے علاج سے گھبراہٹ ہو تو کیا سہولت ہے؟",
+      "answer": "ڈیمو کلینک میں نسبتاً پرسکون انتظار کی جگہ ہے اور آہستہ، وضاحت کے ساتھ مشاورت کی درخواست نوٹ کی جا سکتی ہے۔ ایک ساتھی ساتھ آ سکتا ہے۔ وزٹ سے پہلے استقبالیہ کو بتائیں؛ اضافی وقت کی دستیابی عملہ چیک کرے گا۔ معاون بغیر درد کے علاج، سیڈیشن، کسی دوا یا علاج کے نتیجے کی ضمانت نہیں دیتا۔"
+    },
+    {
+      "key": "first-visit-en",
+      "kind": "faq",
+      "name": "Pearl Dental Demo · first-visit · EN",
+      "question": "What happens during the first consultation?",
+      "answer": "At a first consultation, reception checks the registration and the dentist discusses the reason for the visit, reviews relevant information and explains proposed next steps. Any examination, imaging or treatment requires the clinic’s normal consent process. The listed appointment duration is reserved consultation time, not a guaranteed treatment duration. The assistant books only the configured service and does not diagnose or promise same-day treatment."
+    },
+    {
+      "key": "first-visit-ur",
+      "kind": "faq",
+      "name": "Pearl Dental Demo · first-visit · UR",
+      "question": "پہلے معائنے میں کیا ہوتا ہے؟",
+      "answer": "پہلی مشاورت میں استقبالیہ رجسٹریشن چیک کرتا ہے اور ڈینٹسٹ آنے کی وجہ اور متعلقہ معلومات دیکھ کر اگلے مراحل سمجھاتا ہے۔ معائنہ، ایکسرے یا علاج کے لیے کلینک کی معمول کی رضامندی کا طریقہ ضروری ہے۔ اپوائنٹمنٹ کا دورانیہ مشاورت کے لیے محفوظ وقت ہے، مکمل علاج کے وقت کی ضمانت نہیں۔ معاون صرف مقررہ سروس کی بکنگ کرتا ہے، تشخیص یا اسی دن علاج کا وعدہ نہیں کرتا۔"
+    },
+    {
+      "key": "orthodontics-en",
+      "kind": "faq",
+      "name": "Pearl Dental Demo · orthodontics · EN",
+      "question": "Do you offer braces and clear aligners?",
+      "answer": "Orthodontic consultations with Dr Omar Raza are available in the demo. The consultation is for discussing braces or clear-aligner options after assessment. A full course price, suitability, number of visits and treatment duration are not pre-set in this knowledge base. The dentist must confirm them individually. The assistant may book an orthodontic consultation but cannot quote a full braces package or guarantee eligibility."
+    },
+    {
+      "key": "orthodontics-ur",
+      "kind": "faq",
+      "name": "Pearl Dental Demo · orthodontics · UR",
+      "question": "کیا بریسز اور شفاف الائنرز کی مشاورت ہوتی ہے؟",
+      "answer": "ڈیمو میں ڈاکٹر عمر رضا کے ساتھ بریسز اور شفاف الائنرز کی ابتدائی مشاورت دستیاب ہے۔ معائنے کے بعد متعلقہ آپشنز پر بات ہوتی ہے۔ پورے علاج کی قیمت، موزونیت، وزٹس کی تعداد یا علاج کی مدت اس معلوماتی ذخیرے میں پہلے سے طے نہیں۔ ڈینٹسٹ ہر مریض کے لیے تصدیق کرے گا۔ معاون ابتدائی مشاورت بک کر سکتا ہے، پورے بریسز پیکج کی قیمت یا اہلیت کی ضمانت نہیں دے سکتا۔"
+    },
+    {
+      "key": "arrival-en",
+      "kind": "faq",
+      "name": "Pearl Dental Demo · arrival · EN",
+      "question": "Do you accept walk-in patients?",
+      "answer": "Appointments are preferred. Walk-in requests are considered only if the reception team finds an available suitable slot; arriving at the clinic does not reserve one. Please arrive ten minutes before a confirmed appointment. If you are running late, tell reception so they can check the schedule; the original slot cannot be guaranteed. There is no 24-hour service or guaranteed same-day appointment in this demo."
+    },
+    {
+      "key": "arrival-ur",
+      "kind": "faq",
+      "name": "Pearl Dental Demo · arrival · UR",
+      "question": "کیا بغیر اپوائنٹمنٹ آ سکتے ہیں؟",
+      "answer": "اپوائنٹمنٹ کو ترجیح دی جاتی ہے۔ بغیر بکنگ آنے والوں کے لیے استقبالیہ مناسب خالی وقت دیکھے گا؛ کلینک پہنچ جانے سے وقت محفوظ نہیں ہوتا۔ تصدیق شدہ اپوائنٹمنٹ سے دس منٹ پہلے آئیں۔ تاخیر ہو تو استقبالیہ کو بتائیں تاکہ شیڈول چیک ہو؛ اصل وقت برقرار رہنے کی ضمانت نہیں۔ اس ڈیمو میں چوبیس گھنٹے سروس یا اسی دن اپوائنٹمنٹ کی ضمانت نہیں۔"
+    },
+    {
+      "key": "records-en",
+      "kind": "faq",
+      "name": "Pearl Dental Demo · records · EN",
+      "question": "How can I request my dental records or a receipt?",
+      "answer": "Ask the reception team to arrange a records or receipt request. Staff verify identity and authorization before releasing information through the clinic’s agreed secure channel. The assistant cannot retrieve X-rays, send patient records, reveal another patient’s information or email a document. Do not paste patient documents, full card details or identifying medical history into a public knowledge source."
+    },
+    {
+      "key": "records-ur",
+      "kind": "faq",
+      "name": "Pearl Dental Demo · records · UR",
+      "question": "اپنی رپورٹس یا رسید کیسے حاصل کروں؟",
+      "answer": "رپورٹس یا رسید کے لیے استقبالیہ سے درخواست کریں۔ عملہ شناخت اور اجازت کی تصدیق کے بعد کلینک کے طے شدہ محفوظ طریقے سے معلومات دے گا۔ معاون ایکسرے نکالنے، مریض کی رپورٹس بھیجنے، دوسرے مریض کی معلومات دینے یا دستاویز ای میل کرنے کی سہولت نہیں رکھتا۔ عوامی معلوماتی ماخذ میں مریض کی دستاویزات، کارڈ کی مکمل تفصیل یا شناختی طبی تاریخ نہ ڈالیں۔"
+    },
+    {
+      "key": "comfort-language-en",
+      "kind": "faq",
+      "name": "Pearl Dental Demo · comfort-language · EN",
+      "question": "Which languages and waiting-room facilities are available?",
+      "answer": "Reception and the demo assistant support English and Urdu. The waiting area has drinking water, seating, a quieter corner and a family seating area. Complimentary Wi-Fi details can be requested from reception on arrival; no Wi-Fi password is stored in the knowledge base. There is no childcare service. Tell reception in advance if you need communication assistance; an interpreter is not guaranteed."
+    },
+    {
+      "key": "comfort-language-ur",
+      "kind": "faq",
+      "name": "Pearl Dental Demo · comfort-language · UR",
+      "question": "کون سی زبانیں اور انتظار کی سہولتیں ہیں؟",
+      "answer": "استقبالیہ اور ڈیمو معاون انگریزی اور اردو میں بات کرتے ہیں۔ انتظار کی جگہ پر پینے کا پانی، بیٹھنے کی جگہ، نسبتاً پرسکون گوشہ اور خاندان کے لیے نشستیں ہیں۔ آمد پر استقبالیہ سے مفت وائی فائی کی تفصیل پوچھ سکتے ہیں؛ اس معلوماتی ذخیرے میں وائی فائی پاس ورڈ نہیں رکھا جاتا۔ بچوں کی دیکھ بھال کی سروس نہیں۔ بات چیت میں مدد چاہیے تو پہلے بتائیں؛ مترجم کی ضمانت نہیں۔"
+    }
+  ]
+}

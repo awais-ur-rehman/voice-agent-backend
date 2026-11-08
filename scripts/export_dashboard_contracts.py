@@ -9,6 +9,7 @@ from pydantic.json_schema import models_json_schema
 
 from brain import draft_test_routes, voice_routes
 from brain.agent_config import AgentConfig, LegacyAgentConfig
+from knowledge import routes as knowledge_routes
 from scheduler import appointments, auth, catalog
 from scheduler.dashboard import agents, patients, profile, scheduling
 
@@ -19,6 +20,7 @@ def render() -> str:
     app = FastAPI(title="Dashboard API", version="1.0.0")
     # Explicit staff-only router allowlist. Never mount runtime or worker routers.
     for router in (
+        knowledge_routes.router,
         auth.router,
         catalog.router,
         appointments.router,

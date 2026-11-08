@@ -14,10 +14,30 @@ FROM base AS runtime
 RUN uv sync --locked --no-dev --no-install-project
 COPY scheduler ./scheduler
 COPY brain ./brain
+COPY knowledge ./knowledge
 COPY voice/catalog.json ./voice/catalog.json
 COPY scripts ./scripts
 COPY migrations ./migrations
 COPY alembic.ini LICENSE ./
-RUN useradd --create-home --uid 10001 scheduler
+RUN useradd --create-home --uid 10001 scheduler && mkdir -p /var/lib/knowledge && chown scheduler:scheduler /var/lib/knowledge && chmod 700 /var/lib/knowledge
 USER scheduler
 CMD ["uv", "run", "--no-sync", "uvicorn", "scheduler.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
+
+
+FROM base AS embedding
+RUN uv sync --locked --no-dev --group embedding --no-install-project
+COPY knowledge ./knowledge
+COPY embedding_service ./embedding_service
+COPY scripts/prepare_knowledge_assets.py ./scripts/prepare_knowledge_assets.py
+RUN useradd --create-home --uid 10002 embedding
+USER embedding
+CMD ["uv", "run", "--no-sync", "uvicorn", "embedding_service.server:create_app", "--factory", "--host", "0.0.0.0", "--port", "8001", "--no-access-log"]
+
+FROM base AS knowledge-worker
+RUN uv sync --locked --no-dev --group ingestion --no-install-project
+COPY knowledge ./knowledge
+COPY knowledge_worker ./knowledge_worker
+COPY scheduler ./scheduler
+RUN useradd --create-home --uid 10001 knowledge-worker
+USER knowledge-worker
+CMD ["uv", "run", "--no-sync", "python", "-m", "knowledge_worker.main"]

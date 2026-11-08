@@ -151,11 +151,16 @@ def test_new_patient_needs_separate_name_phone_readback(workflow):
 
 
 def test_park_resume_and_fact_digression_preserve_known_fields(workflow, seed):
-    turn, state, *_ = workflow
+    turn, state, db, *_ = workflow
     prepare(turn, state, seed)
     old_fields = state["fields"].copy()
+    old_hold = state["hold"].copy()
     assert turn("get_clinic_info", {"topic": "fees"})["ok"]
-    assert state["fields"] == old_fields and state["readback"]
+    assert state["fields"] == old_fields and state["hold"] == old_hold
+    assert state["task"] == "book" and state["readback"] is None
+    assert not turn("book_appointment", text="yes")["ok"]
+    assert db.scalar(select(Appointment)) is None
+    assert turn("read_back")["ok"]
     assert turn("update_dialogue_state", {"task": "cancel"})["ok"]
     assert state["parked"] and not state.get("hold") and not state.get("readback")
     assert turn("resume_task")["ok"]

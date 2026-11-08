@@ -96,12 +96,21 @@ def create_app(settings: Settings | None = None, clock=None) -> FastAPI:
         else None
     )
     app.state.session_factory = sessionmaker(engine, expire_on_commit=False)
+    from knowledge.embedding import EmbeddingClient
+
+    app.state.knowledge_embeddings = (
+        EmbeddingClient(
+            settings.knowledge_embedding_url, settings.knowledge_embedding_secret.get_secret_value()
+        )
+        if settings.knowledge_embedding_secret
+        else None
+    )
     app.state.clock = clock or (lambda: datetime.now(UTC))
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-        allow_headers=["Authorization", "Content-Type", "Idempotency-Key"],
+        allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Content-SHA256"],
     )
 
     @app.exception_handler(AppError)
@@ -169,8 +178,11 @@ def create_app(settings: Settings | None = None, clock=None) -> FastAPI:
     app.include_router(appointments.router)
     app.include_router(auth.router)
     app.include_router(catalog.router)
+    from knowledge.routes import router as knowledge_router
+
     from .dashboard import agents, patients, profile, scheduling
 
+    app.include_router(knowledge_router)
     app.include_router(agents.router)
     app.include_router(profile.router)
     app.include_router(patients.router)

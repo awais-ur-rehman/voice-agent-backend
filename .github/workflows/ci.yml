@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, develop, 'feat/**', 'fix/**', 'docs/**']
   pull_request:
-    branches: [main, develop]
+    branches: [main, develop, 'feat/phase-4-dashboard']
 
 permissions:
   contents: read
@@ -32,7 +32,7 @@ jobs:
     timeout-minutes: 10
     services:
       postgres:
-        image: postgres:16-bookworm@sha256:d81f7b51697014367236d07ec58b54153fc28f828b72bf247fe5c7487520bcb0
+        image: pgvector/pgvector:0.8.7-pg16-bookworm@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a
         env:
           POSTGRES_DB: voice_agent_test
           POSTGRES_PASSWORD: phase1_test_only
@@ -52,13 +52,14 @@ jobs:
       - run: python -m pip install uv==0.10.10
       - run: docker run -d --name valkey-test -p 56379:6379 valkey/valkey:8.1.11-alpine@sha256:2602ace2be6569bc2bbb06f873776516ab9089821525be34f4305c67eb9db02a valkey-server --requirepass phase2_valkey_test_only --save "" --appendonly no
       - run: uv sync --locked --all-groups
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
-      - run: uv run mypy scheduler brain
-      - run: uv run --locked python -m scripts.export_voice_contracts --check
-      - run: uv run --locked python -m scripts.export_agent_contracts --check
-      - run: uv run --locked python -m scripts.export_dashboard_contracts --check
-      - run: uv run python -m pytest
+      - run: uv run --no-sync ruff check .
+      - run: uv run --no-sync ruff format --check .
+      - run: uv run --no-sync mypy scheduler brain knowledge knowledge_worker
+      - run: uv run --no-sync mypy --follow-untyped-imports embedding_service scripts/qualify_knowledge.py
+      - run: uv run --no-sync python -m scripts.export_voice_contracts --check
+      - run: uv run --no-sync python -m scripts.export_agent_contracts --check
+      - run: uv run --no-sync python -m scripts.export_dashboard_contracts --check
+      - run: uv run --no-sync python -m pytest
 
   runtime-image:
     runs-on: ubuntu-latest
@@ -67,6 +68,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: docker build --target runtime -t clinic-runtime:test .
       - run: docker run --rm --network none clinic-runtime:test uv run --no-sync python -c 'from brain.voice_catalog import catalog; from brain.agent_config import AgentConfig; assert len(catalog()) == 12; assert AgentConfig().schema_version == 2'
+
+      - run: docker run --rm --network none clinic-runtime:test uv run --no-sync python -c 'import importlib.util; import scheduler.main; assert not any(importlib.util.find_spec(m) for m in ["pypdf", "defusedxml", "tokenizers", "onnxruntime", "psutil"])'
+      - run: docker build --target knowledge-worker -t clinic-knowledge-worker:test .
+      - run: docker run --rm --network none clinic-knowledge-worker:test uv run --no-sync python -m knowledge_worker.main --once
+      - run: docker run --rm --network none clinic-knowledge-worker:test uv run --no-sync python -c 'from knowledge.parsing import parse_bytes; from knowledge_worker.runner import process_job; assert parse_bytes(b"Open weekdays", "txt").text == "Open weekdays"'
+
+      - run: docker build --target embedding -t clinic-embedding:test .
+      - run: docker run --rm --network none --entrypoint /app/.venv/bin/python clinic-embedding:test -c 'import sys; from pathlib import Path; from embedding_service.server import create_app; from embedding_service.settings import Settings; settings=Settings(Path("/missing"),"synthetic-image-test-secret-over-32-characters"); app=create_app(settings); assert not settings.enabled; assert "onnxruntime" not in sys.modules and "tokenizers" not in sys.modules'
 
   voice:
     runs-on: ubuntu-latest

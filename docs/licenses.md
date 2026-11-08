@@ -79,3 +79,25 @@ remains its source. No new weights were downloaded. Most candidate tensors are
 absent from the existing local manifest; choosing a candidate does not install it.
 All 12 profiles are provisional, have no pre-rendered preview, and have no exact
 profile acceptance evidence. This is not commercial or native-quality approval.
+
+## Phase 5 source storage (2026-10-29)
+
+The official [pgvector Python adapter 0.5.1](https://pypi.org/project/pgvector/0.5.1/)
+declares MIT in its installed metadata and has a universal Python wheel with no
+mandatory dependencies. The pinned [pgvector PostgreSQL extension](https://github.com/pgvector/pgvector)
+is distributed under the PostgreSQL License. The PG16/Bookworm image digest is
+recorded in `compose.yaml`; retain upstream extension, PostgreSQL and OS notices
+when distributing the image. See [source operations](phase-5-sources.md).
+
+## Phase 5 ingestion parsers (2026-10-30)
+
+The optional worker-only ingestion group pins [pypdf 6.21.4](https://pypi.org/project/pypdf/6.21.4/)
+(BSD-3-Clause) and [defusedxml 0.7.1](https://pypi.org/project/defusedxml/0.7.1/)
+(PSF license). Both have universal Python wheels and no mandatory new compiled
+parser dependencies. Their exact distribution hashes are retained in `uv.lock`;
+retain wheel LICENSE notices in redistributed worker images. DOCX extraction
+uses stdlib ZIP handling plus defused XML parsing; python-docx/lxml are not
+installed. The existing reviewed tokenizers and psutil pins are reused. See
+[ingestion boundaries and operations](phase-5-ingestion.md).
+
+Phase 5 checkpoint adds no new third-party packages, models, fonts, or assets. The qualification corpus and QA screenshots are project-authored synthetic material. Existing locked package/model notices and redistribution limits above continue to apply; real model acceptance is not a license claim.

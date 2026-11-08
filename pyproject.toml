@@ -17,20 +17,28 @@ dependencies = [
   "email-validator>=2.3,<3",
   "valkey>=6.2,<6.3",
   "httpx2>=2.16,<2.17",
+  "pgvector==0.5.1",
 ]
 
 [dependency-groups]
-dev = ["pytest>=9.1,<9.2", "ruff>=0.17,<0.18", "mypy>=2.4,<2.5"]
+embedding = ["onnxruntime==1.31.1", "tokenizers==0.23.3", "numpy==2.5.4", "psutil==7.2.2"]
+dev = ["psutil==7.2.2", "pytest>=9.1,<9.2", "ruff>=0.17,<0.18", "mypy>=2.4,<2.5"]
+ingestion = [
+    "defusedxml==0.7.1",
+    "psutil==7.2.2",
+    "pypdf==6.21.4",
+    "tokenizers==0.23.3",
+]
 
 [tool.pytest.ini_options]
-testpaths = ["tests_api", "tests_environment", "tests_brain"]
+testpaths = ["tests_api", "tests_environment", "tests_brain", "tests_knowledge"]
 pythonpath = ["."]
 addopts = "-ra"
 
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-include = ["brain/**/*.py", "tests_brain/**/*.py", "scheduler/**/*.py", "tests_api/**/*.py", "scripts/**/*.py", "migrations/**/*.py", "tests_environment/**/*.py"]
+include = ["knowledge_worker/**/*.py", "knowledge/**/*.py", "embedding_service/**/*.py", "tests_knowledge/**/*.py", "brain/**/*.py", "tests_brain/**/*.py", "scheduler/**/*.py", "tests_api/**/*.py", "scripts/**/*.py", "migrations/**/*.py", "tests_environment/**/*.py"]
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I"]

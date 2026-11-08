@@ -659,23 +659,6 @@
         "title": "CalendarAppointment",
         "type": "object"
       },
-      "Capabilities": {
-        "additionalProperties": false,
-        "properties": {
-          "text": {
-            "$ref": "#/components/schemas/Capability"
-          },
-          "voice": {
-            "$ref": "#/components/schemas/Capability"
-          }
-        },
-        "required": [
-          "text",
-          "voice"
-        ],
-        "title": "Capabilities",
-        "type": "object"
-      },
       "Capability": {
         "additionalProperties": false,
         "properties": {
@@ -1250,6 +1233,139 @@
         "title": "ExceptionOut",
         "type": "object"
       },
+      "FAQSource": {
+        "additionalProperties": false,
+        "properties": {
+          "answer": {
+            "maxLength": 100000,
+            "minLength": 1,
+            "title": "Answer",
+            "type": "string"
+          },
+          "kind": {
+            "const": "faq",
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "question": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "question",
+          "answer"
+        ],
+        "title": "FAQSource",
+        "type": "object"
+      },
+      "FAQSourceInput": {
+        "additionalProperties": false,
+        "properties": {
+          "answer": {
+            "maxLength": 100000,
+            "minLength": 1,
+            "title": "Answer",
+            "type": "string"
+          },
+          "kind": {
+            "const": "faq",
+            "default": "faq",
+            "title": "Kind",
+            "type": "string"
+          },
+          "question": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question",
+          "answer"
+        ],
+        "title": "FAQSourceInput",
+        "type": "object"
+      },
+      "FAQUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "answer": {
+            "maxLength": 100000,
+            "minLength": 1,
+            "title": "Answer",
+            "type": "string"
+          },
+          "kind": {
+            "const": "faq",
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "question": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Question",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "question",
+          "answer",
+          "revision"
+        ],
+        "title": "FAQUpdate",
+        "type": "object"
+      },
+      "FileSourceInput": {
+        "additionalProperties": false,
+        "properties": {
+          "format": {
+            "enum": [
+              "pdf",
+              "docx",
+              "txt",
+              "md"
+            ],
+            "title": "Format",
+            "type": "string"
+          },
+          "kind": {
+            "const": "file",
+            "default": "file",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "format"
+        ],
+        "title": "FileSourceInput",
+        "type": "object"
+      },
       "FixtureAppointment": {
         "additionalProperties": false,
         "properties": {
@@ -1377,6 +1493,90 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "KnowledgeCitation": {
+        "additionalProperties": false,
+        "properties": {
+          "chunk_id": {
+            "format": "uuid",
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "cosine": {
+            "maximum": 1.000001,
+            "minimum": 0.55,
+            "title": "Cosine",
+            "type": "number"
+          },
+          "heading": {
+            "maxLength": 200,
+            "title": "Heading",
+            "type": "string"
+          },
+          "language": {
+            "maxLength": 16,
+            "title": "Language",
+            "type": "string"
+          },
+          "quote": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Quote",
+            "type": "string"
+          },
+          "source_id": {
+            "format": "uuid",
+            "title": "Source Id",
+            "type": "string"
+          },
+          "source_name": {
+            "maxLength": 200,
+            "title": "Source Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "source_name",
+          "chunk_id",
+          "heading",
+          "language",
+          "cosine",
+          "quote"
+        ],
+        "title": "KnowledgeCitation",
+        "type": "object"
+      },
+      "KnowledgeTrace": {
+        "additionalProperties": false,
+        "properties": {
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeCitation"
+            },
+            "maxItems": 4,
+            "title": "Citations",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "ready",
+              "no_sources",
+              "processing_pending",
+              "below_threshold",
+              "service_unavailable",
+              "rejected",
+              "stale"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "KnowledgeTrace",
         "type": "object"
       },
       "LegacyAgentConfig": {
@@ -1827,6 +2027,43 @@
           "offset"
         ],
         "title": "PatientPage",
+        "type": "object"
+      },
+      "Preview": {
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "excerpts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Excerpts",
+            "type": "array"
+          },
+          "reason": {
+            "enum": [
+              "ready",
+              "processing_unavailable"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "source_id": {
+            "format": "uuid",
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "available",
+          "reason",
+          "excerpts"
+        ],
+        "title": "Preview",
         "type": "object"
       },
       "ProfilePatch": {
@@ -2400,6 +2637,128 @@
         "title": "RuleOut",
         "type": "object"
       },
+      "SearchChunk": {
+        "additionalProperties": false,
+        "properties": {
+          "chunk_id": {
+            "format": "uuid",
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "cosine": {
+            "title": "Cosine",
+            "type": "number"
+          },
+          "generation_id": {
+            "format": "uuid",
+            "title": "Generation Id",
+            "type": "string"
+          },
+          "heading": {
+            "title": "Heading",
+            "type": "string"
+          },
+          "language": {
+            "title": "Language",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "source_id": {
+            "format": "uuid",
+            "title": "Source Id",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chunk_id",
+          "source_id",
+          "generation_id",
+          "profile",
+          "name",
+          "heading",
+          "language",
+          "text",
+          "cosine",
+          "score"
+        ],
+        "title": "SearchChunk",
+        "type": "object"
+      },
+      "SearchQuery": {
+        "additionalProperties": false,
+        "properties": {
+          "language": {
+            "enum": [
+              "en",
+              "ur"
+            ],
+            "title": "Language",
+            "type": "string"
+          },
+          "query": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          },
+          "query_id": {
+            "format": "uuid",
+            "title": "Query Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query",
+          "language",
+          "query_id"
+        ],
+        "title": "SearchQuery",
+        "type": "object"
+      },
+      "SearchResult": {
+        "additionalProperties": false,
+        "properties": {
+          "chunks": {
+            "items": {
+              "$ref": "#/components/schemas/SearchChunk"
+            },
+            "title": "Chunks",
+            "type": "array"
+          },
+          "reason": {
+            "enum": [
+              "ready",
+              "no_sources",
+              "processing_pending",
+              "below_threshold",
+              "service_unavailable"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "chunks"
+        ],
+        "title": "SearchResult",
+        "type": "object"
+      },
       "ServiceCreate": {
         "additionalProperties": false,
         "properties": {
@@ -2694,6 +3053,249 @@
         "title": "Slot",
         "type": "object"
       },
+      "SourceDetailOut": {
+        "additionalProperties": false,
+        "properties": {
+          "active_generation_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Generation Id"
+          },
+          "agent_id": {
+            "format": "uuid",
+            "title": "Agent Id",
+            "type": "string"
+          },
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "chunk_count": {
+            "title": "Chunk Count",
+            "type": "integer"
+          },
+          "error_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error At"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "input": {
+            "discriminator": {
+              "mapping": {
+                "faq": "#/components/schemas/FAQSourceInput",
+                "file": "#/components/schemas/FileSourceInput",
+                "text": "#/components/schemas/TextSourceInput",
+                "url": "#/components/schemas/URLSourceInput"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TextSourceInput"
+              },
+              {
+                "$ref": "#/components/schemas/FAQSourceInput"
+              },
+              {
+                "$ref": "#/components/schemas/URLSourceInput"
+              },
+              {
+                "$ref": "#/components/schemas/FileSourceInput"
+              }
+            ],
+            "title": "Input"
+          },
+          "kind": {
+            "enum": [
+              "text",
+              "faq",
+              "url",
+              "file"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "processing",
+              "ready",
+              "failed",
+              "deleted"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "agent_id",
+          "kind",
+          "name",
+          "revision",
+          "status",
+          "available",
+          "active_generation_id",
+          "chunk_count",
+          "error_code",
+          "error_at",
+          "updated_at",
+          "input"
+        ],
+        "title": "SourceDetailOut",
+        "type": "object"
+      },
+      "SourceOut": {
+        "additionalProperties": false,
+        "properties": {
+          "active_generation_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Generation Id"
+          },
+          "agent_id": {
+            "format": "uuid",
+            "title": "Agent Id",
+            "type": "string"
+          },
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "chunk_count": {
+            "title": "Chunk Count",
+            "type": "integer"
+          },
+          "error_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error At"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "text",
+              "faq",
+              "url",
+              "file"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "processing",
+              "ready",
+              "failed",
+              "deleted"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "agent_id",
+          "kind",
+          "name",
+          "revision",
+          "status",
+          "available",
+          "active_generation_id",
+          "chunk_count",
+          "error_code",
+          "error_at",
+          "updated_at"
+        ],
+        "title": "SourceOut",
+        "type": "object"
+      },
       "TestCreate": {
         "additionalProperties": false,
         "properties": {
@@ -2747,7 +3349,7 @@
             "type": "string"
           },
           "transport_capabilities": {
-            "$ref": "#/components/schemas/Capabilities"
+            "$ref": "#/components/schemas/brain__draft_test_routes__Capabilities"
           }
         },
         "required": [
@@ -2805,6 +3407,119 @@
           "request_key"
         ],
         "title": "TestVoiceCreate",
+        "type": "object"
+      },
+      "TextSource": {
+        "additionalProperties": false,
+        "properties": {
+          "format": {
+            "enum": [
+              "txt",
+              "md"
+            ],
+            "title": "Format",
+            "type": "string"
+          },
+          "kind": {
+            "const": "text",
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 1000000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "text",
+          "format"
+        ],
+        "title": "TextSource",
+        "type": "object"
+      },
+      "TextSourceInput": {
+        "additionalProperties": false,
+        "properties": {
+          "format": {
+            "enum": [
+              "txt",
+              "md"
+            ],
+            "title": "Format",
+            "type": "string"
+          },
+          "kind": {
+            "const": "text",
+            "default": "text",
+            "title": "Kind",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 1000000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "format"
+        ],
+        "title": "TextSourceInput",
+        "type": "object"
+      },
+      "TextUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "format": {
+            "enum": [
+              "txt",
+              "md"
+            ],
+            "title": "Format",
+            "type": "string"
+          },
+          "kind": {
+            "const": "text",
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "text": {
+            "maxLength": 1000000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "text",
+          "format",
+          "revision"
+        ],
+        "title": "TextUpdate",
         "type": "object"
       },
       "Tokens": {
@@ -2881,6 +3596,16 @@
             "title": "Id",
             "type": "string"
           },
+          "knowledge": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KnowledgeTrace"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "messages": {
             "items": {
               "$ref": "#/components/schemas/Message"
@@ -2917,6 +3642,92 @@
           "tool_trace"
         ],
         "title": "TurnResult",
+        "type": "object"
+      },
+      "URLSource": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "url",
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "url": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "url"
+        ],
+        "title": "URLSource",
+        "type": "object"
+      },
+      "URLSourceInput": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "url",
+            "default": "url",
+            "title": "Kind",
+            "type": "string"
+          },
+          "url": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "URLSourceInput",
+        "type": "object"
+      },
+      "URLUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "url",
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "url": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "url",
+          "revision"
+        ],
+        "title": "URLUpdate",
         "type": "object"
       },
       "UserCreate": {
@@ -3274,6 +4085,94 @@
           "call_deadline"
         ],
         "title": "VoiceSnapshot",
+        "type": "object"
+      },
+      "brain__draft_test_routes__Capabilities": {
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "$ref": "#/components/schemas/Capability"
+          },
+          "voice": {
+            "$ref": "#/components/schemas/Capability"
+          }
+        },
+        "required": [
+          "text",
+          "voice"
+        ],
+        "title": "Capabilities",
+        "type": "object"
+      },
+      "knowledge__contracts__Capabilities": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "processing_available": {
+            "default": false,
+            "title": "Processing Available",
+            "type": "boolean"
+          },
+          "query_available": {
+            "default": false,
+            "title": "Query Available",
+            "type": "boolean"
+          },
+          "query_unavailable_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "disabled",
+                  "no_sources",
+                  "processing_pending",
+                  "service_unavailable"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "disabled",
+            "title": "Query Unavailable Reason"
+          },
+          "source_limit": {
+            "default": 64,
+            "title": "Source Limit",
+            "type": "integer"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "disabled",
+                  "processing_unavailable",
+                  "worker_stale",
+                  "embedding_unavailable",
+                  "artifacts_unavailable"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "upload_max_bytes": {
+            "default": 10485760,
+            "title": "Upload Max Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "enabled",
+          "unavailable_reason"
+        ],
+        "title": "Capabilities",
         "type": "object"
       }
     },
@@ -4182,6 +5081,856 @@
         "summary": "Create",
         "tags": [
           "Dashboard agents"
+        ]
+      }
+    },
+    "/dashboard/agents/{agent_id}/knowledge/capabilities": {
+      "get": {
+        "operationId": "knowledge_capabilities",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Agent Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/knowledge__contracts__Capabilities"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Capabilities",
+        "tags": [
+          "Knowledge"
+        ]
+      }
+    },
+    "/dashboard/agents/{agent_id}/knowledge/search": {
+      "post": {
+        "operationId": "knowledge_search",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Agent Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Search",
+        "tags": [
+          "Knowledge"
+        ]
+      }
+    },
+    "/dashboard/agents/{agent_id}/knowledge/sources": {
+      "get": {
+        "operationId": "knowledge_sources",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Agent Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SourceOut"
+                  },
+                  "title": "Response Knowledge Sources",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Listing",
+        "tags": [
+          "Knowledge"
+        ]
+      },
+      "post": {
+        "operationId": "knowledge_create_source",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Agent Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "minLength": 8,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "discriminator": {
+                  "mapping": {
+                    "faq": "#/components/schemas/FAQSource",
+                    "text": "#/components/schemas/TextSource",
+                    "url": "#/components/schemas/URLSource"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/TextSource"
+                  },
+                  {
+                    "$ref": "#/components/schemas/FAQSource"
+                  },
+                  {
+                    "$ref": "#/components/schemas/URLSource"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create",
+        "tags": [
+          "Knowledge"
+        ]
+      }
+    },
+    "/dashboard/agents/{agent_id}/knowledge/sources/upload": {
+      "post": {
+        "operationId": "knowledge_upload_source",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Agent Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": true,
+            "schema": {
+              "enum": [
+                "pdf",
+                "docx",
+                "txt",
+                "md"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "minLength": 8,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Content-SHA256",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-fA-F]{64}$",
+              "title": "X-Content-Sha256",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Upload",
+        "tags": [
+          "Knowledge"
+        ]
+      }
+    },
+    "/dashboard/agents/{agent_id}/knowledge/sources/{source_id}": {
+      "delete": {
+        "operationId": "knowledge_delete_source",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Agent Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "revision",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Revision",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "minLength": 8,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete",
+        "tags": [
+          "Knowledge"
+        ]
+      },
+      "get": {
+        "operationId": "knowledge_source",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Agent Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Detail",
+        "tags": [
+          "Knowledge"
+        ]
+      },
+      "put": {
+        "operationId": "knowledge_update_source",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Agent Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "minLength": 8,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "discriminator": {
+                  "mapping": {
+                    "faq": "#/components/schemas/FAQUpdate",
+                    "text": "#/components/schemas/TextUpdate",
+                    "url": "#/components/schemas/URLUpdate"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/TextUpdate"
+                  },
+                  {
+                    "$ref": "#/components/schemas/FAQUpdate"
+                  },
+                  {
+                    "$ref": "#/components/schemas/URLUpdate"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update",
+        "tags": [
+          "Knowledge"
+        ]
+      }
+    },
+    "/dashboard/agents/{agent_id}/knowledge/sources/{source_id}/content": {
+      "put": {
+        "operationId": "knowledge_replace_file",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Agent Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": true,
+            "schema": {
+              "enum": [
+                "pdf",
+                "docx",
+                "txt",
+                "md"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "revision",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Revision",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "minLength": 8,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Content-SHA256",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-fA-F]{64}$",
+              "title": "X-Content-Sha256",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Replace",
+        "tags": [
+          "Knowledge"
+        ]
+      }
+    },
+    "/dashboard/agents/{agent_id}/knowledge/sources/{source_id}/preview": {
+      "get": {
+        "operationId": "knowledge_preview_source",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Agent Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Preview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Preview",
+        "tags": [
+          "Knowledge"
+        ]
+      }
+    },
+    "/dashboard/agents/{agent_id}/knowledge/sources/{source_id}/reindex": {
+      "post": {
+        "operationId": "knowledge_reindex_source",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Agent Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "minLength": 8,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Revision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Reindex",
+        "tags": [
+          "Knowledge"
         ]
       }
     },
