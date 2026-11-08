@@ -199,6 +199,10 @@ def disconnect_fixture(events, send):
     call.epoch = 4
     call.generation = 1
     call.caller = "caller"
+    call.session_id = "sid"
+    call.input_sequence = 0
+    call.ending = False
+    call.timers = SimpleNamespace(started=0, tick=lambda now: "end")
     call.pending = None
     call.invalidation = None
     call.invalidation_jobs = set()
@@ -246,11 +250,40 @@ def disconnect_fixture(events, send):
 async def disconnect_callback(call, kind):
     if kind == "participant_left":
         await call.participant_left(None, "caller")
-    else:
+    elif kind == "disconnected":
         await call.disconnected(None)
+    elif kind == "caller_end":
+        import json
+
+        await call.data_received(
+            None,
+            json.dumps(
+                {
+                    "version": 1,
+                    "session_id": "sid",
+                    "generation": 1,
+                    "sequence": 1,
+                    "kind": "end",
+                }
+            ),
+            "caller",
+        )
+    elif kind == "deadline":
+        await call.heartbeat()
+    else:
+        call.speak = AsyncMock()
+        await call.complete_response(
+            {"state": {"ended": True}, "result": {"say": {"en": "Goodbye."}}}, "en", 4
+        )
 
 
-@pytest.mark.parametrize("kind", ["participant_left", "disconnected"])
+def terminal_route(kind):
+    return "/disconnect" if kind in {"participant_left", "disconnected"} else "/end"
+
+
+@pytest.mark.parametrize(
+    "kind", ["participant_left", "disconnected", "caller_end", "deadline", "terminal_response"]
+)
 def test_disconnect_callbacks_submit_pending_completed_observation_before_server_revocation(kind):
     async def scenario(kind):
         events = []
@@ -269,7 +302,7 @@ def test_disconnect_callbacks_submit_pending_completed_observation_before_server
         assert len(submitted) == 1, events
         assert submitted[0]["revision"] == 7 and submitted[0]["generation"] == 1
         assert submitted[0]["observations"][0]["event_id"] == event_id
-        assert events.index("metrics") < events.index("/disconnect")
+        assert events.index("metrics") < events.index(terminal_route(kind))
         if "server-interrupt" in events:
             assert events.index("metrics") < events.index("server-interrupt")
         assert call.epoch == 5 and call.ledger.invalidated
@@ -280,7 +313,9 @@ def test_disconnect_callbacks_submit_pending_completed_observation_before_server
     asyncio.run(scenario(kind))
 
 
-@pytest.mark.parametrize("kind", ["participant_left", "disconnected"])
+@pytest.mark.parametrize(
+    "kind", ["participant_left", "disconnected", "caller_end", "deadline", "terminal_response"]
+)
 def test_disconnect_freezes_old_observations_and_cancels_locally_while_submission_waits(kind):
     async def scenario(kind):
         events = []
@@ -302,7 +337,7 @@ def test_disconnect_freezes_old_observations_and_cancels_locally_while_submissio
             # A blocked metrics request must not hold up local ASR/TTS/audio cancellation.
             await asyncio.wait_for(call.audio_fenced.wait(), 0.5)
             assert all("cancel-" + name in events for name in ["asr", "en", "ur"])
-            assert "/disconnect" not in events and "server-interrupt" not in events
+            assert terminal_route(kind) not in events and "server-interrupt" not in events
             call.metrics.offer("stt_completion", 99, "en", 4)
             call.metrics.offer("stt_completion", 100, "en", call.epoch)
             assert not call.metrics.pending
@@ -310,7 +345,7 @@ def test_disconnect_freezes_old_observations_and_cancels_locally_while_submissio
             await asyncio.wait_for(closing, 0.5)
             assert len(submitted) == 1
             assert [v["duration_ms"] for v in submitted[0]["observations"]] == [12]
-            assert events.index("metrics") < events.index("/disconnect")
+            assert events.index("metrics") < events.index(terminal_route(kind))
         finally:
             release.set()
             await asyncio.gather(closing, return_exceptions=True)
@@ -320,7 +355,9 @@ def test_disconnect_freezes_old_observations_and_cancels_locally_while_submissio
     asyncio.run(scenario(kind))
 
 
-@pytest.mark.parametrize("kind", ["participant_left", "disconnected"])
+@pytest.mark.parametrize(
+    "kind", ["participant_left", "disconnected", "caller_end", "deadline", "terminal_response"]
+)
 def test_disconnect_hung_metrics_cannot_hold_shutdown_or_send_frozen_work_after_deadline(kind):
     async def scenario():
         events = []
@@ -348,7 +385,7 @@ def test_disconnect_hung_metrics_cannot_hold_shutdown_or_send_frozen_work_after_
         # Re-entrant disconnect/cleanup must not inherit cancellation from its sender.
         await call.metrics.flush()
         assert not call.metrics.pending
-        assert events.index("audio-fenced") < events.index("/disconnect")
+        assert events.index("audio-fenced") < events.index(terminal_route(kind))
         assert events.index("metrics-cancelled") < events.index("worker-cancelled")
         assert len(submitted) == 1
         call.metrics.offer("stt_completion", 99, "en", call.epoch)
@@ -356,5 +393,48 @@ def test_disconnect_hung_metrics_cannot_hold_shutdown_or_send_frozen_work_after_
         assert "worker-cancelled" in events
         if call.invalidation_jobs:
             await asyncio.gather(*call.invalidation_jobs)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"version": 2},
+        {"session_id": "other"},
+        {"generation": 2},
+        {"sequence": 0},
+        {"sequence": True},
+        {"sequence": "1"},
+        {"kind": "unknown"},
+    ],
+)
+def test_caller_end_does_not_bypass_packet_authority(change):
+    import json
+
+    async def scenario():
+        events = []
+        call = disconnect_fixture(events, AsyncMock())
+        packet = {"version": 1, "session_id": "sid", "generation": 1, "sequence": 1, "kind": "end"}
+        packet.update(change)
+        await call.data_received(None, json.dumps(packet), "caller")
+        assert events == []
+        assert not call.metrics.sealed and call.epoch == 4 and call.input_sequence == 0
+
+    asyncio.run(scenario())
+
+
+def test_caller_end_ignores_wrong_participant_and_oversized_packet():
+    import json
+
+    async def scenario():
+        events = []
+        call = disconnect_fixture(events, AsyncMock())
+        packet = {"version": 1, "session_id": "sid", "generation": 1, "sequence": 1, "kind": "end"}
+        await call.data_received(None, json.dumps(packet), "other")
+        packet["padding"] = "x" * 4096
+        await call.data_received(None, json.dumps(packet), "caller")
+        assert events == []
+        assert not call.metrics.sealed and call.epoch == 4 and call.input_sequence == 0
 
     asyncio.run(scenario())

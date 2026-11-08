@@ -396,11 +396,7 @@ class NativeCall:
             await self.speak(say, language, revision, epoch)
         finally:
             if terminal:
-                try:
-                    await self.flush_metrics()
-                    await self.api.request("/end", {})
-                finally:
-                    await self.worker.cancel()
+                await self.end()
 
     async def speak(self, text, language, readback_revision, epoch, *, status_only=False):
         adapter = self.english if language == "en" else self.urdu
@@ -569,13 +565,29 @@ class NativeCall:
                 if self.timers.muted:
                     await self.interrupt()
             elif message.get("kind") == "end":
-                await self.api.request("/end", {})
-                await self.worker.cancel()
+                await self.end()
             else:
                 return
             self.input_sequence = message["sequence"]
         except (ValueError, TypeError, KeyError):
             return
+
+    async def end(self):
+        # Freeze accepted diagnostics before fencing local speech or revoking
+        # server authority. MetricQueue bounds this drain and cancels a hung sender.
+        self.seal_metrics()
+        self.ending = True
+        self.epoch += 1
+        try:
+            for adapter in (self.asr, self.english, self.urdu):
+                await asyncio.to_thread(adapter.cancel)
+            if self.ledger:
+                self.ledger.invalidate()
+            await self.worker.queue_frame(InterruptionFrame())
+            await self.flush_metrics()
+            await self.api.request("/end", {})
+        finally:
+            await self.worker.cancel()
 
     async def participant_left(self, transport, participant):
         if participant != self.caller:
@@ -621,9 +633,7 @@ class NativeCall:
                     else self.timers.tick(now)
                 )
                 if action == "end" and now - self.timers.started >= 600:
-                    await self.flush_metrics()
-                    await self.api.request("/end", {})
-                    await self.worker.cancel()
+                    await self.end()
                     return
                 if action in ("reprompt", "end") and not busy:
                     async with self.control_lock:
@@ -653,6 +663,7 @@ class NativeCall:
             await runner.add_workers(self.worker)
             await runner.run()
         finally:
+            self.seal_metrics()
             heartbeat.cancel()
             for invalidation in self.invalidation_jobs:
                 invalidation.cancel()
