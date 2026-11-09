@@ -215,3 +215,61 @@ def test_extreme_timestamp_offsets_are_validation_errors_and_max_date_filter_is_
         response = book(owner, seed, starts_at=value)
         assert response.status_code == 422
     assert owner.get("/appointments", params={"date_to": "9999-12-31"}).status_code == 200
+
+
+def test_booking_reuses_locked_rows_with_authoritative_scope_and_receipts(owner, seed, database):
+    from sqlalchemy import event
+
+    from tests_api.test_dashboard_core import add_patient, merge
+
+    source = str(seed["patient_a"])
+    retained = add_patient(owner)
+    booking_key = "locked-booking-authority"
+    lookups = {"providers": [], "patients": []}
+
+    def record_locks(conn, cursor, statement, parameters, context, executemany):
+        if not statement.startswith("SELECT"):
+            return
+        for table in lookups:
+            if f"FROM {table} " in statement or f"FROM {table}\n" in statement:
+                lookups[table].append("FOR UPDATE" in statement)
+
+    engine = owner.app.state.engine
+    event.listen(engine, "before_cursor_execute", record_locks)
+    try:
+        first = book(owner, seed, booking_key)
+    finally:
+        event.remove(engine, "before_cursor_execute", record_locks)
+    assert first.status_code == 201
+    assert book(owner, seed, booking_key).json() == first.json()
+    mismatch = book(owner, seed, booking_key, starts_at="2026-11-03T11:00:00+05:00")
+    assert (
+        mismatch.status_code == 409 and mismatch.json()["error"]["code"] == "idempotency_conflict"
+    )
+    assert book(owner, seed, provider_id=str(seed["provider_b"])).status_code == 404
+
+    assert merge(owner, source, retained).status_code == 200
+    after_merge = book(owner, seed, starts_at="2026-11-03T11:00:00+05:00")
+    assert (
+        after_merge.status_code == 409 and after_merge.json()["error"]["code"] == "patient_merged"
+    )
+    wrong_service = book(owner, seed, service_id=str(seed["service_b"]))
+    assert wrong_service.status_code == 404 and wrong_service.json()["error"]["code"] == "not_found"
+    conflict = book(owner, seed, patient_id=retained)
+    assert conflict.status_code == 409 and conflict.json()["error"]["code"] == "slot_unavailable"
+
+    with database.connect() as conn:
+        rows = conn.execute(
+            text("SELECT id::text, patient_id::text, status FROM appointments")
+        ).all()
+        assert rows == [(first.json()["id"], retained, "booked")]
+        assert (
+            conn.scalar(text("SELECT count(*) FROM idempotency_records WHERE operation='book'"))
+            == 1
+        )
+        assert (
+            conn.scalar(text("SELECT count(*) FROM audit_log WHERE action='appointment.booked'"))
+            == 1
+        )
+    assert lookups["providers"] == [True]
+    assert lookups["patients"].count(True) == 1

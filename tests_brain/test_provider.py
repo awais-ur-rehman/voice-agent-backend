@@ -56,6 +56,7 @@ def test_provider_timeout_budget_and_circuit_are_bounded():
         jwt_secret="x" * 40,
         llm_api_key="synthetic-test-only",
         llm_request_budget=2,
+        llm_endpoint_burst=2,  # Exercise total budget independently of operator pacing.
         _env_file=None,
     )
     model = Nemotron(settings, transport=httpx2.MockTransport(fail))

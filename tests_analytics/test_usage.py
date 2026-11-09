@@ -19,6 +19,7 @@ def model(handler):
             database_url="postgresql://unused",
             jwt_secret="x" * 40,
             llm_api_key="synthetic",
+            llm_endpoint_burst=20,  # Concurrent attribution fixture, not production quota.
             _env_file=None,
         ),
         transport=httpx2.MockTransport(handler),
@@ -40,11 +41,11 @@ def test_actual_usage_is_reported_even_for_malformed_output_without_first_token(
 
     values = []
     sink = MeasurementSink(writer=values.append)
+    provider = model(lambda req: answer(content="private malformed output"))
     with measurement_scope(sink):
         with pytest.raises(ProviderError):
-            model(lambda req: answer(content="private malformed output")).plan(
-                {"task": "book", "fields": {}}, "private question", {}, {}
-            )
+            provider.plan({"task": "book", "fields": {}}, "private question", {}, {})
+    assert provider.drain(1)
     assert [v.status for v in values] == ["started", "malformed"]
     assert values[-1].input_tokens == 7 and values[-1].output_tokens == 3
     assert values[-1].cost is None and values[-1].input_rate is None
@@ -82,6 +83,7 @@ def test_concurrent_requests_never_attribute_shared_counter_differences():
         a = pool.submit(run, "first")
         b = pool.submit(run, "second")
         results = [a.result(), b.result()]
+    assert provider.drain(1)
     assert [v[-1].input_tokens for _, v in results] == [11, 29]
     assert all(s.requests == 1 for s, _ in results)
     assert results[0][1][-1].invocation_id != results[1][1][-1].invocation_id
@@ -105,9 +107,7 @@ def test_grounding_context_and_late_completion_only_update_original_invocation()
             provider.ground("private", "en", [], deadline=time.monotonic() + 0.03)
     assert entered.is_set() and sink.requests == 1
     release.set()
-    limit = time.monotonic() + 3
-    while len(values) < 2 and time.monotonic() < limit:
-        time.sleep(0.01)
+    assert provider.drain(1)
     assert len(values) == 2 and values[-1].status == "timeout"
     assert values[-1].input_tokens == 7
     assert sink.stages == []  # closed turn cannot receive a successful late duration
@@ -202,6 +202,7 @@ def test_configured_usd_rates_snapshot_reported_counts_only():
     provider.settings.llm_output_rate_usd_per_million = Decimal("5")
     with measurement_scope(sink):
         provider.plan({"task": "book", "fields": {}}, "hi", {}, {})
+    assert provider.drain(1)
     assert values[-1].cost == Decimal("0.000040")
     assert values[0].input_rate == Decimal("2.5") and values[0].cost is None
 
@@ -225,6 +226,7 @@ def test_budget_refusal_has_no_invocation_and_invalid_reported_counts_are_unknow
         provider.plan({"task": "book", "fields": {}}, "hi", {}, {})
         with pytest.raises(ProviderError):
             provider.plan({"task": "book", "fields": {}}, "hi", {}, {})
+    assert provider.drain(1)
     assert sink.requests == 1 and len(values) == 2
     assert values[-1].input_tokens is None and values[-1].output_tokens is None
 
@@ -234,7 +236,13 @@ def test_http_completion_clock_excludes_decode_and_ledger_writes(monkeypatch):
     from analytics.telemetry import MeasurementSink, measurement_scope
 
     clock = [0.0]
-    monkeypatch.setattr(telemetry.time, "monotonic", lambda: clock[0])
+    from types import SimpleNamespace
+
+    import brain.provider_router as routing
+
+    fake_time = SimpleNamespace(monotonic=lambda: clock[0])
+    monkeypatch.setattr(telemetry, "time", fake_time)
+    monkeypatch.setattr(routing, "time", fake_time)
 
     def write(value):
         clock[0] += 10
@@ -248,8 +256,10 @@ def test_http_completion_clock_excludes_decode_and_ledger_writes(monkeypatch):
         return "decoded"
 
     sink = MeasurementSink(writer=write)
+    provider = model(serve)
     with measurement_scope(sink):
-        assert model(serve)._structured([], {}, "next_action", decode) == "decoded"
+        assert provider._structured([], {}, "next_action", decode) == "decoded"
+    assert provider.drain(1)
     assert sink.stages[0].duration_ms == pytest.approx(5)
 
 
@@ -269,6 +279,7 @@ def test_http_failure_preserves_actually_reported_usage_without_success_latency(
     )
     with measurement_scope(sink), pytest.raises(ProviderError):
         provider.plan({"task": "book", "fields": {}}, "hello", {}, {})
+    assert provider.drain(1)
     assert values[-1].status == "failure" and values[-1].input_tokens == 17
     assert sink.stages == [] and "private" not in repr(values)
 
@@ -315,3 +326,102 @@ def test_concurrent_duplicate_terminal_invocations_count_committed_status_once(
         'analytics_stage_events_total{stage="llm_completion",language="unknown",channel="text",status="started"} 2'
         in registry.render()
     )
+
+
+def test_provider_result_and_stage_do_not_wait_for_application_sql_lock(database, analytics_seed):
+    from sqlalchemy import select
+    from sqlalchemy.orm import Session
+
+    from analytics.models import CallRecord, UsageInvocation
+    from analytics.telemetry import MeasurementSink, database_writer, measurement_scope
+    from tests_analytics.conftest import insert_call
+
+    with database.begin() as db:
+        insert_call(db, analytics_seed)
+    write = database_writer(
+        lambda: Session(database), analytics_seed["tenant_a"], analytics_seed["session_a"]
+    )
+    writing = threading.Event()
+
+    def observed_write(value):
+        writing.set()
+        write(value)
+
+    provider = model(lambda request: answer())
+    sink = MeasurementSink(writer=observed_write)
+    with Session(database) as domain:
+        domain.begin()
+        domain.scalar(select(CallRecord).with_for_update())
+        started = time.monotonic()
+        with measurement_scope(sink):
+            assert provider.plan({"task": "book", "fields": {}}, "hi", {}, {}).name == "ask_caller"
+            assert len(sink.stages) == 1
+        assert time.monotonic() - started < 0.5
+        assert writing.wait(1)
+        assert not provider.drain(0.01)
+        domain.rollback()
+    assert provider.drain(2)
+    with Session(database) as db:
+        row = db.scalar(select(UsageInvocation))
+        assert row.status == "success" and row.input_tokens == 7
+    provider.close()
+
+
+def test_fallback_provenance_persists_independently_and_is_immutable(database, analytics_seed):
+    from sqlalchemy import select
+    from sqlalchemy.orm import Session
+
+    from analytics.models import UsageInvocation
+    from analytics.telemetry import MeasurementSink, database_writer, measurement_scope
+    from tests_analytics.conftest import insert_call
+
+    with database.begin() as db:
+        insert_call(db, analytics_seed)
+    writer = database_writer(
+        lambda: Session(database), analytics_seed["tenant_a"], analytics_seed["session_a"]
+    )
+    values = []
+
+    def write(value):
+        values.append(value)
+        writer(value)
+
+    provider = Nemotron(
+        Settings(
+            database_url="postgresql://unused",
+            jwt_secret="x" * 40,
+            llm_api_key="synthetic-primary",
+            llm_secondary_api_key="synthetic-secondary",
+            llm_secondary_base_url="https://secondary.invalid/v1",
+            llm_secondary_model="test/fallback",
+            llm_secondary_input_rate_usd_per_million="2",
+            llm_secondary_output_rate_usd_per_million="3",
+            _env_file=None,
+        ),
+        transport=httpx2.MockTransport(
+            lambda request: (
+                httpx2.Response(429) if request.url.host == "integrate.api.nvidia.com" else answer()
+            )
+        ),
+    )
+    with measurement_scope(MeasurementSink(writer=write)):
+        provider.plan({"task": "book", "fields": {}}, "hi", {}, {})
+    assert provider.drain(2)
+    with Session(database) as db:
+        rows = {row.route: row for row in db.scalars(select(UsageInvocation))}
+        assert set(rows) == {"primary", "secondary"}
+        assert rows["secondary"].fallback_from == rows["primary"].invocation_id
+        assert rows["secondary"].provider == "openai_compatible"
+        assert str(rows["secondary"].cost) == "0.000023000000"
+        assert rows["primary"].cost is None
+    # Neither duplicate starts nor terminal updates can rewrite provenance.
+    final = next(v for v in values if v.route == "secondary" and v.status == "success")
+    writer(
+        final.model_copy(update={"route": "primary", "fallback_from": uuid4(), "provider": "nim"})
+    )
+    with Session(database) as db:
+        row = db.scalar(
+            select(UsageInvocation).where(UsageInvocation.invocation_id == final.invocation_id)
+        )
+        assert row.route == "secondary" and row.fallback_from == final.fallback_from
+    provider.close()

@@ -91,3 +91,24 @@ def test_delayed_pre_end_cache_repair_cannot_restore_history():
     repair(store, sid, {"revision": 5, "history": ["stale private"]})
     assert store.load(sid) == {"revision": 6, "ended": True}
     store.delete(sid)
+
+
+def test_text_drain_new_only(seed):
+    settings = Settings(
+        database_url=APP_URL,
+        jwt_secret=SECRET,
+        runtime_secret="isolated-text-drain-runtime-secret-32chars",
+        valkey_url="redis://:phase2_valkey_test_only@127.0.0.1:56379/0",
+        _env_file=None,
+    )
+    app = create_app(settings, clock=lambda: NOW)
+    with TestClient(app) as client:
+        token = client.post(
+            "/auth/login", json={"email": "owner-a@example.com", "password": PASSWORD}
+        ).json()["access_token"]
+        client.headers["Authorization"] = "Bearer " + token
+        first = client.post("/agent-sessions", json={"agent_id": str(seed["agent_a"])}).json()
+        app.state.settings.drain_mode = True
+        blocked = client.post("/agent-sessions", json={"agent_id": str(seed["agent_a"])})
+        assert blocked.status_code == 503 and blocked.json()["error"]["code"] == "service_draining"
+        assert client.post("/agent-sessions/" + first["session_id"] + "/resume").status_code == 200

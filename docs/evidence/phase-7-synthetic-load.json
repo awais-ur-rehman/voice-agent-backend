@@ -1,0 +1,237 @@
+{
+  "adapters": {
+    "external_attempts": 0,
+    "planner_calls": 0
+  },
+  "correctness": true,
+  "persistence": {
+    "appointment_rows": 602,
+    "booking_receipts": 602,
+    "command_receipts": 601,
+    "exact_appointment_set_and_count": true,
+    "exact_booking_receipts": true,
+    "exact_command_receipt_count": true,
+    "exact_information_revisions": true,
+    "information_sessions": 21,
+    "race_winner_replay_exact": true
+  },
+  "prior_observations": [
+    {
+      "context": "Replay assertion compared transient history to SQL recovery state, and the module-run qualification marker was null.",
+      "exit": 1,
+      "receipt": "06",
+      "slot_search_p95_ms": 97.847865,
+      "successful_booking_p95_ms": 147.611272,
+      "workload_and_runtime_source_sha256": "103ae45d7b41226b2efa335dc9e66ec390890589c6e386f6566cc1e2fd455204"
+    },
+    {
+      "context": "The corrected replay assertion passed before the subsequent HTTP knowledge compatibility and cancellation changes.",
+      "exit": 0,
+      "receipt": "09",
+      "slot_search_p95_ms": 90.103234,
+      "successful_booking_p95_ms": 144.171875,
+      "workload_and_runtime_source_sha256": "9dfe42b9396eecb10b1976988213034f26e5acbe75064976799693ed486e9f29"
+    },
+    {
+      "context": "Corrected HTTP source passed correctness and slot search. Independent booking missed the strict p95 target before the locked-row reuse correction.",
+      "exit": 1,
+      "receipt": "25",
+      "slot_search_p95_ms": 113.983404,
+      "successful_booking_p95_ms": 156.389508,
+      "workload_and_runtime_source_sha256": "6ea83d0f258c17a5deef71eeb97586e4295f8cff71b6b50c672b24bd2af0baa5"
+    }
+  ],
+  "profile": {
+    "booking_days": 10,
+    "booking_slots_per_day": 3,
+    "clients": 20,
+    "clock_utc": "2026-11-09T00:00:00+00:00",
+    "p95_strictly_below_ms": 150,
+    "per_request_timeout_seconds": 10,
+    "quantile": "linear interpolation at (n - 1) * q",
+    "rounds": 30,
+    "synthetic_tenants": 2,
+    "transport": "in-process HTTP ASGI"
+  },
+  "qualification": false,
+  "raw_receipt_sha256": {
+    "06_exit": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+    "06_json": "3bc35f67df70654c7c3342634ba3469d14cb53b610fa66f88b05f9db68a6e61d",
+    "06_stderr": "51622cf5d0fe8662fe53e4d827d46df6c9b5ffdae1d3f9ef53a123d732ca5fd9",
+    "09_exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "09_json": "fd77c0d246b128339a5f7c6f3f21b4060e38eb5e250cefd2faa90efc932e79d5",
+    "09_stderr": "6ee65786f7371bb3d05298a9559545b02815b2bbb3bf0fe39748c5d290eff521",
+    "25_exit": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+    "25_json": "6bff1df1fc3f2e2476c5ab6dc6c19925c20d5caa76d6995660c5b1c42aeef179",
+    "25_stderr": "2b49027af8dec490831824dce3a5b52b98e9bf6f2c02935e9b3edd1f98afa30e",
+    "33_exit": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+    "33_json": "dde7b7db6dcb7dc1e0964b206886d96367242ddfd4930fed0315ba42a10a5916",
+    "33_stderr": "05a4a86d477b8ec46a932910269c272ae7c6c84b80d666f3015a96d874baf8e1"
+  },
+  "runtime": {
+    "checkout_head": "5bd83e81ee9794f7adecefcb817e76573b6e504a",
+    "host": {
+      "arch": "arm64",
+      "kernel": "27.2.0",
+      "logical_cpus": 8,
+      "os": "Darwin",
+      "python": "3.12.13"
+    },
+    "packages": {
+      "anyio": "4.15.1",
+      "fastapi": "0.162.0",
+      "httpx2": "2.16.0",
+      "psycopg": "3.3.6",
+      "sqlalchemy": "2.1.6",
+      "valkey": "6.2.0"
+    },
+    "postgres_server_version_num": "160015",
+    "source_file_count": 120,
+    "valkey": "8.1.11",
+    "workload_and_runtime_source_sha256": "eecf1639c9cb3e1c4af74dcc8fc556f68e316f8098a2c74d476d24573dbd4287"
+  },
+  "schema": "0018",
+  "workloads": {
+    "contention_winner_replay": {
+      "admitted": 1,
+      "attempted": 1,
+      "failures": {},
+      "p50_ms": 3.904291,
+      "p95_ms": 3.904291,
+      "p95_under_target": null,
+      "peak_admitted_in_flight": 1,
+      "peak_app_in_flight": 1,
+      "peak_attempted_in_flight": 1,
+      "statuses": {
+        "201": 1
+      }
+    },
+    "information_original": {
+      "admitted": 600,
+      "attempted": 600,
+      "failures": {},
+      "p50_ms": 220.251812,
+      "p95_ms": 277.868021,
+      "p95_under_target": null,
+      "peak_admitted_in_flight": 20,
+      "peak_app_in_flight": 20,
+      "peak_attempted_in_flight": 20,
+      "statuses": {
+        "200": 600
+      }
+    },
+    "information_replay": {
+      "admitted": 600,
+      "attempted": 600,
+      "failures": {},
+      "p50_ms": 106.47475,
+      "p95_ms": 142.85281,
+      "p95_under_target": null,
+      "peak_admitted_in_flight": 20,
+      "peak_app_in_flight": 20,
+      "peak_attempted_in_flight": 20,
+      "statuses": {
+        "200": 600
+      }
+    },
+    "slot_contention": {
+      "admitted": 20,
+      "attempted": 20,
+      "failures": {},
+      "p50_ms": 96.403333,
+      "p95_ms": 141.018857,
+      "p95_under_target": null,
+      "peak_admitted_in_flight": 20,
+      "peak_app_in_flight": 20,
+      "peak_attempted_in_flight": 20,
+      "statuses": {
+        "201": 1,
+        "409": 19
+      }
+    },
+    "slot_search": {
+      "admitted": 600,
+      "attempted": 600,
+      "failures": {},
+      "p50_ms": 67.699292,
+      "p95_ms": 105.791021,
+      "p95_under_target": true,
+      "peak_admitted_in_flight": 20,
+      "peak_app_in_flight": 20,
+      "peak_attempted_in_flight": 20,
+      "statuses": {
+        "200": 600
+      }
+    },
+    "successful_booking": {
+      "admitted": 600,
+      "attempted": 600,
+      "failures": {},
+      "p50_ms": 116.409687,
+      "p95_ms": 159.576139,
+      "p95_under_target": false,
+      "peak_admitted_in_flight": 20,
+      "peak_app_in_flight": 20,
+      "peak_attempted_in_flight": 20,
+      "statuses": {
+        "201": 600
+      }
+    },
+    "warmup_booking": {
+      "admitted": 1,
+      "attempted": 1,
+      "failures": {},
+      "p50_ms": 19.693958,
+      "p95_ms": 19.693958,
+      "p95_under_target": null,
+      "peak_admitted_in_flight": 1,
+      "peak_app_in_flight": 1,
+      "peak_attempted_in_flight": 1,
+      "statuses": {
+        "201": 1
+      }
+    },
+    "warmup_information": {
+      "admitted": 1,
+      "attempted": 1,
+      "failures": {},
+      "p50_ms": 36.557542,
+      "p95_ms": 36.557542,
+      "p95_under_target": null,
+      "peak_admitted_in_flight": 1,
+      "peak_app_in_flight": 1,
+      "peak_attempted_in_flight": 1,
+      "statuses": {
+        "200": 1
+      }
+    },
+    "warmup_replay": {
+      "admitted": 1,
+      "attempted": 1,
+      "failures": {},
+      "p50_ms": 12.694792,
+      "p95_ms": 12.694792,
+      "p95_under_target": null,
+      "peak_admitted_in_flight": 1,
+      "peak_app_in_flight": 1,
+      "peak_attempted_in_flight": 1,
+      "statuses": {
+        "200": 1
+      }
+    },
+    "warmup_search": {
+      "admitted": 1,
+      "attempted": 1,
+      "failures": {},
+      "p50_ms": 54.02525,
+      "p95_ms": 54.02525,
+      "p95_under_target": null,
+      "peak_admitted_in_flight": 1,
+      "peak_app_in_flight": 1,
+      "peak_attempted_in_flight": 1,
+      "statuses": {
+        "200": 1
+      }
+    }
+  }
+}

@@ -161,7 +161,9 @@ class UsageObservation(InternalContract):
     """
 
     invocation_id: UUID
-    provider: Literal["nim"] = "nim"
+    provider: Literal["nim", "openai_compatible"] = "nim"
+    route: Literal["primary", "secondary"] = "primary"
+    fallback_from: UUID | None = None
     model: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_./:-]+$")
     status: InvocationStatus
     started_at: AwareDatetime

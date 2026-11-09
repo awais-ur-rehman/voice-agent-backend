@@ -1,0 +1,144 @@
+{
+  "date": "2026-11-09",
+  "scope": "local_owner_cpu",
+  "backend_start_head": "5c8f8b846ba79f00f37a4c50d18819f69d13ab2a",
+  "frontend_product_head": "94ddc2e6b041908896e0b1884d862a009e640289",
+  "backups": {
+    "A": {
+      "schema": "0016",
+      "backup_wall_seconds": 1.179828,
+      "capture_seconds": 1.043,
+      "verify_wall_seconds": 0.001528,
+      "snapshot_age_at_verification_seconds": 0.640502,
+      "trusted_verify": true
+    },
+    "B": {
+      "schema": "0018",
+      "backup_wall_seconds": 1.077157,
+      "capture_seconds": 0.926,
+      "verify_wall_seconds": 0.001215,
+      "snapshot_age_at_verification_seconds": 0.568971,
+      "trusted_verify": true
+    }
+  },
+  "rollout": {
+    "migration_wall_seconds": 1.753204,
+    "final_api_refresh_wall_seconds": 1.074338,
+    "final_worker_refresh_wall_seconds": 0.753249,
+    "images": {
+      "api": "sha256:5d238677b1e2e58d9363e2fbcc6990aa8be31b75e5b54994061c9e7a16bcbc5c",
+      "analytics": "sha256:ad2fee939b779f60ea7160acc545e802585bf636281450b046f92fe6d2575503"
+    },
+    "checked_image_context_sha256": "3ce71083f2387760f9627340f54e8e01edb8bc5578b0caeabc26bee8cb790479",
+    "checked_image_context_paths": 141,
+    "checked_image_guards": 11,
+    "running_copied_path_parity": {
+      "api": 136,
+      "worker": 139
+    },
+    "http_statuses": {
+      "liveness": 200,
+      "oversize_query": 414,
+      "oversize_rejected_before_auth": 413,
+      "private_origin_preflight": 200,
+      "readiness": 200,
+      "unauthenticated_private_metrics": 403,
+      "unauthenticated_staff": 401,
+      "unlisted_origin_preflight": 400
+    },
+    "http_security_headers_and_request_ids": true,
+    "owner_database_and_cache_identity_preserved": true,
+    "private_configuration_preserved": true,
+    "worker_fresh": true,
+    "frontend_5176_ready": true,
+    "frontend_exact_served_bytes": true
+  },
+  "recovery": {
+    "outer_wall_seconds": 21.124841,
+    "inner_restore_seconds": 17.726,
+    "snapshot_age_at_start_seconds": 482.765526,
+    "snapshot_age_at_end_seconds": 503.890368,
+    "verified_blobs": 6,
+    "remaining_recovery_container_count": 0,
+    "remaining_scratch_count": 0,
+    "verified": true,
+    "schema": "0018",
+    "scope": "isolated_local_cpu",
+    "public_tables_compared": 42,
+    "negative_rls_tables_per_scope": 38,
+    "negative_rls_scopes": [
+      "no_tenant",
+      "absent_tenant"
+    ],
+    "runtime_exact_tmpfs_proven": true,
+    "resources": {
+      "docker_headroom_bytes": 3141276140,
+      "docker_memory_budget_bytes": 4108828672,
+      "docker_reported_used_bytes": 967552532,
+      "host_available_samples_bytes": [
+        1693237248,
+        1697644544
+      ]
+    }
+  },
+  "failed_drill_observations": [
+    {
+      "outcome": "docker_tmpfs_descriptor_representation",
+      "outer_wall_seconds": 3.243844,
+      "target_and_scratch_cleaned": true
+    },
+    {
+      "outcome": "restored_state_comparison",
+      "outer_wall_seconds": 14.218203,
+      "target_and_scratch_cleaned": true
+    },
+    {
+      "outcome": "extension_owner_diagnostic",
+      "outer_wall_seconds": 15.037873,
+      "target_and_scratch_cleaned": true
+    },
+    {
+      "outcome": "table_acl_diagnostic",
+      "outer_wall_seconds": 14.199522,
+      "target_and_scratch_cleaned": true
+    }
+  ],
+  "source": {
+    "protected_fingerprints_equal": true,
+    "role_flags_and_password_hashes_equal": true,
+    "source_blob_receipts_and_bytes_equal": true,
+    "source_blobs": 6,
+    "dental_queued": 24,
+    "dental_vectors": 0,
+    "dental_generations": 0,
+    "browser_auth_row_deltas": {
+      "login_admission_bucket": 1,
+      "refresh_token": 1
+    }
+  },
+  "actual_browser": {
+    "passed": 1,
+    "test_seconds": 2.9,
+    "playwright_seconds": 6.6,
+    "console_errors": 0,
+    "console_warnings": 0,
+    "post_login_mutations": 0,
+    "local_storage_keys": 0,
+    "session_storage_keys": 0,
+    "cohort": {
+      "text": 5,
+      "voice": 0
+    },
+    "capture_off": true,
+    "transcript_rows": 0
+  },
+  "binding_synthetic_load": {
+    "search_p95_ms": 105.791021,
+    "booking_p95_ms": 159.576139,
+    "strict_target_ms": 150,
+    "correctness_passed": true,
+    "qualification_passed": false,
+    "peak_admitted_each_measured_group": 20
+  },
+  "full_phase7_qualification_passed": false
+}

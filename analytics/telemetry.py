@@ -51,12 +51,26 @@ class MeasurementSink:
             # Observation availability never changes a clinical command; no exception/body logging.
             pass
 
-    def start(self, model, input_rate=None, output_rate=None):
+    def reserve(
+        self,
+        model,
+        input_rate=None,
+        output_rate=None,
+        *,
+        invocation_id=None,
+        provider="nim",
+        route="primary",
+        fallback_from=None,
+    ):
+        """Reserve only in memory at actual HTTP dispatch; never calls a writer."""
         with self.lock:
             self.requests += 1
         try:
             value = UsageObservation(
-                invocation_id=uuid4(),
+                invocation_id=invocation_id or uuid4(),
+                provider=provider,
+                route=route,
+                fallback_from=fallback_from,
                 model=model,
                 status="started",
                 started_at=datetime.now(UTC),
@@ -65,10 +79,37 @@ class MeasurementSink:
             )
         except ValidationError:
             return None
-        self.emit(value)
         return value, time.monotonic()
 
+    def start(self, model, input_rate=None, output_rate=None):
+        measurement = self.reserve(model, input_rate, output_rate)
+        if measurement is not None:
+            self.emit(measurement[0])
+        return measurement
+
     def finish(self, value, started, status, usage, *, completed_monotonic=None, completed_at=None):
+        completed = self.complete(
+            value,
+            started,
+            status,
+            usage,
+            completed_monotonic=completed_monotonic,
+            completed_at=completed_at,
+        )
+        self.emit(completed)
+
+    def complete(
+        self,
+        value,
+        started,
+        status,
+        usage,
+        *,
+        completed_monotonic=None,
+        completed_at=None,
+        record_stage=True,
+    ):
+        """Finish in memory before caller publication; persistence is separate."""
         fields = {}
         if isinstance(usage, dict):
             for source, target in [
@@ -97,14 +138,13 @@ class MeasurementSink:
             ) / Decimal(1000000)
             if cost <= Decimal(1000000000000):
                 fields["cost"] = cost
-        self.emit(
-            value.model_copy(
-                update=fields | {"status": status, "completed_at": max(completed, value.started_at)}
-            )
+        observation = value.model_copy(
+            update=fields | {"status": status, "completed_at": max(completed, value.started_at)}
         )
         with self.lock:
             if (
-                not self.closed
+                record_stage
+                and not self.closed
                 and status in {"success", "malformed"}
                 and 0 <= duration <= 600000
                 and len(self.stages) < 32
@@ -119,6 +159,8 @@ class MeasurementSink:
                         observed_at=completed,
                     )
                 )
+
+        return observation
 
 
 @contextmanager
@@ -172,6 +214,8 @@ def database_writer(factory, tenant_id, session_id):
                             "invocation_id",
                             "model",
                             "provider",
+                            "route",
+                            "fallback_from",
                             "started_at",
                         }
                     },

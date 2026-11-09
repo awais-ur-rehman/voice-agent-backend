@@ -1,10 +1,13 @@
 """Authenticated raw uploads and manager-controlled source lifecycle."""
 
+import asyncio
 import time
+from collections.abc import Callable
 from dataclasses import asdict
 from typing import Annotated
 from uuid import UUID, uuid4
 
+from anyio import CancelScope
 from fastapi import APIRouter, Depends, Header, Query, Request
 from sqlalchemy import event, select, text
 from sqlalchemy.orm import Session
@@ -133,8 +136,29 @@ def preflight(db, agent_id, source_id, body, key):
     return None
 
 
+async def upload_sql[Result](operation: Callable[..., Result], *args: object) -> Result:
+    """Join the SQL worker before cancellation can unwind its request Session."""
+    worker = asyncio.create_task(run_in_threadpool(operation, *args))
+    try:
+        return await asyncio.shield(worker)
+    except asyncio.CancelledError:
+        # AnyIO scope cancellation and repeated task.cancel() must both leave
+        # the dependency alive until the worker releases the connection.
+        with CancelScope(shield=True):
+            while not worker.done():
+                try:
+                    await asyncio.shield(worker)
+                except asyncio.CancelledError:
+                    continue
+                except Exception:
+                    break
+        if not worker.cancelled():
+            worker.exception()
+        raise
+
+
 async def receive(request, db, user, agent_id, source_id, body, key):
-    existing = await run_in_threadpool(preflight, db, agent_id, source_id, body, key)
+    existing = await upload_sql(preflight, db, agent_id, source_id, body, key)
     if existing is not None:
         return existing
     # Authentication/ownership/replay preflight precedes stream. No row lock is held during IO.
@@ -160,13 +184,13 @@ async def receive(request, db, user, agent_id, source_id, body, key):
 
     event.listen(db, "after_transaction_end", release)
     # Server-held fencing also covers a lost connection with unknown commit outcome.
-    await run_in_threadpool(
+    await upload_sql(
         db.execute,
         text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 7241))"),
         {"key": pending.key},
     )
     # A complete orphan is deliberately retained if commit outcome is unknown; cleanup uses grace.
-    return await run_in_threadpool(
+    return await upload_sql(
         sources.mutate,
         db,
         user,

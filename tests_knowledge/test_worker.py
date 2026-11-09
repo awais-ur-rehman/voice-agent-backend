@@ -913,3 +913,37 @@ def test_actual_upload_cancellation_waits_for_metadata_sql_and_releases_resource
             transaction.rollback()
         barrier.close()
         event.remove(engine, "before_cursor_execute", before_execute)
+
+
+def test_upload_worker_settles_after_repeated_request_cancellation():
+    import asyncio
+
+    from knowledge.routes import upload_sql
+
+    entered, release, finished = threading.Event(), threading.Event(), threading.Event()
+
+    def sql():
+        entered.set()
+        try:
+            assert release.wait(5)
+            raise RuntimeError("synthetic worker error")
+        finally:
+            finished.set()
+
+    async def run():
+        task = asyncio.create_task(upload_sql(sql))
+        try:
+            assert await asyncio.to_thread(entered.wait, 2)
+            task.cancel("first cancellation")
+            await asyncio.sleep(0)
+            task.cancel("second cancellation")
+            await asyncio.sleep(0)
+            assert not task.done()
+            assert not finished.is_set()
+        finally:
+            release.set()
+        with pytest.raises(asyncio.CancelledError, match="first cancellation"):
+            await asyncio.wait_for(task, timeout=2)
+        assert finished.is_set()
+
+    asyncio.run(run())

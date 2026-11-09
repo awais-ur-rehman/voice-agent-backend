@@ -1,12 +1,9 @@
 import asyncio
-import json
 import logging
-import time
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
-from uuid import uuid4
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -24,6 +21,7 @@ from brain.store import StateStore
 from . import appointments, auth, catalog
 from .config import Settings, load_settings
 from .errors import AppError
+from .http_security import RequestLimits, validation_fields
 
 logger = logging.getLogger("scheduler.requests")
 
@@ -44,6 +42,21 @@ def create_app(settings: Settings | None = None, clock=None) -> FastAPI:
         max_overflow=20,
     )
 
+    # A separate bounded pool prevents lock-holding business requests from
+    # exhausting the connections needed to finish their own admission checks.
+    admission_engine = create_engine(
+        settings.database_url.get_secret_value(),
+        pool_pre_ping=True,
+        hide_parameters=True,
+        pool_size=2,
+        max_overflow=0,
+        pool_timeout=1,
+        connect_args={
+            "connect_timeout": 2,
+            "options": "-c statement_timeout=1000 -c lock_timeout=500",
+        },
+    )
+
     @asynccontextmanager
     async def lifespan(app):
         try:
@@ -56,11 +69,29 @@ def create_app(settings: Settings | None = None, clock=None) -> FastAPI:
                         "SELECT CASE WHEN to_regclass('public.tenants') IS NULL THEN NULL ELSE EXISTS (SELECT 1 FROM pg_tables WHERE schemaname='public' AND tableowner=current_user) END"
                     )
                 ).scalar()
-                if role.rolsuper or role.rolbypassrls or owner or owner is None:
+                namespace_owner = conn.scalar(
+                    text("""
+                    WITH actor AS (SELECT oid FROM pg_roles WHERE rolname=current_user)
+                    SELECT EXISTS (
+                        SELECT 1 FROM pg_database
+                        WHERE datname=current_database() AND datdba=(SELECT oid FROM actor)
+                    ) OR EXISTS (
+                        SELECT 1 FROM pg_namespace WHERE nspname='public' AND (
+                            nspowner=(SELECT oid FROM actor)
+                            OR (nspowner='pg_database_owner'::regrole AND EXISTS (
+                                SELECT 1 FROM pg_database WHERE datname=current_database()
+                                AND datdba=(SELECT oid FROM actor)
+                            ))
+                        )
+                    )
+                """)
+                )
+                if role.rolsuper or role.rolbypassrls or owner or owner is None or namespace_owner:
                     raise RuntimeError(
                         "Application database role must be non-owner, NOSUPERUSER and NOBYPASSRLS"
                     )
         except Exception:
+            admission_engine.dispose()
             engine.dispose()
             raise
         cleanup_stop = asyncio.Event()
@@ -78,7 +109,19 @@ def create_app(settings: Settings | None = None, clock=None) -> FastAPI:
             if getattr(app.state, "brain_store", None):
                 app.state.brain_store.client.close()
             app.state.brain_planner.close()
-            engine.dispose()
+            try:
+                # The provider drain has its own hard deadline; offload the wait
+                # so callbacks and concurrent cleanup can progress on this loop.
+                completed = await asyncio.to_thread(
+                    app.state.brain_planner.drain, settings.shutdown_drain_seconds
+                )
+                if not completed:
+                    logger.warning("provider_shutdown_drain_incomplete")
+            except Exception:
+                logger.warning("provider_shutdown_drain_failed")
+            finally:
+                admission_engine.dispose()
+                engine.dispose()
 
     app = FastAPI(title="Voice Agent Scheduling API", version="0.2.0", lifespan=lifespan)
     from analytics.prometheus import Registry
@@ -87,6 +130,7 @@ def create_app(settings: Settings | None = None, clock=None) -> FastAPI:
     app.state.analytics_metrics = Registry()
     app.include_router(metrics_router)
     app.state.settings, app.state.engine = settings, engine
+    app.state.admission_factory = sessionmaker(admission_engine, expire_on_commit=False)
     app.state.brain_planner = Nemotron(settings)
     app.state.brain_store = (
         StateStore(
@@ -116,17 +160,18 @@ def create_app(settings: Settings | None = None, clock=None) -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
+        expose_headers=["Retry-After", "X-Request-ID"],
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Content-SHA256"],
     )
 
     @app.exception_handler(AppError)
     async def app_error(request, exc):
-        return JSONResponse(exc.body(), status_code=exc.status)
+        return JSONResponse(exc.body(), status_code=exc.status, headers=exc.headers())
 
     @app.exception_handler(RequestValidationError)
     async def invalid(request, exc):
-        fields = [".".join(str(v) for v in err["loc"]) for err in exc.errors()]
+        fields = validation_fields(request, exc.errors())
         return JSONResponse(
             AppError("validation_error", 422, details={"fields": fields}).body(), status_code=422
         )
@@ -144,34 +189,7 @@ def create_app(settings: Settings | None = None, clock=None) -> FastAPI:
         )
         return JSONResponse(error.body(), status_code=error.status)
 
-    @app.middleware("http")
-    async def request_log(request: Request, call_next):
-        started, request_id = time.perf_counter(), str(uuid4())
-        response = await call_next(request)
-        response.headers["X-Request-ID"] = request_id
-        if request.url.path.startswith(
-            ("/dashboard/analytics", "/dashboard/calls", "/private/analytics")
-        ):
-            response.headers["Cache-Control"] = "no-store"
-        route = request.scope.get("route")
-        try:
-            app.state.analytics_metrics.observe(
-                getattr(route, "path", ""), time.perf_counter() - started, response.status_code
-            )
-        except Exception:
-            pass
-        logger.info(
-            json.dumps(
-                {
-                    "request_id": request_id,
-                    "method": request.method,
-                    "route": getattr(route, "path", "unmatched"),
-                    "status": response.status_code,
-                    "duration_ms": round((time.perf_counter() - started) * 1000, 2),
-                }
-            )
-        )
-        return response
+    app.add_middleware(RequestLimits, cors_origins=settings.cors_origins)
 
     @app.get("/health/live", tags=["Health"])
     def live():
@@ -179,6 +197,8 @@ def create_app(settings: Settings | None = None, clock=None) -> FastAPI:
 
     @app.get("/health/ready", tags=["Health"])
     def ready():
+        if settings.drain_mode:
+            raise AppError("service_draining", 503, retry_after=3)
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         if app.state.brain_store:

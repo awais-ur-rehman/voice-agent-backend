@@ -135,13 +135,17 @@ def idempotent(
     return response
 
 
-def locks(db: Session, patient_id: UUID, provider_ids: set[UUID]):
+def locks(
+    db: Session, patient_id: UUID, provider_ids: set[UUID]
+) -> tuple[Patient, dict[UUID, Provider]]:
     from .dashboard.patients import canonical_patient
 
     patient = get(db, Patient, patient_id)
-    canonical_patient(db, patient.tenant_id, patient_id, lock=True)
-    for provider_id in sorted(provider_ids):
-        get(db, Provider, provider_id, True)
+    canonical = canonical_patient(db, patient.tenant_id, patient_id, lock=True)
+    providers = {
+        provider_id: get(db, Provider, provider_id, True) for provider_id in sorted(provider_ids)
+    }
+    return canonical, providers
 
 
 def available(
@@ -214,13 +218,15 @@ def alternate(db, user, service_id, provider_id, start, now):
 
 
 def book_transaction(db, user, body: Book, now):
-    locks(db, body.patient_id, {body.provider_id})
-    tenant, provider, service = (
-        get(db, Tenant, user.tenant_id),
-        get(db, Provider, body.provider_id),
-        get(db, Service, body.service_id),
+    canonical, providers = locks(db, body.patient_id, {body.provider_id})
+    tenant = get(db, Tenant, user.tenant_id)
+    provider = providers[body.provider_id]
+    service = get(db, Service, body.service_id)
+    # A merged request still checks the requested original under the merge gate.
+    patient = (
+        canonical if canonical.id == body.patient_id else get(db, Patient, body.patient_id, True)
     )
-    if get(db, Patient, body.patient_id, True).merged_into_id is not None:
+    if patient.merged_into_id is not None:
         raise AppError("patient_merged", 409)
     available(db, tenant, body.patient_id, provider, service, body.starts_at, now)
     row = new_appointment(db, user, body.patient_id, provider, service, body.starts_at)

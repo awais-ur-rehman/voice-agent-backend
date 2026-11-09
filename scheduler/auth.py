@@ -1,4 +1,3 @@
-import hashlib
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -8,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from sqlalchemy import select, text, update
 from sqlalchemy.orm import Session
 
+from .admission import admit_auth, bucket_key, transport_ip
 from .contracts import ClinicPatch, Name
 from .db import Principal, principal, session, tenant_context
 from .errors import AppError
@@ -64,6 +64,7 @@ def issue(db, user, settings, family_id=None):
 
 @router.post("/login", response_model=Tokens)
 def login(body: Login, request: Request, db: Session = Depends(session)):
+    admit_auth(request, "login")
     user = (
         db.execute(text("SELECT * FROM auth_lookup(:email)"), {"email": str(body.email).lower()})
         .mappings()
@@ -104,6 +105,7 @@ def find_refresh(db: Session, raw: str):
 
 @router.post("/refresh", response_model=Tokens)
 def refresh(body: Refresh, request: Request, db: Session = Depends(session)):
+    admit_auth(request, "refresh")
     row = find_refresh(db, body.refresh_token)
     if row is None:
         return JSONResponse(AppError("unauthorized", 401).body(), status_code=401)
@@ -157,13 +159,11 @@ class Register(Login):
 def register(body: Register, request: Request, db: Session = Depends(session)):
     if not request.app.state.settings.registration_enabled:
         raise AppError("registration_disabled", 403)
-    bucket = hashlib.sha256(
-        (request.client.host if request.client else "unknown").encode()
-    ).hexdigest()
+    bucket = bucket_key(request.app.state.settings, "registration", transport_ip(request))
     with request.app.state.session_factory() as limiter, limiter.begin():
         admitted = limiter.scalar(text("SELECT registration_admit(:bucket)"), {"bucket": bucket})
     if not admitted:
-        raise AppError("rate_limited", 429)
+        raise AppError("rate_limited", 429, retry_after=3600)
     row = db.execute(
         text("SELECT * FROM provision_clinic(:name,:zone,:email,:hash,:display)"),
         {
