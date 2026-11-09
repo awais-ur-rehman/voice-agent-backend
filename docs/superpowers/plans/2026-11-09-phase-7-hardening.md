@@ -74,10 +74,10 @@
 
 **Interfaces:** Consume Task2 existingerror envelope+Retry-After1–3600. Produce a shared bounded error-body reader if bothclients need it; DashboardError/ApiError exposes validated optional retryAfterSeconds and allowlisted genericmessages. Existing generatedcontracts/operations/session.request signatures unchanged;401singleflightrecovery policy unchanged.
 
-- [ ] RED readstreamhardcap16KiB (legacyvoice2KiBmayretainstrictercap), chunked/infinitebodycancel, hostilebodymessage/fieldkey/HTML/script/signedURL, invalidRetryAfter,429/503/hardeningcodes, existingfield/alternatives/conflict/permission behavior. Sessionlogout/late401/rate-limit/abort cannot replaymutation or restoreidentity; zerostorage/logPII.
-- [ ] Implement bounded reader/cancel and safe code-owned messages/validatedfield+alternatives mapping; parseintegerRetryAfter1–3600 only, visiblehumanretrynotice without timers or auto credential/mutation replay. Keep existing keyboard/responsiveforms. Usefrontend-design/Vercelguidance ifproductUIchangesneeded.
-- [ ] GREEN fullfrontend `npm run check` and maintainedaffected/browser hardening fixtures1440/390; visuallyinspect screenshots, no overflow/focusregressions/storage, preserve deliberateexistingwarningqualifications. Do not rerunbackend/native here.
-- [ ] Freeze/report/commit ownfrontend only. Record exactlinkage to backenderrorcontract andcopy, no patientfixtures/ownersecretreads. Controllerownsindependentreview.
+- [x] RED readstreamhardcap16KiB (legacyvoice2KiBmayretainstrictercap), chunked/infinitebodycancel, hostilebodymessage/fieldkey/HTML/script/signedURL, invalidRetryAfter,429/503/hardeningcodes, existingfield/alternatives/conflict/permission behavior. Sessionlogout/late401/rate-limit/abort cannot replaymutation or restoreidentity; zerostorage/logPII.
+- [x] Implement bounded reader/cancel and safe code-owned messages/validatedfield+alternatives mapping; parseintegerRetryAfter1–3600 only, visiblehumanretrynotice without timers or auto credential/mutation replay. Keep existing keyboard/responsiveforms. Usefrontend-design/Vercelguidance ifproductUIchangesneeded.
+- [x] GREEN fullfrontend `npm run check` and maintainedaffected/browser hardening fixtures1440/390; visuallyinspect screenshots, no overflow/focusregressions/storage, preserve deliberateexistingwarningqualifications. Do not rerunbackend/native here.
+- [x] Freeze/report/commit ownfrontend only. Record exactlinkage to backenderrorcontract andcopy, no patientfixtures/ownersecretreads. Controllerownsindependentreview.
 
 ### Task 5: CPU load, chaos and frozen verification gates
 
