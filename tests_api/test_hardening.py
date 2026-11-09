@@ -709,3 +709,73 @@ def test_expired_reset_and_concurrent_denials_keep_one_window(client, database):
             text("SELECT hits,expires_at FROM admission_buckets WHERE bucket_key=:key"),
             {"key": key},
         ).one() == (11, expiry)
+
+
+@pytest.mark.parametrize(
+    ("method", "path_suffix", "chunks", "length", "content_type", "expected"),
+    [
+        ("POST", "/sources", (65537,), None, None, 200),
+        ("PUT", "/sources/{source}", (65537,), None, None, 200),
+        ("PATCH", "/sources/{source}", (65537,), None, None, 413),
+        ("POST", "/sources/{source}", (65537,), None, None, 413),
+        ("POST", "/sources/extra", (65537,), None, None, 413),
+        ("POST", "/sources/", (65537,), None, None, 413),
+        ("POST", "/sources", (3 * 1024**2, 3 * 1024**2), None, None, 200),
+        ("POST", "/sources", (3 * 1024**2, 3 * 1024**2 + 1), None, None, 413),
+        ("PUT", "/sources/{source}", (1,), 6 * 1024**2 + 1, None, 413),
+        ("PUT", "/sources/{source}", (65537,), 65538, None, 400),
+        ("POST", "/sources", (65537,), None, b"application/json; charset=utf-8", 200),
+        ("POST", "/sources", (65537,), None, b"application/vnd.synthetic+json", 200),
+        ("POST", "/sources", (65537,), None, b"application/octet-stream", 413),
+    ],
+)
+def test_larger_knowledge_json_cap_has_exact_routes_and_framing(
+    method, path_suffix, chunks, length, content_type, expected
+):
+    from scheduler.http_security import RequestLimits
+
+    path = f"/dashboard/agents/{uuid4()}/knowledge" + path_suffix.format(source=uuid4())
+    downstream_bytes = []
+
+    async def endpoint(scope, receive, send):
+        downstream_bytes.append(len((await receive())["body"]))
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"{}"})
+
+    async def run():
+        messages = []
+        received = 0
+
+        async def receive():
+            nonlocal received
+            size = chunks[received]
+            received += 1
+            return {
+                "type": "http.request",
+                "body": b"x" * size,
+                "more_body": received < len(chunks),
+            }
+
+        async def send(message):
+            messages.append(message)
+
+        headers = [] if length is None else [(b"content-length", str(length).encode())]
+        if content_type is not None:
+            headers.append((b"content-type", content_type))
+        await RequestLimits(endpoint)(
+            {
+                "type": "http",
+                "method": method,
+                "path": path,
+                "headers": headers,
+                "query_string": b"",
+            },
+            receive,
+            send,
+        )
+        if length is not None and length > 6 * 1024**2:
+            assert received == 0
+        return messages[0]["status"]
+
+    assert asyncio.run(run()) == expected
+    assert downstream_bytes == ([sum(chunks)] if expected == 200 else [])

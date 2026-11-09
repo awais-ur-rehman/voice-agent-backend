@@ -510,8 +510,10 @@ def test_file_revision_recheck_during_stream_and_retry(owner, tmp_path, database
         assert first["id"].replace("-", "") in key
 
 
-def test_storage_quota_reserve_symlinks_and_disconnect(owner, tmp_path, monkeypatch):
+def test_storage_quota_reserve_symlinks_and_disconnect(owner, tmp_path, monkeypatch, database):
     import asyncio
+    import io
+    import logging
 
     import httpx2
 
@@ -534,24 +536,43 @@ def test_storage_quota_reserve_symlinks_and_disconnect(owner, tmp_path, monkeypa
     assert owner.post(url, content=data, headers=headers).status_code == 503
     (tmp_path / "unexpected-link").unlink()
 
+    marker = "synthetic-hostile-disconnection"
+    stream = io.StringIO()
+    logger = logging.getLogger("scheduler.requests")
+    monkeypatch.setattr(logger, "handlers", [logging.StreamHandler(stream)])
+
     async def run():
         async def body():
             yield b"a"
-            raise RuntimeError("synthetic disconnection")
+            raise RuntimeError(marker)
 
         async with httpx2.AsyncClient(
             transport=httpx2.ASGITransport(app=owner.app), base_url="http://test"
         ) as api:
-            with pytest.raises((RuntimeError, ExceptionGroup)):
-                await api.post(
-                    url,
-                    headers=headers | {"Authorization": owner.headers["Authorization"]},
-                    content=body(),
-                )
+            response = await api.post(
+                url,
+                headers=headers | {"Authorization": owner.headers["Authorization"]},
+                content=body(),
+            )
+            assert response.status_code == 500
+            assert response.json()["error"]["code"] == "internal_error"
+            assert response.headers["cache-control"] == "no-store"
+            assert marker not in response.text
 
     asyncio.run(run())
+    assert marker not in stream.getvalue()
     assert not list(tmp_path.glob("*.tmp"))
     assert not list(tmp_path.glob("*.blob"))
+    with database.connect() as conn:
+        assert conn.scalar(text("SELECT count(*) FROM knowledge_sources")) == 0
+        assert conn.scalar(text("SELECT count(*) FROM knowledge_jobs")) == 0
+        assert (
+            conn.scalar(
+                text("SELECT count(*) FROM idempotency_records WHERE key=:key"),
+                {"key": headers["Idempotency-Key"]},
+            )
+            == 0
+        )
 
 
 def test_api_role_cannot_change_source_kind(owner, tmp_path, seed):
@@ -1216,3 +1237,24 @@ def test_activation_guard_survives_0008_downgrade(owner, tmp_path, database, see
         _assert_activation_required_arguments(owner, tmp_path, database, seed)
     finally:
         command.upgrade(cfg, "head")
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"kind": "text", "name": "Long synthetic note", "text": "ا" * 1_000_000, "format": "txt"},
+        {"kind": "faq", "name": "Long synthetic FAQ", "question": "When?", "answer": "ا" * 100_000},
+    ],
+)
+def test_existing_large_inline_knowledge_fields_survive_create_and_edit(owner, tmp_path, body):
+    base = setup_api(owner, tmp_path)
+    created = write(owner, base + "/sources", body)
+    assert created.status_code == 201
+    updated = write(
+        owner,
+        base + "/sources/" + created.json()["id"],
+        body | {"revision": 1, "name": "Updated synthetic source"},
+        method="put",
+    )
+    assert updated.status_code == 200
+    assert updated.json()["revision"] == 2

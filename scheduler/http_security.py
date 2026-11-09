@@ -14,16 +14,43 @@ from .errors import AppError
 
 logger = logging.getLogger("scheduler.requests")
 BODY_LIMIT = 64 * 1024
+KNOWLEDGE_JSON_LIMIT = 6 * 1024 * 1024
 QUERY_LIMIT = 8 * 1024
 HEADER_LIMIT = 32 * 1024
 _UUID = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
 _BINARY_UPLOAD = re.compile(rf"/dashboard/agents/{_UUID}/knowledge/sources/upload\Z")
 _BINARY_REPLACE = re.compile(rf"/dashboard/agents/{_UUID}/knowledge/sources/{_UUID}/content\Z")
+_KNOWLEDGE_CREATE = re.compile(rf"/dashboard/agents/{_UUID}/knowledge/sources\Z")
+_KNOWLEDGE_UPDATE = re.compile(rf"/dashboard/agents/{_UUID}/knowledge/sources/{_UUID}\Z")
 SECURITY_HEADERS = {
     "cache-control": "no-store",
     "x-content-type-options": "nosniff",
     "referrer-policy": "no-referrer",
 }
+
+
+def _body_limit(method: str, path: str, headers: list[tuple[bytes, bytes]]) -> int:
+    if not (
+        method == "POST"
+        and _KNOWLEDGE_CREATE.fullmatch(path)
+        or method == "PUT"
+        and _KNOWLEDGE_UPDATE.fullmatch(path)
+    ):
+        return BODY_LIMIT
+    media_types = [
+        value.split(b";", 1)[0].strip().lower()
+        for key, value in headers
+        if key.lower() == b"content-type"
+    ]
+    if not media_types:  # FastAPI also treats an absent Content-Type as JSON.
+        return KNOWLEDGE_JSON_LIMIT
+    if len(media_types) == 1 and (
+        media_types[0] == b"application/json"
+        or media_types[0].startswith(b"application/")
+        and media_types[0].endswith(b"+json")
+    ):
+        return KNOWLEDGE_JSON_LIMIT
+    return BODY_LIMIT
 
 
 def validation_fields(request, errors) -> list[str]:
@@ -157,7 +184,8 @@ class RequestLimits:
             if binary:
                 await self.app(scope, receive, secure_send)
             else:
-                if length is not None and length > BODY_LIMIT:
+                limit = _body_limit(scope["method"], path, headers)
+                if length is not None and length > limit:
                     raise AppError("request_too_large", 413)
                 body = bytearray()
                 while True:
@@ -165,7 +193,7 @@ class RequestLimits:
                     if message["type"] == "http.disconnect":
                         return
                     chunk = message.get("body", b"")
-                    if len(body) + len(chunk) > BODY_LIMIT:
+                    if len(body) + len(chunk) > limit:
                         raise AppError("request_too_large", 413)
                     body.extend(chunk)
                     if not message.get("more_body", False):
