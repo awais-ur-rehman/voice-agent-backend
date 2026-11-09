@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, develop, 'feat/**', 'fix/**', 'docs/**']
   pull_request:
-    branches: [main, develop, 'feat/phase-4-dashboard', 'feat/phase-5-knowledge']
+    branches: [main, develop, 'feat/phase-4-dashboard', 'feat/phase-5-knowledge', 'feat/phase-6-analytics']
 
 permissions:
   contents: read
@@ -41,6 +41,7 @@ jobs:
           --health-cmd "pg_isready -U postgres -d voice_agent_test"
           --health-interval 2s --health-timeout 3s --health-retries 30
     env:
+      RECOVERY_SQL_TEST: '1'
       TEST_VALKEY_URL: valkey://:phase2_valkey_test_only@127.0.0.1:56379/0
       TEST_DATABASE_URL: postgresql+psycopg://postgres:phase1_test_only@127.0.0.1:5432/voice_agent_test
       TEST_APP_DATABASE_URL: postgresql+psycopg://scheduler_app:phase1_app_test_only@127.0.0.1:5432/voice_agent_test
@@ -56,6 +57,7 @@ jobs:
       - run: uv run --no-sync ruff format --check .
       - run: uv run --no-sync mypy scheduler brain knowledge knowledge_worker analytics analytics_worker
       - run: uv run --no-sync mypy --follow-untyped-imports embedding_service scripts/qualify_knowledge.py
+      - run: uv run --no-sync mypy --explicit-package-bases scripts/recovery.py scripts/recovery_bundle.py scripts/recovery_database.py
       - run: uv run --no-sync python -m scripts.export_voice_contracts --check
       - run: uv run --no-sync python -m scripts.export_agent_contracts --check
       - run: uv run --no-sync python -m scripts.export_dashboard_contracts --check
