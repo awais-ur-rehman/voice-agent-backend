@@ -34,11 +34,20 @@ from scripts.recovery_bundle import (
 
 IMAGE = "pgvector/pgvector:0.8.7-pg16-bookworm@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a"
 LABEL = "voice-agent.recovery"
+SOCKET_DIR = "/var/run/postgresql"
+TMPFS_MIB = {"/var/lib/postgresql/data": 256, SOCKET_DIR: 8, "/tmp": 16}
 TMPFS = {
-    "/var/lib/postgresql/data": "rw,noexec,nosuid,nodev,size=256m,uid=999,gid=999,mode=0700",
-    "/var/run/postgresql": "rw,noexec,nosuid,nodev,size=8m,uid=999,gid=999,mode=0700",
-    "/tmp": "rw,noexec,nosuid,nodev,size=16m,uid=999,gid=999,mode=0700",
+    path: f"rw,noexec,nosuid,nodev,size={size}m,uid=999,gid=999,mode=0700"
+    for path, size in TMPFS_MIB.items()
 }
+MOUNT_PROBE = """set -eu
+for path do
+  resolved=$(readlink -f -- "$path")
+  printf '%s %s ' "$path" "$resolved"
+  stat -c '%u:%g:%a' -- "$path"
+  awk -v path="$resolved" '$5 == path { print }' /proc/self/mountinfo
+done
+"""
 FILE_LIMITS = {
     "database.dump": MAX_DUMP,
     "roles.sql": MAX_ROLES,
@@ -58,7 +67,10 @@ INSPECT_FIELDS = {
     "ports": ".NetworkSettings.Ports",
     "bindings": ".HostConfig.PortBindings",
     "mounts": ".Mounts",
-    "tmpfs": ".HostConfig.Tmpfs",
+    "bind_mounts": '(index .HostConfig "Binds")',
+    "declared_mounts": '(index .HostConfig "Mounts")',
+    # Docker omits this key for containers without tmpfs; targets still require the exact map.
+    "tmpfs": '(index .HostConfig "Tmpfs")',
     "memory": ".HostConfig.Memory",
     "swap": ".HostConfig.MemorySwap",
     "nanocpus": ".HostConfig.NanoCpus",
@@ -151,11 +163,21 @@ def validate_target(info, cid, token, image_id):
         and all(value is None for value in (info["ports"] or {}).values()),
         "restore network isolation",
     )
+    mounts = info["mounts"]
     require(
         info["tmpfs"] == TMPFS
-        and len(info["mounts"]) == len(TMPFS)
-        and {item["Destination"] for item in info["mounts"]} == set(TMPFS)
-        and all(item["Type"] == "tmpfs" for item in info["mounts"]),
+        and info["bind_mounts"] in (None, [])
+        and info["declared_mounts"] in (None, [])
+        and isinstance(mounts, list)
+        # Docker may omit CLI --tmpfs entries here; verify kernel mounts after start.
+        and (
+            not mounts
+            or (
+                len(mounts) == len(TMPFS)
+                and {item["Destination"] for item in mounts} == set(TMPFS)
+                and all(item["Type"] == "tmpfs" for item in mounts)
+            )
+        ),
         "restore storage isolation",
     )
     require(
@@ -175,6 +197,56 @@ def validate_target(info, cid, token, image_id):
         and info["ipcmode"] == "private",
         "restore process isolation",
     )
+
+
+def verify_target_mounts(runner, cid, *, allow_socket_bootstrap_mode=False):
+    lines = (
+        runner.run(
+            ["docker", "exec", cid, "sh", "-ec", MOUNT_PROBE, "recovery-mount-check", *TMPFS],
+            limit=8192,
+        )
+        .decode()
+        .splitlines()
+    )
+    reason = "restore runtime storage isolation"
+    require(len(lines) == 2 * len(TMPFS), reason)
+    devices = set()
+    reset_socket_mode = False
+    for (path, size), directory, mount in zip(
+        TMPFS_MIB.items(), lines[::2], lines[1::2], strict=True
+    ):
+        path_info = directory.split()
+        require(len(path_info) == 3 and path_info[0] == path, reason)
+        resolved, owner_mode = path_info[1:]
+        require(resolved == path or (path == SOCKET_DIR and resolved == "/run/postgresql"), reason)
+        bootstrap_mode = (
+            path == SOCKET_DIR and allow_socket_bootstrap_mode and owner_mode == "999:999:3775"
+        )
+        require(owner_mode == "999:999:700" or bootstrap_mode, reason)
+        reset_socket_mode |= bootstrap_mode
+
+        before, separator, after = mount.partition(" - ")
+        fields, filesystem = before.split(), after.split()
+        require(
+            bool(separator)
+            and len(fields) >= 6
+            and len(filesystem) == 3
+            and fields[3:5] == ["/", resolved]
+            and filesystem[:2] == ["tmpfs", "tmpfs"],
+            reason,
+        )
+        device = fields[2]
+        require(
+            re.fullmatch(r"0:[1-9][0-9]*", device) is not None and device not in devices, reason
+        )
+        devices.add(device)
+        require(
+            {"rw", "noexec", "nosuid", "nodev"} <= set(fields[5].split(","))
+            and {"rw", f"size={size * 1024}k", "mode=700", "uid=999", "gid=999"}
+            <= set(filesystem[2].split(",")),
+            reason,
+        )
+    return reset_socket_mode
 
 
 def seal_bundle(bundle, receipt, secret, *, observations=None):
@@ -549,7 +621,7 @@ def resource_admission(runner):
     require(total - used >= 1024**3, "Docker memory headroom")
 
 
-def target_state(runner, cid, user):
+def target_state(runner, cid, user, expected):
     from scripts.recovery_database import database_state, role_state
 
     def query(statement):
@@ -557,6 +629,30 @@ def target_state(runner, cid, user):
 
     state = database_state(query)
     state["roles"] = role_state(query, exclude=user)
+    if state["tables"] != expected["tables"]:
+        # pg_dump can omit an explicit owner-only ACL equal to the built-in default.
+        # Compare only that representation, using the actual target table and owner.
+        defaults = query(
+            "SELECT COALESCE(jsonb_object_agg(c.relname, jsonb_build_object("
+            "'owner', pg_catalog.pg_get_userbyid(c.relowner), "
+            "'acl', pg_catalog.acldefault('r', c.relowner))), '{}'::jsonb) "
+            "FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace "
+            "WHERE n.nspname='public' AND c.relkind IN ('r','p') AND c.relacl IS NULL"
+        )
+        saved_tables = {table["name"]: table for table in expected["tables"]}
+        for table in state["tables"]:
+            saved = saved_tables.get(table["name"])
+            default = defaults.get(table["name"])
+            if (
+                table["acl"] is None
+                and saved is not None
+                and default is not None
+                and saved["owner"] == table["owner"] == default["owner"]
+                and isinstance(saved["acl"], list)
+                and len(saved["acl"]) == 1
+                and saved["acl"] == default["acl"]
+            ):
+                table["acl"] = saved["acl"]
     return state
 
 
@@ -650,6 +746,7 @@ def drill(verified, scratch_parent, secret, runner):
         cid = created  # Never assign a name/preexisting id; only a successful create result.
         validate_target(inspect(runner, cid), cid, token, image_id)
         runner.run(["docker", "start", cid])
+        verify_target_mounts(runner, cid, allow_socket_bootstrap_mode=True)
         deadline = time.monotonic() + 30
         while True:
             try:
@@ -671,9 +768,14 @@ def drill(verified, scratch_parent, secret, runner):
         info = inspect(runner, cid)
         validate_target(info, cid, token, image_id)
         require(info["running"], "restore target not running")
+        if verify_target_mounts(runner, cid, allow_socket_bootstrap_mode=True):
+            # The pinned PostgreSQL entrypoint sets its socket directory to 03775.
+            runner.run(["docker", "exec", cid, "chmod", "00700", SOCKET_DIR])
+        verify_target_mounts(runner, cid)
         psql(runner, cid, user, user, verified["files"]["roles.sql"])
         # SQL, including psql metacommands and COPY PROGRAM, runs only inside this isolated container.
         validate_target(inspect(runner, cid), cid, token, image_id)
+        verify_target_mounts(runner, cid)
         runner.run(
             [
                 "docker",
@@ -686,15 +788,18 @@ def drill(verified, scratch_parent, secret, runner):
                 "--exit-on-error",
                 "--create",
                 "--use-set-session-authorization",
+                "--no-password",
+                "--host",
+                SOCKET_DIR,
                 "--username",
-                user,
+                "postgres",
                 "--dbname",
                 user,
             ],
             data=verified["files"]["database.dump"],
             timeout=120,
         )
-        state = target_state(runner, cid, user)
+        state = target_state(runner, cid, user, verified["state"])
         require(state == verified["state"], "restored state mismatch")
         check_rls(runner, cid, user, state)
         check_references(state, verified["blobs"], secret)
@@ -709,6 +814,7 @@ def drill(verified, scratch_parent, secret, runner):
                     "restored blob ownership failed",
                 )
         validate_target(inspect(runner, cid), cid, token, image_id)
+        verify_target_mounts(runner, cid)
         return dict(
             status="verified",
             seconds=round(time.monotonic() - started, 3),

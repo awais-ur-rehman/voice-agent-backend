@@ -226,6 +226,8 @@ def target_info(m, token="a" * 32, cid="b" * 64):
         ports={},
         bindings={},
         mounts=[{"Type": "tmpfs", "Destination": p} for p in m.TMPFS],
+        bind_mounts=None,
+        declared_mounts=None,
         tmpfs=m.TMPFS.copy(),
         memory=512 * 1024**2,
         swap=512 * 1024**2,
@@ -252,6 +254,10 @@ def target_info(m, token="a" * 32, cid="b" * 64):
         ("network", "bridge"),
         ("ports", {"5432/tcp": [{"HostPort": "55432"}]}),
         ("bindings", {"5432/tcp": []}),
+        ("bind_mounts", ["/host:/tmp"]),
+        ("declared_mounts", [{"Type": "bind", "Target": "/tmp"}]),
+        ("tmpfs", None),
+        ("tmpfs", {"/tmp": "size=16m"}),
         (
             "mounts",
             [{"Type": "volume", "Name": "owner", "Destination": "/var/lib/postgresql/data"}],
@@ -404,6 +410,25 @@ def source_info(m, service):
     return info
 
 
+def test_docker_inspect_projects_absent_source_tmpfs_as_null():
+    m = operator()
+    db, api = source_info(m, "postgres"), source_info(m, "api")
+    api["id"] = "d" * 64
+    sources = {info["id"]: info for info in (db, api)}
+
+    class SourceDocker:
+        def run(self, argv, *, cleanup):
+            _, _, _, template, container_id = argv
+            # Docker's composite template errors on a direct lookup of an omitted key.
+            assert '(index .HostConfig "Tmpfs")' in template
+            return canonical(dict(sources[container_id], tmpfs=None))
+
+    runner = SourceDocker()
+    projected_db, projected_api = (m.inspect(runner, info["id"]) for info in (db, api))
+    assert projected_db["tmpfs"] is None and projected_api["tmpfs"] is None
+    m.validate_source_containers(projected_db, projected_api, db["image_id"])
+
+
 @pytest.mark.parametrize(
     "attack",
     [
@@ -445,6 +470,20 @@ def test_source_profile_refuses_other_databases_before_connect(attack):
         m.validate_source(db, api, dsn, "sha256:" + "c" * 64)
 
 
+def kernel_mounts(socket_mode="700"):
+    paths = (
+        ("/var/lib/postgresql/data", "/var/lib/postgresql/data", "700", 262144),
+        ("/var/run/postgresql", "/run/postgresql", socket_mode, 8192),
+        ("/tmp", "/tmp", "700", 16384),
+    )
+    return "".join(
+        f"{path} {resolved} 999:999:{mode}\n"
+        f"{i} 1 0:{i} / {resolved} rw,nosuid,nodev,noexec,relatime - "
+        f"tmpfs tmpfs rw,size={size}k,mode=700,uid=999,gid=999\n"
+        for i, (path, resolved, mode, size) in enumerate(paths, start=5)
+    )
+
+
 class FakeDocker:
     def __init__(self, m, *, create_failure=False, restore_failure=False, bad_inspect=False):
         self.m, self.calls = m, []
@@ -455,6 +494,8 @@ class FakeDocker:
         )
         self.token = None
         self.cid = "b" * 64
+        self.reported_mounts = None
+        self.mount_proof = kernel_mounts()
 
     def run(self, argv, *, data=None, **kwargs):
         self.calls.append((argv, data, kwargs))
@@ -482,11 +523,18 @@ class FakeDocker:
             info = target_info(self.m, self.token, self.cid)
             if self.bad_inspect:
                 info["network"] = "bridge"
+            if self.reported_mounts is not None:
+                info["mounts"] = self.reported_mounts
             return canonical(info)
         if argv[1] in {"start", "rm"}:
             return b""
         if argv[1] == "exec":
             assert self.cid in argv
+            if argv[3] == "sh":
+                return self.mount_proof.encode()
+            if argv[3:] == ["chmod", "00700", "/var/run/postgresql"]:
+                self.mount_proof = kernel_mounts()
+                return b""
             if "pg_isready" in argv:
                 return b""
             if "psql" in argv:
@@ -502,6 +550,9 @@ class FakeDocker:
             if "pg_restore" in argv:
                 assert data == b"PGDMP-synthetic"
                 assert "--create" in argv and "--clean" not in argv
+                assert argv[argv.index("--username") + 1] == "postgres"
+                assert argv[argv.index("--host") + 1] == "/var/run/postgresql"
+                assert argv[argv.index("--dbname") + 1] == "recovery_" + self.token
                 return b""
         raise AssertionError(argv)
 
@@ -522,6 +573,97 @@ def test_drill_streams_unchanged_roles_dump_and_cleans_created_id(tmp_path, monk
     assert fake.calls[-1][0] == ["docker", "rm", "--force", fake.cid]
     assert fake.calls[-1][2]["cleanup"] is True
     assert not list(tmp_path.glob("voice-recovery-*"))
+
+
+@pytest.mark.parametrize(
+    "difference",
+    ["default", "added_grant", "missing_privilege", "target_acl", "owner", "unknown", "malformed"],
+)
+def test_restored_table_acl_only_accepts_the_same_builtin_default(monkeypatch, difference):
+    m = operator()
+    from scripts import recovery_database
+
+    owner_acl = ["postgres=arwdDxt/postgres"]
+    saved_table = dict(name="admission_buckets", owner="postgres", acl=owner_acl.copy())
+    actual_table = dict(saved_table, acl=None)
+    defaults = {"admission_buckets": {"owner": "postgres", "acl": owner_acl.copy()}}
+    if difference == "added_grant":
+        saved_table["acl"].append("scheduler_app=r/postgres")
+    elif difference == "missing_privilege":
+        saved_table["acl"] = ["postgres=r/postgres"]
+    elif difference == "target_acl":
+        actual_table["acl"] = ["postgres=r/postgres"]
+    elif difference == "owner":
+        defaults["admission_buckets"]["owner"] = "other_role"
+    elif difference == "unknown":
+        defaults.clear()
+    elif difference == "malformed":
+        saved_table["acl"] = owner_acl[0]
+    saved = {"tables": [saved_table], "roles": {}}
+    actual = {"tables": [actual_table]}
+    saved_bytes = canonical(saved)
+    monkeypatch.setattr(recovery_database, "database_state", lambda query: actual)
+    monkeypatch.setattr(recovery_database, "role_state", lambda query, exclude: {})
+
+    def project_default(runner, cid, user, db, sql):
+        assert db == "voice_agent"
+        assert "pg_catalog.acldefault('r', c.relowner)" in sql
+        assert "c.relkind IN ('r','p')" in sql and "c.relacl IS NULL" in sql
+        return canonical(defaults)
+
+    monkeypatch.setattr(m, "psql", project_default)
+    compared = m.target_state(None, "b" * 64, "recovery_" + "a" * 32, saved)
+    assert (compared == saved) is (difference == "default")
+    assert canonical(saved) == saved_bytes
+
+
+def test_drill_proves_kernel_mounts_when_docker_omits_tmpfs_descriptors(tmp_path, monkeypatch):
+    m = operator()
+    bundle, expected, _ = bundle_fixture(tmp_path)
+    verified = m.verify_bundle(bundle, expected, SECRET, allowed=True)
+    fake = FakeDocker(m)
+    fake.reported_mounts = []
+    fake.mount_proof = kernel_mounts(socket_mode="3775")
+    monkeypatch.setattr(m, "resource_admission", lambda runner: None)
+    monkeypatch.setattr(m, "target_state", lambda *args: verified["state"])
+    monkeypatch.setattr(m, "check_rls", lambda *args: None)
+    assert m.drill(verified, tmp_path, SECRET, fake)["status"] == "verified"
+    mode_fix = ["docker", "exec", fake.cid, "chmod", "00700", "/var/run/postgresql"]
+    args = [argv for argv, _, _ in fake.calls]
+    assert args.count(mode_fix) == 1
+    roles = next(i for i, (_, data, _) in enumerate(fake.calls) if data == b"CREATE ROLE postgres;")
+    assert args.index(mode_fix) < roles
+    assert any(argv[:4] == ["docker", "exec", fake.cid, "sh"] for argv in args[roles + 1 :])
+
+
+@pytest.mark.parametrize(
+    "bad_proof",
+    [
+        kernel_mounts().splitlines()[0],
+        kernel_mounts() + kernel_mounts().splitlines()[1],
+        kernel_mounts().replace("/run/postgresql", "/unrelated/postgresql"),
+        kernel_mounts().replace("noexec,", "", 1),
+        kernel_mounts().replace("0:6", "0:5"),
+        kernel_mounts().replace("size=8192k", "size=8193k"),
+        kernel_mounts().replace("tmpfs tmpfs", "ext4 tmpfs", 1),
+        kernel_mounts().replace("999:999:700", "0:999:700", 1),
+        kernel_mounts().replace("999:999:700", "999:999:777", 1),
+    ],
+    ids=["missing", "extra", "path", "flags", "device", "size", "type", "owner", "mode"],
+)
+def test_drill_rejects_unsafe_kernel_mounts_before_any_sql(tmp_path, monkeypatch, bad_proof):
+    m = operator()
+    bundle, expected, _ = bundle_fixture(tmp_path)
+    verified = m.verify_bundle(bundle, expected, SECRET, allowed=True)
+    fake = FakeDocker(m)
+    fake.mount_proof = bad_proof
+    monkeypatch.setattr(m, "resource_admission", lambda runner: None)
+    monkeypatch.setattr(m, "target_state", lambda *args: verified["state"])
+    monkeypatch.setattr(m, "check_rls", lambda *args: None)
+    with pytest.raises(m.RecoveryError, match="restore runtime storage isolation"):
+        m.drill(verified, tmp_path, SECRET, fake)
+    assert not any("psql" in argv or "pg_restore" in argv for argv, _, _ in fake.calls)
+    assert fake.calls[-1][0] == ["docker", "rm", "--force", fake.cid]
 
 
 @pytest.mark.parametrize("failure", ["create", "restore", "inspect"])
