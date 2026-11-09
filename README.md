@@ -4,6 +4,8 @@ Phase 4 adds clinic registration, settings, scheduling and patient projections, 
 
 The staff API retains authentication, tenant isolation, scheduling configuration, slot generation, and transactional booking/rescheduling/cancellation. The separate `evaluation/` package retains the synthetic CPU-only Phase 0 evidence.
 
+Phase 7 adds bounded provider routing, HTTP admission, and private local recovery. See the [owner checkpoint](docs/phase-7-testing.md), [rollout runbook](docs/phase-7-runbook.md), and [local results](docs/phase-7-results.md).
+
 ## Phase 1 quick start
 
 Requires Docker Desktop, uv and Python 3.12. From this backend directory:
