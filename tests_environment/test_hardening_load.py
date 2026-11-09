@@ -160,3 +160,65 @@ def test_socket_fence_allows_only_fixed_cache_address():
     with pytest.raises(RuntimeError, match="External transport is disabled"):
         offline.audit_socket("socket.getaddrinfo", ("provider.invalid", 443))
     assert offline.external_attempts == 2
+
+
+@pytest.fixture
+def qualifying_workloads():
+    groups = {
+        name: {"peak_admitted_in_flight": 20}
+        for name in (
+            "slot_search",
+            "information_original",
+            "information_replay",
+            "successful_booking",
+            "slot_contention",
+        )
+    }
+    for name in ("slot_search", "successful_booking"):
+        groups[name]["p95_under_target"] = True
+    return groups
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "slot_search",
+        "information_original",
+        "information_replay",
+        "successful_booking",
+        "slot_contention",
+    ],
+)
+@pytest.mark.parametrize("peak", [1, "missing", None, "20", 20.0, 21])
+def test_qualification_rejects_insufficient_or_invalid_observed_overlap(
+    qualifying_workloads, name, peak
+):
+    from scripts.hardening_load_workloads import qualification_result
+
+    if peak == "missing":
+        del qualifying_workloads[name]["peak_admitted_in_flight"]
+    else:
+        qualifying_workloads[name]["peak_admitted_in_flight"] = peak
+    assert qualification_result(load.Profile(), qualifying_workloads, correctness=True) is False
+
+
+def test_qualification_checks_correctness_and_excludes_auxiliary_groups(qualifying_workloads):
+    from scripts.hardening_load_workloads import qualification_result
+
+    qualifying_workloads["warmup_booking"] = {"peak_admitted_in_flight": 1}
+    qualifying_workloads["contention_winner_replay"] = {"peak_admitted_in_flight": 1}
+    assert qualification_result(load.Profile(), qualifying_workloads, correctness=True) is True
+    assert qualification_result(load.Profile(), qualifying_workloads, correctness=False) is False
+    assert (
+        qualification_result(load.Profile(19, 30), qualifying_workloads, correctness=True) is None
+    )
+    assert (
+        qualification_result(load.Profile(20, 29), qualifying_workloads, correctness=True) is None
+    )
+
+
+def test_qualification_rejects_missing_group(qualifying_workloads):
+    from scripts.hardening_load_workloads import qualification_result
+
+    del qualifying_workloads["information_replay"]
+    assert qualification_result(load.Profile(), qualifying_workloads, correctness=True) is False

@@ -571,6 +571,30 @@ def persisted(db: Session, profile: Profile, winner: int | None) -> dict:
     }
 
 
+def qualification_result(profile: Profile, groups: dict, *, correctness: bool) -> bool | None:
+    if not profile.qualifying:
+        return None
+    if not correctness:
+        return False
+    for name in (
+        "slot_search",
+        "information_original",
+        "information_replay",
+        "successful_booking",
+        "slot_contention",
+    ):
+        group = groups.get(name)
+        if not isinstance(group, dict):
+            return False
+        admitted_peak = group.get("peak_admitted_in_flight")
+        if type(admitted_peak) is not int or admitted_peak != profile.clients:
+            return False
+    return all(
+        groups[name].get("p95_under_target") is True
+        for name in ("slot_search", "successful_booking")
+    )
+
+
 def run(profile: Profile) -> dict:
     context = source_context()
     settings = Settings(
@@ -646,9 +670,6 @@ def run(profile: Profile) -> dict:
         and all(value for value in sql.values() if isinstance(value, bool))
         and adapters.plan_calls == adapters.external_attempts == 0
     )
-    qualified = correctness and all(
-        groups[name]["p95_under_target"] for name in ("slot_search", "successful_booking")
-    )
     return {
         "schema": SCHEMA,
         "runtime": context
@@ -667,7 +688,7 @@ def run(profile: Profile) -> dict:
         },
         "workloads": groups,
         "correctness": correctness,
-        "qualification": qualified if profile.qualifying else None,
+        "qualification": qualification_result(profile, groups, correctness=correctness),
         "persistence": sql | {"race_winner_replay_exact": race_replay},
         "adapters": {
             "planner_calls": adapters.plan_calls,
